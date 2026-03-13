@@ -1,45 +1,151 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+		 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
+
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>4.0.3</version>
-		<relativePath/> <!-- lookup parent from repository -->
+		<version>3.3.2</version> <!-- Versión estable compatible con Java 17 -->
+		<relativePath/>
 	</parent>
+
 	<groupId>com.syntia</groupId>
 	<artifactId>syntia-ia</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>syntia-ia</name>
 	<description>Aplicación web de recomendaciones de subvenciones con motor de IA integrado.</description>
-	<url/>
-	<licenses>
-		<license/>
-	</licenses>
-	<developers>
-		<developer/>
-	</developers>
-	<scm>
-		<connection/>
-		<developerConnection/>
-		<tag/>
-		<url/>
-	</scm>
+
 	<properties>
 		<java.version>17</java.version>
+		<jjwt.version>0.12.6</jjwt.version>
 	</properties>
+
 	<dependencies>
+
+		<!-- =================== CORE / WEB =================== -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter</artifactId>
+			<artifactId>spring-boot-starter-web</artifactId>
+			<!-- Para crear APIs REST y web services -->
 		</dependency>
 
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-devtools</artifactId>
+			<scope>runtime</scope>
+			<optional>true</optional>
+			<!-- Recarga automática durante desarrollo -->
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-configuration-processor</artifactId>
+			<optional>true</optional>
+			<!-- Autocompletado de properties en IDE -->
+		</dependency>
+
+		<!-- =================== PERSISTENCIA =================== -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-jpa</artifactId>
+			<!-- JPA + Hibernate para DB relacionales -->
+		</dependency>
+
+		<dependency>
+			<groupId>org.postgresql</groupId>
+			<artifactId>postgresql</artifactId>
+			<version>42.6.0</version>
+			<scope>runtime</scope>
+			<!-- Driver PostgreSQL para producción -->
+		</dependency>
+		<dependency>
+			<groupId>com.h2database</groupId>
+			<artifactId>h2</artifactId>
+			<scope>test</scope>
+			<!-- Base embebida para levantar contexto en tests sin PostgreSQL local -->
+		</dependency>
+
+		<!-- =================== VALIDACION =================== -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-validation</artifactId>
+			<!-- Bean Validation para DTOs en endpoints REST -->
+		</dependency>
+
+		<!-- =================== SEGURIDAD =================== -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+			<!-- Spring Security básico -->
+		</dependency>
+
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-api</artifactId>
+			<version>${jjwt.version}</version>
+			<!-- API JWT para generación y validación de tokens -->
+		</dependency>
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-impl</artifactId>
+			<version>${jjwt.version}</version>
+			<scope>runtime</scope>
+		</dependency>
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-jackson</artifactId>
+			<version>${jjwt.version}</version>
+			<scope>runtime</scope>
+		</dependency>
+
+		<!-- =================== DOCUMENTACIÓN =================== -->
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>2.2.0</version>
+			<!-- Documentación automática de APIs REST (Swagger UI) -->
+		</dependency>
+
+		<!-- =================== UTILIDADES =================== -->
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<optional>true</optional>
+			<!-- Reduce boilerplate: getters, setters, constructores -->
+		</dependency>
+
+		<dependency>
+			<groupId>org.modelmapper</groupId>
+			<artifactId>modelmapper</artifactId>
+			<version>3.1.1</version>
+			<!-- Mapeo entre DTOs y entidades -->
+		</dependency>
+
+		<!-- =================== TEST =================== -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
+			<!-- Incluye JUnit, Mockito, Hamcrest -->
 		</dependency>
+
+		<dependency>
+			<groupId>io.rest-assured</groupId>
+			<artifactId>rest-assured</artifactId>
+			<scope>test</scope>
+			<!-- Testing de APIs REST -->
+		</dependency>
+
+		<!-- =================== MONITORIZACIÓN =================== -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+			<!-- Métricas, health check, monitorización -->
+		</dependency>
+
 	</dependencies>
 
 	<build>
