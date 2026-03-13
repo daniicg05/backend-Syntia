@@ -10,4 +10,5 @@ public class SyntiaIaApplication {
 		SpringApplication.run(SyntiaIaApplication.class, args);
 	}
 
+
 }
