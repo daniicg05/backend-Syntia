@@ -25,6 +25,7 @@ public record FiltrosBdns(
         String nivel1,
         String nivel2) {
 
+
     /**
      * Indica si existe al menos un criterio de filtrado informado.
      *
