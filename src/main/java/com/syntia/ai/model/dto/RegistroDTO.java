@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
+
 /**
  * DTO (Data Transfer Object) para el registro de usuarios.
  *
@@ -40,7 +41,6 @@ public class RegistroDTO {
     @NotBlank(message = "El email es obligatorio")
     @Email(message = "El email debe tener un formato válido")
     private String email;
-
 
     /**
      * Contraseña principal del usuario.
