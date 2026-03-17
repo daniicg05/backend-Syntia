@@ -1,4 +1,4 @@
-package com.syntia.ai.controller;
+package com.syntia.ai.controller.api;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.boot.web.servlet.error.ErrorController;
