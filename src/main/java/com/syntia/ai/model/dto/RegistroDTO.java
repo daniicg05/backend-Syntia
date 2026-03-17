@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
+
 /**
  * DTO (Data Transfer Object) para el registro de usuarios.
  *
