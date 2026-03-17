@@ -1,4 +1,4 @@
-package com.syntia.ai.controller;
+package com.syntia.ai.controller.api;
 
 import com.syntia.ai.model.ErrorResponse;
 import com.syntia.ai.model.Perfil;
