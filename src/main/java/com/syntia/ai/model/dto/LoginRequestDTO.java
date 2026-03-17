@@ -4,7 +4,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 
 public class LoginRequestDTO {
-    @NotBlank(message =  = "El email es obligatorio")
+    @NotBlank(message = "El email es obligatorio")
     @Email(message = "Formato de email inválido")
     private String email;
 
