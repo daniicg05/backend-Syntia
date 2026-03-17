@@ -41,7 +41,6 @@ public class RegistroDTO {
     @Email(message = "El email debe tener un formato válido")
     private String email;
 
-
     /**
      * Contraseña principal del usuario.
      *
