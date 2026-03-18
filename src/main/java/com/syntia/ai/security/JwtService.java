@@ -21,7 +21,7 @@ import java.util.function.Function;
  * Diseñado para API REST con autenticación stateless.
  */
 @Service
-public class JWTService {
+public class JwtService {
 
     @Value("${jwt.secret}")
     private String secretKey;
