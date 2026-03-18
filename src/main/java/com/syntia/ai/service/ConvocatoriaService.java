@@ -1,8 +1,9 @@
-package com.syntia.mvp.service;
+package com.syntia.ai.service;
 
 import com.syntia.ai.model.Convocatoria;
 import com.syntia.ai.model.dto.ConvocatoriaDTO;
 import com.syntia.ai.repository.ConvocatoriaRepository;
+import com.syntia.ai.service.BdnsClientService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
