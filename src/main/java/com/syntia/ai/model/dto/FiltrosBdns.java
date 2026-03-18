@@ -55,7 +55,7 @@ public record FiltrosBdns(
      *
      * @return nueva instancia con `descripcion = null`
      */
-    public FiltrosBdns sinDescripción() {
+    public FiltrosBdns sinDescripcion() {
         return new FiltrosBdns(null, nivel1, nivel2);
     }
 
