@@ -1,11 +1,14 @@
 package com.syntia.ai.model;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import lombok.*;
 
 import javax.annotation.processing.Generated;
+import java.time.LocalDateTime;
+
 /**
  * Entidad JPA que representa un usuario dentro del sistema.
  *
@@ -19,6 +22,12 @@ import javax.annotation.processing.Generated;
  * </ul>
  */
 @Entity
+@Table(name = "usuarios")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Usuario {
 
     /**
@@ -30,19 +39,55 @@ public class Usuario {
      */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id", updatable = false, nullable = false)
     private Long id;
-
-    /**
-     * Nombre del usuario.
-     *
-     * <p>Representa el nombre visible o principal del usuario.</p>
-     */
-    private String nombre;
 
     /**
      * Correo electrónico del usuario.
      *
-     * <p>Se recomienda garantizar unicidad y formato válido desde capa de validación * o mediante restricciones de base de datos.</p>
+     * <p>Se recomienda garantizar unicidad y formato válido desde capa de validación
+     * o mediante restricciones de base de datos.</p>
      */
+    @NotBlank(message = "El email es obligatorio")
+    @Email(message = "El email debe tener un formato válido")
+    @Column(unique = true, nullable = false)
     private String email;
+
+    /**
+     * Contraseña del usuario almacenada en formato seguro \(hash\).
+     *
+     * <p>Se persiste en la columna `password_hash` y es un dato obligatorio.</p>
+     */
+    @NotBlank(message = "La contraseña es obligatoria")
+    @Column(name = "password_hash", nullable = false)
+    private String password;
+
+    /**
+     * Rol asignado al usuario dentro del sistema.
+     *
+     * <p>Se guarda como texto en base de datos usando `EnumType.STRING`
+     * para mejorar legibilidad y evitar dependencias por posición ordinal.</p>
+     */
+    @NotNull(message = "El rol es obligatorio")
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Rol rol;
+
+    /**
+     * Fecha y hora de creación del registro.
+     *
+     * <p>Se establece automáticamente al persistir por primera vez y no es actualizable.</p>
+     */
+    @Column(name = "creado_en", nullable = false, updatable = false)
+    private LocalDateTime creadoEn;
+
+    /**
+     * Callback ejecutado antes de persistir la entidad por primera vez.
+     *
+     * <p>Inicializa `creadoEn` con la fecha y hora actual del sistema.</p>
+     */
+    @PrePersist
+    protected void onCreate() {
+        this.creadoEn = LocalDateTime.now();
+    }
 }
