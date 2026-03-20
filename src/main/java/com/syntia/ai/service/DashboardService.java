@@ -28,6 +28,15 @@ public class DashboardService {
     }
 
     /**
+     * Convierte el String (fechaCierre) a LocalDate para poder usar métodos de fecha.
+     * Se asume formato ISO: yyyy-MM-dd (compatible con LocalDate.parse).
+     * Si la fecha es null, devuelve null para evitar errores en el flujo.
+     */
+    private LocalDate parseFecha(String fecha) {
+        return (fecha != null) ? LocalDate.parse(fecha) : null;
+    }
+
+    /**
      * Devuelve el top de recomendaciones por proyecto en formato REST.
      *
      * @param usuarioId ID del usuario autenticado
@@ -70,16 +79,28 @@ public class DashboardService {
             List<RecomendacionDTO> recs = recomendacionService.obtenerPorProyecto(proyecto.getId());
 
             for (RecomendacionDTO rec : recs) {
-                if (rec.getFechaCierre() != null && !rec.getFechaCierre().isBefore(hoy)) {
+
+                LocalDate fecha = parseFecha(rec.getFechaCierre());
+                /**
+                 * Se convierte el String a LocalDate antes de comparar con la fecha actual.
+                 * isBefore solo existe en LocalDate, no en String.
+                 * Permite comparar fechas reales y evita errores de compilación.
+                 */
+                if (fecha != null && !fecha.isBefore(hoy)) {
                     conFecha.add(new RoadmapItem(proyectoResumen, rec));
-                } else if (rec.getFechaCierre() == null) {
+                } else if (fecha == null) {
                     sinFecha.add(new RoadmapItem(proyectoResumen, rec));
                 }
                 // Fechas pasadas: se ignoran
             }
         }
 
-        conFecha.sort(Comparator.comparing(item -> item.recomendacion().getFechaCierre()));
+        /**
+         * Se convierte cada fecha de String a LocalDate antes de ordenar.
+         * Garantiza un orden cronológico correcto (no alfabético).
+         * Evita errores al comparar fechas como texto.
+         */
+        conFecha.sort(Comparator.comparing( item -> parseFecha(item.recomendacion().getFechaCierre())));
         sinFecha.sort((a, b) -> Integer.compare(
                 b.recomendacion().getPuntuacion(),
                 a.recomendacion().getPuntuacion()));
