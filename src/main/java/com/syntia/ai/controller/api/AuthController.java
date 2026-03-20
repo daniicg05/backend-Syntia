@@ -5,7 +5,7 @@ import com.syntia.ai.model.Usuario;
 import com.syntia.ai.model.dto.LoginRequestDTO;
 import com.syntia.ai.model.dto.LoginResponseDTO;
 import com.syntia.ai.model.dto.RegistroDTO;
-import com.syntia.ai.security.JWTService;
+import com.syntia.ai.security.JwtService;
 import com.syntia.ai.service.DashboardService;
 import com.syntia.ai.service.UsuarioService;
 import jakarta.validation.Valid;
@@ -32,7 +32,7 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthenticationManager authenticationManager;
-    private final JWTService jwtService;
+    private final JwtService jwtService;
     private final UsuarioService usuarioService;
     private final DashboardService dashboardService;
 
@@ -40,7 +40,7 @@ public class AuthController {
     private long jwtExpiration;
 
     public AuthController(AuthenticationManager authenticationManager,
-                          JWTService jwtService,
+                          JwtService jwtService,
                           UsuarioService usuarioService,
                           DashboardService dashboardService) {
         this.authenticationManager = authenticationManager;
