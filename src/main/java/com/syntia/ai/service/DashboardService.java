@@ -108,7 +108,7 @@ public class DashboardService {
     }
 
     /**
-     * DTO mínimo de  proyecto para respuestas REST del dashboard.
+     * DTO mínimo de proyecto para respuestas REST del dashboard.
      */
     public record ProyectoResumen(
             Long id,
