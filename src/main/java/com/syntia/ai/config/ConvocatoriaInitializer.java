@@ -1,6 +1,6 @@
 package com.syntia.ai.config;
 
-import com.syntia.mvp.service.ConvocatoriaService;
+import com.syntia.ai.service.ConvocatoriaService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
