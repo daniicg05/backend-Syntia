@@ -97,10 +97,11 @@ public class AdminController {
         ));
     }
 
-    @PostMapping("/usuarios/{id}/rol")
+    @PutMapping("/usuarios/{id}/rol")
     public ResponseEntity<?> cambiarRol(@PathVariable Long id,
-                                        @RequestParam Rol rol,
+                                        @RequestBody Map<String, String> body,
                                         Authentication authentication) {
+        Rol rol = Rol.valueOf(body.get("rol"));
         Usuario admin = resolverUsuario(authentication);
         if (admin.getId().equals(id)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
@@ -110,7 +111,7 @@ public class AdminController {
         return ResponseEntity.ok(Map.of("message", "Rol actualizado correctamente."));
     }
 
-    @PostMapping("/usuarios/{id}/eliminar")
+    @DeleteMapping("/usuarios/{id}")
     public ResponseEntity<?> eliminarUsuario(@PathVariable Long id,
                                              Authentication authentication) {
         Usuario admin = resolverUsuario(authentication);

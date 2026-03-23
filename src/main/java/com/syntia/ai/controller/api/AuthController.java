@@ -89,8 +89,13 @@ public class AuthController {
                     .body(Map.of("error", e.getMessage()));
         }
 
+        Usuario usuarioCreado = usuarioService.buscarPorEmail(dto.getEmail())
+                .orElseThrow(() -> new IllegalStateException("Usuario no encontrado tras registro"));
+
+        String token = jwtService.generarToken(usuarioCreado.getEmail(), usuarioCreado.getRol().name());
+
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(Map.of("message", "Usuario registrado correctamente"));
+                .body(new LoginResponseDTO(token, usuarioCreado.getEmail(), usuarioCreado.getRol().name(), jwtExpiration));
     }
 
     // ==========================
