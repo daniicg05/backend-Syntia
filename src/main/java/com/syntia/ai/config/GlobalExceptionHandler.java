@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
  * Manejador global de excepciones para controladores REST (/api/**).
  * Devuelve respuestas JSON estandarizadas con ErrorResponse.
  */
-@RestControllerAdvice(basePackages = "com.syntia.mvp.controller.api")
+@RestControllerAdvice(basePackages = "com.syntia.ai.controller.api")
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(EntityNotFoundException.class)
