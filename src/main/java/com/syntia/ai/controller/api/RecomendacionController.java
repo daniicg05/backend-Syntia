@@ -8,12 +8,14 @@ import com.syntia.ai.model.Usuario;
 import com.syntia.ai.model.dto.GuiaSubvencionDTO;
 import com.syntia.ai.model.dto.RecomendacionDTO;
 import com.syntia.ai.service.BdnsClientService;
+import com.syntia.ai.service.BusquedaRapidaService;
 import com.syntia.ai.service.MotorMatchingService;
 import com.syntia.ai.service.OpenAiGuiaService;
 import com.syntia.ai.service.PerfilService;
 import com.syntia.ai.service.ProyectoService;
 import com.syntia.ai.service.RecomendacionService;
 import com.syntia.ai.service.UsuarioService;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -23,9 +25,12 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @RestController
 @RequestMapping("/api/usuario/proyectos/{proyectoId}/recomendaciones")
@@ -36,6 +41,7 @@ public class RecomendacionController {
     private final MotorMatchingService motorMatchingService;
     private final OpenAiGuiaService openAiGuiaService;
     private final BdnsClientService bdnsClientService;
+    private final BusquedaRapidaService busquedaRapidaService;
     private final ProyectoService proyectoService;
     private final PerfilService perfilService;
     private final UsuarioService usuarioService;
@@ -44,6 +50,7 @@ public class RecomendacionController {
                                    MotorMatchingService motorMatchingService,
                                    OpenAiGuiaService openAiGuiaService,
                                    BdnsClientService bdnsClientService,
+                                   BusquedaRapidaService busquedaRapidaService,
                                    ProyectoService proyectoService,
                                    PerfilService perfilService,
                                    UsuarioService usuarioService) {
@@ -51,6 +58,7 @@ public class RecomendacionController {
         this.motorMatchingService = motorMatchingService;
         this.openAiGuiaService = openAiGuiaService;
         this.bdnsClientService = bdnsClientService;
+        this.busquedaRapidaService = busquedaRapidaService;
         this.proyectoService = proyectoService;
         this.perfilService = perfilService;
         this.usuarioService = usuarioService;
@@ -117,6 +125,27 @@ public class RecomendacionController {
         recomendacionService.actualizarGuiaEnriquecida(recId, openAiGuiaService.serializarGuia(guia));
 
         return ResponseEntity.ok(guia);
+    }
+
+    @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter stream(@PathVariable Long proyectoId, Authentication authentication) {
+        Usuario usuario = resolverUsuario(authentication);
+        Proyecto proyecto = proyectoService.obtenerPorId(proyectoId, usuario.getId());
+
+        SseEmitter emitter = new SseEmitter(300_000L);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        executor.submit(() -> {
+            try {
+                busquedaRapidaService.buscarYGuardarCandidatas(proyecto);
+                motorMatchingService.generarRecomendacionesStream(proyecto, emitter);
+                emitter.complete();
+            } catch (Exception e) {
+                emitter.completeWithError(e);
+            } finally {
+                executor.shutdown();
+            }
+        });
+        return emitter;
     }
 
     private Usuario resolverUsuario(Authentication authentication) {

@@ -92,7 +92,7 @@ public class AdminController {
                 ));
         return ResponseEntity.ok(Map.of(
                 "usuarioDetalle", usuario,
-                "proyectos", proyectos,
+                "proyectos", proyectos.stream().map(proyectoService::toDTO).toList(),
                 "recsPerProyecto", recsPerProyecto
         ));
     }

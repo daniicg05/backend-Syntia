@@ -138,6 +138,7 @@ public class ProyectoService {
 
         /** Mapeo manual para transferir solo datos necesarios hacia capa web. */
         ProyectoDTO dto = new ProyectoDTO();
+        dto.setId(proyecto.getId());
         dto.setNombre(proyecto.getNombre());
         dto.setSector(proyecto.getSector());
         dto.setUbicacion(proyecto.getUbicacion());
