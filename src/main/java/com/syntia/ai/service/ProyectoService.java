@@ -4,6 +4,7 @@ import com.syntia.ai.model.Proyecto;
 import com.syntia.ai.model.Usuario;
 import com.syntia.ai.model.dto.ProyectoDTO;
 import com.syntia.ai.repository.ProyectoRepository;
+import com.syntia.ai.repository.RecomendacionRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -23,10 +24,12 @@ public class ProyectoService {
 
     /** Repositorio para acceso y persistencia de proyectos. */
     private final ProyectoRepository proyectoRepository;
+    private final RecomendacionRepository recomendacionRepository;
 
-    /** Inyección por constructor para asegurar dependencia obligatoria. */
-    public ProyectoService(ProyectoRepository proyectoRepository) {
+    public ProyectoService(ProyectoRepository proyectoRepository,
+                           RecomendacionRepository recomendacionRepository) {
         this.proyectoRepository = proyectoRepository;
+        this.recomendacionRepository = recomendacionRepository;
     }
 
     /**
@@ -119,11 +122,8 @@ public class ProyectoService {
      */
     @Transactional
     public void eliminar(Long id, Long usuarioId) {
-
-        /** Verifica permisos sobre el recurso antes de eliminarlo. */
         Proyecto proyecto = obtenerPorId(id, usuarioId);
-
-        /** Elimina la entidad ya validada. */
+        recomendacionRepository.deleteByProyectoId(id);
         proyectoRepository.delete(proyecto);
     }
 
