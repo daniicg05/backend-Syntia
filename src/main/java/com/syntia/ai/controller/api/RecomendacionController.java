@@ -127,6 +127,25 @@ public class RecomendacionController {
         return ResponseEntity.ok(guia);
     }
 
+    /**
+     * Fase 1 (sin IA): busca convocatorias en BDNS y las guarda como candidatas (usadaIa=false).
+     * Rápido y sin coste de IA. El usuario puede revisar los resultados antes de analizar.
+     */
+    @PostMapping("/buscar")
+    public ResponseEntity<?> buscar(@PathVariable Long proyectoId, Authentication authentication) {
+        Usuario usuario = resolverUsuario(authentication);
+        Proyecto proyecto = proyectoService.obtenerPorId(proyectoId, usuario.getId());
+        int candidatas = busquedaRapidaService.buscarYGuardarCandidatas(proyecto);
+        String mensaje = candidatas > 0
+                ? candidatas + " convocatorias encontradas. Pulsa «Analizar con IA» para puntuar y ordenar."
+                : "No se encontraron convocatorias en BDNS para este proyecto. Prueba a ajustar el sector o la ubicación.";
+        return ResponseEntity.ok(Map.of("candidatas", candidatas, "mensaje", mensaje));
+    }
+
+    /**
+     * Fase 2 (con IA): analiza las candidatas guardadas por /buscar y emite resultados por SSE.
+     * Requiere haber ejecutado /buscar previamente para que existan candidatas (usadaIa=false).
+     */
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter stream(@PathVariable Long proyectoId, Authentication authentication) {
         Usuario usuario = resolverUsuario(authentication);
@@ -136,7 +155,6 @@ public class RecomendacionController {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         executor.submit(() -> {
             try {
-                busquedaRapidaService.buscarYGuardarCandidatas(proyecto);
                 motorMatchingService.generarRecomendacionesStream(proyecto, emitter);
                 emitter.complete();
             } catch (Exception e) {
