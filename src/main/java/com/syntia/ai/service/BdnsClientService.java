@@ -12,6 +12,8 @@ import java.net.HttpURLConnection;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.cert.X509Certificate;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -19,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -42,6 +45,12 @@ public class BdnsClientService {
 
     private static final String BDNS_BUSQUEDA =
             "https://www.infosubvenciones.es/bdnstrans/api/convocatorias/busqueda";
+
+    /** TTL del caché de detalles BDNS: 1 hora. Reduce latencia en guías enriquecidas. */
+    private static final long TTL_DETALLE_MS = 3_600_000L;
+
+    private record CachedDetalle(String texto, Instant savedAt) {}
+    private final ConcurrentHashMap<String, CachedDetalle> cacheDetalle = new ConcurrentHashMap<>();
 
     private final RestClient restClient;
 
@@ -368,6 +377,14 @@ public class BdnsClientService {
      */
     public String obtenerDetalleTexto(String idBdns) {
         if (idBdns == null || idBdns.isBlank()) return null;
+
+        // Comprobar caché (TTL 1 hora)
+        CachedDetalle cached = cacheDetalle.get(idBdns);
+        if (cached != null && Duration.between(cached.savedAt(), Instant.now()).toMillis() < TTL_DETALLE_MS) {
+            log.debug("BDNS detalle id={}: recuperado de caché", idBdns);
+            return cached.texto();
+        }
+
         try {
             @SuppressWarnings("unchecked")
             Map<String, Object> detalle = restClient.get()
@@ -390,7 +407,11 @@ public class BdnsClientService {
 
             String resultado = texto.toString().trim();
             log.debug("BDNS detalle id={}: {} chars extraídos", idBdns, resultado.length());
-            return resultado.isEmpty() ? null : resultado;
+            String valor = resultado.isEmpty() ? null : resultado;
+
+            // Guardar en caché (incluso null para evitar re-intentos innecesarios)
+            cacheDetalle.put(idBdns, new CachedDetalle(valor, Instant.now()));
+            return valor;
 
         } catch (Exception e) {
             log.debug("BDNS detalle no disponible para id={}: {}", idBdns, e.getMessage());

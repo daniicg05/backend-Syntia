@@ -1,30 +1,24 @@
 # Especificaciones Técnicas del Proyecto: Syntia
 
-## Alineación Arquitectónica Vigente (2026-03-13)
+## Stack actual (2026-03-27)
 
-> **Regla de precedencia:** esta sección corrige y sustituye cualquier referencia previa en conflicto dentro del documento.
+| Capa | Tecnología | Estado |
+|------|------------|--------|
+| Backend | Java 17 + Spring Boot 3.3.x + Maven | ✅ Producción |
+| Seguridad | Spring Security 6.x + JWT (jjwt 0.12.6) | ✅ Producción |
+| Persistencia | Spring Data JPA + PostgreSQL 17 | ✅ Producción |
+| Frontend | **Next.js 15 + React 19 + TypeScript** | ✅ Producción |
+| Streaming | SSE (`SseEmitter`) consumido via `fetch` + `ReadableStream` | ✅ Producción |
+| IA | OpenAI gpt-4.1 (matching + guías) | ✅ Producción |
+| Fuente datos | API BDNS pública (~615.000 convocatorias) | ✅ Producción |
 
-### Stack objetivo (obligatorio)
-- **Backend:** `Java 17 + Spring Boot + Maven + PostgreSQL + JWT + SSE`.
-- **Frontend objetivo:** `Angular` consumiendo `API REST`.
-- **Renderizado server-side:** no forma parte del alcance objetivo.
-
-### Criterios de implementación
-- Priorizar endpoints en `controller/api/` como contrato principal.
-- Mantener seguridad orientada a JWT (flujo stateless para API).
-- Mantener pipeline `BDNS + IA` en servicios (`service/`) sin mover lógica al frontend.
-- Limitar los cambios de migración a la capa de presentación.
-
-### Nota de dependencias
-- En `pom.xml` deben existir dependencias backend para JWT, validación, JPA, PostgreSQL y SSE vía `spring-boot-starter-web`.
-- No se añaden dependencias de Angular en Maven (Angular se gestiona en su propio `package.json`).
-- No se incluyen dependencias de motor de plantillas server-side en el backend objetivo.
+> **Nota:** El frontend está implementado en **Next.js** (no Angular). Todas las referencias a Angular en este documento son históricas.
 
 ## 1. Arquitectura
 
 - Modelo cliente-servidor con arquitectura monolítica modular (Spring Boot).
 - **Backend:** Spring Boot 3.5.x, gestión de usuarios, integración con BDNS, motor de matching con IA (OpenAI gpt-4.1).
-- **Frontend:** Angular (SPA) + Bootstrap 5 (responsive) + cliente SSE y HTTP para consumo de API REST.
+- **Frontend:** Next.js 15 + React 19 + TypeScript (App Router) + Tailwind CSS. Consume la API REST y SSE directamente con `fetch`.
 - **API REST:** Endpoints REST protegidos con JWT para integraciones futuras y consumo desde JavaScript.
 - **Streaming:** Server-Sent Events (SSE) con `SseEmitter` para feedback en tiempo real durante el análisis con IA. Ejecución asíncrona con `CompletableFuture` + `TransactionTemplate`.
 - **Motor IA:** OpenAI Chat Completions API (gpt-4.1) para generación de keywords de búsqueda y evaluación semántica de convocatorias. Fallback automático a motor rule-based si la API no está disponible.
@@ -40,7 +34,7 @@
 | Framework | Spring Boot 3.5.x | Parent POM |
 | Seguridad | Spring Security 6.x + JWT (jjwt 0.12.x) | Autenticación stateless para API |
 | Persistencia | Spring Data JPA + Hibernate | ORM sobre PostgreSQL |
-| Frontend | Angular + TypeScript + Bootstrap 5 | SPA consumiendo API REST y SSE |
+| Frontend | **Next.js 15 + React 19 + TypeScript** | App Router, Tailwind CSS, cliente SSE via `fetch` |
 | Base de datos | PostgreSQL 17.2 | Puerto `5432`, BD: `syntia_db` |
 | Validación | Spring Boot Starter Validation (Bean Validation) | `@Valid`, `@NotBlank`, etc. |
 | Utilidades | Lombok | Reducción de boilerplate |

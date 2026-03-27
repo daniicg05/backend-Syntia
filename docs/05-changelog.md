@@ -8,7 +8,66 @@ Formato de cada entrada:
 
 ---
 
+## [4.5.0] – 2026-03-27
+
+### Rate Limiting + Caché BDNS (Fase 13)
+
+#### Nuevos archivos creados
+- `RateLimitService.java` — Rate limiting stateful en memoria (`ConcurrentHashMap<String, Instant>`). Cooldowns: 30s para búsqueda BDNS, 60s para análisis IA. Claves: `usuarioId:proyectoId`. Métodos: `puedeBuscar`, `registrarBusqueda`, `segundosRestantesBusqueda`, `puedeAnalizar`, `registrarAnalisis`, `segundosRestantesAnalisis`.
+
+#### Archivos modificados
+- `RecomendacionController.java` — Inyectado `RateLimitService`. Endpoint `POST /buscar`: verifica cooldown 30s, devuelve HTTP 429 con `esperarSegundos` si bloqueado. Endpoint `GET /stream`: verifica cooldown 60s, emite evento SSE `error` con segundos restantes si bloqueado.
+- `BdnsClientService.java` — Caché en memoria para `obtenerDetalleTexto()`: `ConcurrentHashMap<String, CachedDetalle>` donde `CachedDetalle` es un record con `texto` e `Instant savedAt`. TTL: 1 hora. Si el resultado está en caché y no ha caducado, se devuelve directamente sin llamada HTTP.
+
+#### Impacto
+- **Coste OpenAI:** protegido contra análisis repetidos dentro del cooldown de 60s
+- **Carga API BDNS:** detalles de convocatorias cacheados 1h reducen llamadas HTTP repetidas hasta 0
+- **Abuso de búsqueda:** cooldown 30s por usuario+proyecto
+
+**Autor(es):** Equipo técnico
+
+---
+
+## [4.4.0] – 2026-03-23
+
+### Estabilización: Next.js + Flujo dos pasos + Correcciones críticas (Fase 12)
+
+#### Archivos modificados (backend)
+- `ProyectoService.java` — `eliminar()` ahora llama `recomendacionRepository.deleteByProyectoId(id)` antes de `proyectoRepository.delete(proyecto)`. Corrige error 500 por violación FK `recomendaciones.proyecto_id NOT NULL` al borrar un proyecto con recomendaciones asociadas.
+- `RecomendacionController.java` — Añadido endpoint `POST /buscar` (Fase 1: búsqueda BDNS sin IA). Modificado `GET /stream` (Fase 2: solo análisis IA de candidatas existentes, ya no invoca `BusquedaRapidaService`). Añadidas dependencias: `BusquedaRapidaService`, `RateLimitService`.
+
+#### Archivos modificados (frontend Next.js)
+- `src/middleware.ts` (movido desde raíz) — El middleware de Next.js debe estar en `src/middleware.ts` cuando se usa directorio `src/`. Corrige acceso libre a `/dashboard` sin autenticación. Añadido parámetro `?redirect=<ruta>` a la URL de redirección al login.
+- `src/app/login/page.tsx` — Tras login exitoso, redirige a `searchParams.get("redirect")` o `/dashboard`. Enlace a registro preserva parámetro `redirect`.
+- `src/app/registro/page.tsx` — Tras registro exitoso, redirige a `searchParams.get("redirect")` o `/dashboard`. Enlace a login preserva parámetro `redirect`.
+- `src/lib/api.ts` — Añadido `recomendacionesApi.buscar(proyectoId)`: `POST /usuario/proyectos/{id}/recomendaciones/buscar`.
+- `src/app/proyectos/[id]/recomendaciones/page.tsx` — Reescrito completo. Flujo dos pasos: sección "Convocatorias encontradas" (candidatas `usadaIa=false`) + sección "Recomendaciones IA" (analizadas `usadaIa=true`, puntuación ≥ 20). Dos botones: "Buscar convocatorias" + "Analizar con IA".
+
+#### Bugs corregidos
+- **DELETE proyecto 500:** FK constraint violado al borrar proyectos con recomendaciones → resuelto eliminando recs primero
+- **Dashboard sin auth:** middleware.ts en raíz ignorado por Next.js con `src/` → movido a `src/middleware.ts`
+- **Registro sin JWT:** endpoint de registro ya devuelve `LoginResponseDTO` con token
+
+**Autor(es):** Equipo técnico
+
+---
+
 ## [4.3.0] – 2026-03-13
+
+### Migración Frontend a Next.js 15 (Fase 11)
+
+#### Cambios arquitectónicos
+- Frontend migrado de Angular/SSR a **Next.js 15 + React 19 + TypeScript** (App Router).
+- Todas las rutas implementadas como componentes React con App Router.
+- Autenticación: JWT almacenado en cookie `syntia_token`, gestionado por middleware.
+- SSE: consumido via `fetch` + `ReadableStream` desde componentes cliente Next.js.
+- Proxy Next.js: rewrite `/api/*` → `http://localhost:8080/api/*` en `next.config.ts`.
+
+**Autor(es):** Equipo técnico
+
+---
+
+## [4.3.0-legacy] – 2026-03-13
 
 ### Alineación documental API-first (Angular + REST)
 

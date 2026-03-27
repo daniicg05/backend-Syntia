@@ -13,8 +13,10 @@ import com.syntia.ai.service.MotorMatchingService;
 import com.syntia.ai.service.OpenAiGuiaService;
 import com.syntia.ai.service.PerfilService;
 import com.syntia.ai.service.ProyectoService;
+import com.syntia.ai.service.RateLimitService;
 import com.syntia.ai.service.RecomendacionService;
 import com.syntia.ai.service.UsuarioService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -45,6 +47,7 @@ public class RecomendacionController {
     private final ProyectoService proyectoService;
     private final PerfilService perfilService;
     private final UsuarioService usuarioService;
+    private final RateLimitService rateLimitService;
 
     public RecomendacionController(RecomendacionService recomendacionService,
                                    MotorMatchingService motorMatchingService,
@@ -53,7 +56,8 @@ public class RecomendacionController {
                                    BusquedaRapidaService busquedaRapidaService,
                                    ProyectoService proyectoService,
                                    PerfilService perfilService,
-                                   UsuarioService usuarioService) {
+                                   UsuarioService usuarioService,
+                                   RateLimitService rateLimitService) {
         this.recomendacionService = recomendacionService;
         this.motorMatchingService = motorMatchingService;
         this.openAiGuiaService = openAiGuiaService;
@@ -62,6 +66,7 @@ public class RecomendacionController {
         this.proyectoService = proyectoService;
         this.perfilService = perfilService;
         this.usuarioService = usuarioService;
+        this.rateLimitService = rateLimitService;
     }
 
     @GetMapping
@@ -130,11 +135,23 @@ public class RecomendacionController {
     /**
      * Fase 1 (sin IA): busca convocatorias en BDNS y las guarda como candidatas (usadaIa=false).
      * Rápido y sin coste de IA. El usuario puede revisar los resultados antes de analizar.
+     * Rate limit: 30s por proyecto para evitar abusos de la API BDNS.
      */
     @PostMapping("/buscar")
     public ResponseEntity<?> buscar(@PathVariable Long proyectoId, Authentication authentication) {
         Usuario usuario = resolverUsuario(authentication);
+
+        if (!rateLimitService.puedeBuscar(usuario.getId(), proyectoId)) {
+            long restantes = rateLimitService.segundosRestantesBusqueda(usuario.getId(), proyectoId);
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(Map.of(
+                    "error", "Espera " + restantes + " segundos antes de volver a buscar.",
+                    "esperarSegundos", restantes
+            ));
+        }
+
         Proyecto proyecto = proyectoService.obtenerPorId(proyectoId, usuario.getId());
+        rateLimitService.registrarBusqueda(usuario.getId(), proyectoId);
+
         int candidatas = busquedaRapidaService.buscarYGuardarCandidatas(proyecto);
         String mensaje = candidatas > 0
                 ? candidatas + " convocatorias encontradas. Pulsa «Analizar con IA» para puntuar y ordenar."
@@ -145,11 +162,27 @@ public class RecomendacionController {
     /**
      * Fase 2 (con IA): analiza las candidatas guardadas por /buscar y emite resultados por SSE.
      * Requiere haber ejecutado /buscar previamente para que existan candidatas (usadaIa=false).
+     * Rate limit: 60s por proyecto para controlar el coste de OpenAI.
      */
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter stream(@PathVariable Long proyectoId, Authentication authentication) {
         Usuario usuario = resolverUsuario(authentication);
         Proyecto proyecto = proyectoService.obtenerPorId(proyectoId, usuario.getId());
+
+        if (!rateLimitService.puedeAnalizar(usuario.getId(), proyectoId)) {
+            long restantes = rateLimitService.segundosRestantesAnalisis(usuario.getId(), proyectoId);
+            SseEmitter blocked = new SseEmitter();
+            try {
+                blocked.send(SseEmitter.event().name("error")
+                        .data("Demasiadas solicitudes. Espera " + restantes + "s antes de analizar de nuevo."));
+                blocked.complete();
+            } catch (Exception e) {
+                blocked.completeWithError(e);
+            }
+            return blocked;
+        }
+
+        rateLimitService.registrarAnalisis(usuario.getId(), proyectoId);
 
         SseEmitter emitter = new SseEmitter(300_000L);
         ExecutorService executor = Executors.newSingleThreadExecutor();
