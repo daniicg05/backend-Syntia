@@ -4,6 +4,7 @@ import com.syntia.ai.model.ErrorResponse;
 import com.syntia.ai.model.Perfil;
 import com.syntia.ai.model.Usuario;
 import com.syntia.ai.model.dto.CambiarEmailDTO;
+import com.syntia.ai.model.dto.CambiarPasswordDTO;
 import com.syntia.ai.model.dto.LoginResponseDTO;
 import com.syntia.ai.model.dto.PerfilDTO;
 import com.syntia.ai.security.JwtService;
@@ -105,6 +106,33 @@ public class PerfilController {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(new ErrorResponse(HttpStatus.CONFLICT.value(), e.getMessage(),
                             java.time.LocalDateTime.now(), request.getRequestURI()));
+        }
+    }
+
+    @PutMapping("/password")
+    public ResponseEntity<?> cambiarPassword(@Valid @RequestBody CambiarPasswordDTO dto,
+                                             Authentication authentication,
+                                             HttpServletRequest request) {
+
+        Usuario usuario = resolverUsuario(authentication);
+
+        try {
+            usuarioService.cambiarPasswordAutenticado(
+                    usuario.getId(),
+                    dto.getPasswordActual(),
+                    dto.getNuevaPassword(),
+                    dto.getConfirmarPassword()
+            );
+
+            return ResponseEntity.ok().build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ErrorResponse(
+                            HttpStatus.BAD_REQUEST.value(),
+                            e.getMessage(),
+                            java.time.LocalDateTime.now(),
+                            request.getRequestURI()
+                    ));
         }
     }
 

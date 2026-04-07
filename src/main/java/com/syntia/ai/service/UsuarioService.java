@@ -6,6 +6,7 @@ import com.syntia.ai.model.Rol;
 import com.syntia.ai.model.Usuario;
 import com.syntia.ai.repository.UsuarioRepository;
 import jakarta.persistence.EntityNotFoundException;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -169,6 +170,42 @@ public class UsuarioService {
         }
 
         usuario.setEmail(nuevoEmail);
+        return usuarioRepository.save(usuario);
+    }
+
+    /**
+     * Cambia la contraseña de un usuario autenticado.
+     *
+     * @param usuarioId ID del usuario
+     * @param passwordActual contraseña actual en texto plano (para verificación)
+     * @param nuevaPassword nueva contraseña en texto plano
+     * @param confirmarPassword confirmación de la nueva contraseña
+     * @return usuario actualizado
+     * @throws EntityNotFoundException si el usuario no existe
+     * @throws BadCredentialsException si la contraseña actual es incorrecta
+     * @throws IllegalArgumentException si la nueva contraseña y su confirmación no coinciden
+     */
+    public Usuario cambiarPasswordAutenticado(Long usuarioId,
+                                              String passwordActual,
+                                              String nuevaPassword,
+                                              String confirmarPassword) {
+
+        Usuario usuario = usuarioRepository.findById(usuarioId)
+                .orElseThrow(() -> new EntityNotFoundException("Usuario no encontrado: " + usuarioId));
+
+        if (!passwordEncoder.matches(passwordActual, usuario.getPassword())) {
+            throw new BadCredentialsException("La contraseña actual es incorrecta");
+        }
+
+        if (!nuevaPassword.equals(confirmarPassword)) {
+            throw new IllegalArgumentException("La nueva contraseña y su confirmación no coinciden");
+        }
+
+        if (passwordEncoder.matches(nuevaPassword, usuario.getPassword())) {
+            throw new IllegalArgumentException("La nueva contraseña no puede ser igual a la actual");
+        }
+
+        usuario.setPassword(passwordEncoder.encode(nuevaPassword));
         return usuarioRepository.save(usuario);
     }
 }
