@@ -73,6 +73,11 @@ public class Usuario {
     @Column(nullable = false)
     private Rol rol;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, columnDefinition = "VARCHAR(255) DEFAULT 'GRATUITO'")
+    @Builder.Default
+    private Plan plan = Plan.GRATUITO;
+
     /**
      * Fecha y hora de creación del registro.
      *

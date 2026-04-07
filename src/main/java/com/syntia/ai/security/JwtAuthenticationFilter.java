@@ -46,6 +46,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         // ==============================
         if (isPublicPath(path)) {
             filterChain.doFilter(request, response);
+
             return;
         }
 
