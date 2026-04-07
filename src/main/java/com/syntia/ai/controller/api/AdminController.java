@@ -202,8 +202,8 @@ public class AdminController {
         BdnsImportJobService.EstadoJob job = bdnsImportJobService.obtenerEstado();
         return ResponseEntity.ok(new ImportacionBdnsEstadoDTO(
                 job.estado().name(),
-                job.paginaActual(),
                 job.registrosImportados(),
+                job.ejeActual(),
                 job.iniciadoEn(),
                 job.finalizadoEn(),
                 job.error()

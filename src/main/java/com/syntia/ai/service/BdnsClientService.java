@@ -101,6 +101,38 @@ public class BdnsClientService {
      * @param tamano   registros por página (máximo 50)
      * @return lista de ConvocatoriaDTO que coinciden con la búsqueda
      */
+    /**
+     * Importa convocatorias filtrando por eje territorial (nivel1 y opcionalmente nivel2).
+     * No aplica filtro de vigencia — recupera todas las convocatorias del eje.
+     * Usado por la importación masiva por estrategia territorial.
+     *
+     * @param nivel1 ámbito: ESTADO, AUTONOMICA, LOCAL, OTROS
+     * @param nivel2 comunidad autónoma (solo para AUTONOMICA, null en el resto)
+     * @param pagina número de página (0-indexed)
+     * @param tamano registros por página (máximo 50)
+     */
+    public List<ConvocatoriaDTO> importarPorEje(String nivel1, String nivel2, int pagina, int tamano) {
+        StringBuilder url = new StringBuilder(BDNS_BUSQUEDA)
+                .append("?vpn=GE&vln=es&numPag=").append(pagina)
+                .append("&tamPag=").append(Math.min(tamano, 50))
+                .append("&nivel1=").append(nivel1);
+
+        if (nivel2 != null && !nivel2.isBlank()) {
+            url.append("&nivel2=").append(URLEncoder.encode(nivel2, StandardCharsets.UTF_8));
+        }
+
+        log.debug("BDNS importarPorEje: nivel1={} nivel2={} pag={}", nivel1, nivel2, pagina);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> respuesta = restClient.get()
+                .uri(url.toString())
+                .retrieve()
+                .body(Map.class);
+
+        if (respuesta == null) return List.of();
+        return mapearRespuesta(respuesta);
+    }
+
     public List<ConvocatoriaDTO> buscarPorTexto(String keywords, int pagina, int tamano) {
         log.info("BDNS búsqueda por texto: '{}' pagina={} tamano={}", keywords, pagina, tamano);
 

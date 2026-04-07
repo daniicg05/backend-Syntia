@@ -70,6 +70,8 @@ public class ConvocatoriaService {
         c.setUrlOficial(dto.getUrlOficial());
         c.setFuente(dto.getFuente());
         c.setFechaCierre(dto.getFechaCierre());
+        c.setIdBdns(dto.getIdBdns());
+        c.setNumeroConvocatoria(dto.getNumeroConvocatoria());
         return convocatoriaRepository.save(c);
     }
 
@@ -112,13 +114,15 @@ public class ConvocatoriaService {
     public int persistirNuevas(List<ConvocatoriaDTO> importadas) {
         int nuevas = 0;
         for (ConvocatoriaDTO dto : importadas) {
-            boolean existe = convocatoriaRepository.existsByTituloIgnoreCaseAndFuente(dto.getTitulo(), dto.getFuente());
+            // Deduplicar por idBdns (clave oficial) si está disponible, si no por título+fuente
+            boolean existe = (dto.getIdBdns() != null && !dto.getIdBdns().isBlank())
+                    ? convocatoriaRepository.existsByIdBdns(dto.getIdBdns())
+                    : convocatoriaRepository.existsByTituloIgnoreCaseAndFuente(dto.getTitulo(), dto.getFuente());
             if (!existe) {
                 crear(dto);
                 nuevas++;
             }
         }
-
         log.info("BDNS import: {} importadas, {} nuevas, {} duplicadas omitidas",
                 importadas.size(), nuevas, importadas.size() - nuevas);
         return nuevas;
