@@ -41,6 +41,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
 
         // ==============================
+
         // 🔓 RUTAS PÚBLICAS (NO JWT)
         // ==============================
         if (isPublicPath(path)) {
