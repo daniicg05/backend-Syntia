@@ -140,4 +140,35 @@ public class UsuarioService {
         usuario.setPassword(passwordEncoder.encode(nuevaPassword));
         return usuarioRepository.save(usuario);
     }
+
+    /**
+     * Cambia el email de un usuario tras verificar su contraseña actual.
+     *
+     * @param id ID del usuario
+     * @param passwordActual contraseña actual en texto plano (para verificación)
+     * @param nuevoEmail nuevo email a asignar
+     * @return usuario actualizado
+     * @throws EntityNotFoundException si el usuario no existe
+     * @throws IllegalArgumentException si la contraseña es incorrecta o el email es igual al actual
+     * @throws IllegalStateException si el nuevo email ya está registrado
+     */
+    public Usuario cambiarEmail(Long id, String passwordActual, String nuevoEmail) {
+        Usuario usuario = usuarioRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Usuario no encontrado: " + id));
+
+        if (!passwordEncoder.matches(passwordActual, usuario.getPassword())) {
+            throw new IllegalArgumentException("La contraseña actual es incorrecta");
+        }
+
+        if (usuario.getEmail().equalsIgnoreCase(nuevoEmail)) {
+            throw new IllegalArgumentException("El nuevo email es igual al actual");
+        }
+
+        if (usuarioRepository.existsByEmail(nuevoEmail)) {
+            throw new IllegalStateException("El email ya está registrado: " + nuevoEmail);
+        }
+
+        usuario.setEmail(nuevoEmail);
+        return usuarioRepository.save(usuario);
+    }
 }
