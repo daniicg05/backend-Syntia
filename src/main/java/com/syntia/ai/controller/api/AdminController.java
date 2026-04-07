@@ -4,8 +4,10 @@ import com.syntia.ai.model.Proyecto;
 import com.syntia.ai.model.Rol;
 import com.syntia.ai.model.Usuario;
 import com.syntia.ai.model.dto.ConvocatoriaDTO;
+import com.syntia.ai.model.dto.ImportacionBdnsEstadoDTO;
 import com.syntia.ai.repository.ProyectoRepository;
 import com.syntia.ai.repository.RecomendacionRepository;
+import com.syntia.ai.service.BdnsImportJobService;
 import com.syntia.ai.service.ConvocatoriaService;
 import com.syntia.ai.service.ProyectoService;
 import com.syntia.ai.service.RecomendacionService;
@@ -38,19 +40,22 @@ public class AdminController {
     private final RecomendacionService recomendacionService;
     private final ProyectoRepository proyectoRepository;
     private final RecomendacionRepository recomendacionRepository;
+    private final BdnsImportJobService bdnsImportJobService;
 
     public AdminController(UsuarioService usuarioService,
                            ConvocatoriaService convocatoriaService,
                            ProyectoService proyectoService,
                            RecomendacionService recomendacionService,
                            ProyectoRepository proyectoRepository,
-                           RecomendacionRepository recomendacionRepository) {
+                           RecomendacionRepository recomendacionRepository,
+                           BdnsImportJobService bdnsImportJobService) {
         this.usuarioService = usuarioService;
         this.convocatoriaService = convocatoriaService;
         this.proyectoService = proyectoService;
         this.recomendacionService = recomendacionService;
         this.proyectoRepository = proyectoRepository;
         this.recomendacionRepository = recomendacionRepository;
+        this.bdnsImportJobService = bdnsImportJobService;
     }
 
     // ─────────────────────────────────────────────
@@ -175,6 +180,47 @@ public class AdminController {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                     .body(Map.of("error", "No se pudo conectar con la API de BDNS: " + e.getMessage()));
         }
+    }
+
+    // ─────────────────────────────────────────────
+    // IMPORTACIÓN MASIVA BDNS
+    // ─────────────────────────────────────────────
+
+    @PostMapping("/bdns/importar")
+    public ResponseEntity<?> lanzarImportacionBdns() {
+        boolean iniciado = bdnsImportJobService.iniciar();
+        if (!iniciado) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("error", "Ya hay una importación BDNS en curso."));
+        }
+        return ResponseEntity.accepted()
+                .body(Map.of("message", "Importación masiva BDNS iniciada en segundo plano."));
+    }
+
+    @GetMapping("/bdns/estado")
+    public ResponseEntity<ImportacionBdnsEstadoDTO> estadoImportacionBdns() {
+        BdnsImportJobService.EstadoJob job = bdnsImportJobService.obtenerEstado();
+        return ResponseEntity.ok(new ImportacionBdnsEstadoDTO(
+                job.estado().name(),
+                job.paginaActual(),
+                job.registrosImportados(),
+                job.iniciadoEn(),
+                job.finalizadoEn(),
+                job.error()
+        ));
+    }
+
+    @GetMapping("/bdns/ultima-importacion")
+    public ResponseEntity<?> ultimaImportacionBdns() {
+        BdnsImportJobService.EstadoJob job = bdnsImportJobService.obtenerEstado();
+        if (job.estado() == BdnsImportJobService.EstadoImportacion.INACTIVO) {
+            return ResponseEntity.ok(Map.of("message", "Nunca se ha realizado una importación masiva."));
+        }
+        return ResponseEntity.ok(Map.of(
+                "estado", job.estado().name(),
+                "registrosImportados", job.registrosImportados(),
+                "finalizadoEn", job.finalizadoEn() != null ? job.finalizadoEn().toString() : "en curso"
+        ));
     }
 
     // ─────────────────────────────────────────────

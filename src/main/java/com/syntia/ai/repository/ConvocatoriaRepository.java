@@ -62,5 +62,18 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
      */
     @Query("SELECT c FROM Convocatoria c WHERE c.titulo IN :titulos")
     List<Convocatoria> buscarPorTitulos(@Param("titulos") List<String> titulos);
+
+    /**
+     * Búsqueda local para modo gratuito: filtra por palabra clave en título/sector
+     * y por ubicación (Nacional siempre incluido).
+     * Usado por ConvocatoriaBdLocalService como alternativa a la API live de BDNS.
+     */
+    @Query("SELECT c FROM Convocatoria c WHERE " +
+            "(:keyword IS NULL OR LOWER(c.titulo) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+            "   OR LOWER(c.sector) LIKE LOWER(CONCAT('%', :keyword, '%'))) AND " +
+            "(:ubicacion IS NULL OR LOWER(c.ubicacion) = 'nacional' " +
+            "   OR LOWER(c.ubicacion) LIKE LOWER(CONCAT('%', :ubicacion, '%')))")
+    List<Convocatoria> buscarParaModoGratuito(@Param("keyword") String keyword,
+                                              @Param("ubicacion") String ubicacion);
 }
 
