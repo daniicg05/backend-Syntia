@@ -108,7 +108,8 @@ public class ConvocatoriaService {
     }
 
 
-    private int persistirNuevas(List<ConvocatoriaDTO> importadas) {
+    @Transactional
+    public int persistirNuevas(List<ConvocatoriaDTO> importadas) {
         int nuevas = 0;
         for (ConvocatoriaDTO dto : importadas) {
             boolean existe = convocatoriaRepository.existsByTituloIgnoreCaseAndFuente(dto.getTitulo(), dto.getFuente());
