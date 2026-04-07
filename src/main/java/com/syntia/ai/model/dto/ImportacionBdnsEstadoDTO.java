@@ -4,8 +4,8 @@ import java.time.LocalDateTime;
 
 public record ImportacionBdnsEstadoDTO(
         String estado,
-        int paginaActual,
         int registrosImportados,
+        String ejeActual,
         LocalDateTime iniciadoEn,
         LocalDateTime finalizadoEn,
         String error

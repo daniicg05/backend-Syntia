@@ -26,6 +26,8 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
      */
     boolean existsByTituloIgnoreCaseAndFuente(String titulo, String fuente);
 
+    boolean existsByIdBdns(String idBdns);
+
     /**
      * Busca una convocatoria por título (ignorando mayúsculas) y fuente.
      * Usado por el motor de matching para no duplicar convocatorias al persistir.
