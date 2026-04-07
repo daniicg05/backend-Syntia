@@ -2,6 +2,7 @@ package com.syntia.ai.service;
 
 import com.syntia.ai.model.Convocatoria;
 import com.syntia.ai.model.Perfil;
+import com.syntia.ai.model.Plan;
 import com.syntia.ai.model.Proyecto;
 import com.syntia.ai.model.Recomendacion;
 import com.syntia.ai.model.dto.ConvocatoriaDTO;
@@ -25,6 +26,7 @@ import java.util.Set;
 public class BusquedaRapidaService {
 
     private final BdnsClientService bdnsClientService;
+    private final ConvocatoriaBdLocalService convocatoriaBdLocalService;
     private final PerfilService perfilService;
     private final ConvocatoriaRepository convocatoriaRepository;
     private final RecomendacionRepository recomendacionRepository;
@@ -33,10 +35,12 @@ public class BusquedaRapidaService {
     private static final int MAX_CANDIDATAS = 150;
 
     public BusquedaRapidaService(BdnsClientService bdnsClientService,
+                                 ConvocatoriaBdLocalService convocatoriaBdLocalService,
                                  PerfilService perfilService,
                                  ConvocatoriaRepository convocatoriaRepository,
                                  RecomendacionRepository recomendacionRepository) {
         this.bdnsClientService = bdnsClientService;
+        this.convocatoriaBdLocalService = convocatoriaBdLocalService;
         this.perfilService = perfilService;
         this.convocatoriaRepository = convocatoriaRepository;
         this.recomendacionRepository = recomendacionRepository;
@@ -53,8 +57,16 @@ public class BusquedaRapidaService {
         log.info("Búsqueda rápida: proyecto={} descripcion='{}' ccaa='{}'",
                 proyecto.getId(), filtros.descripcion(), filtros.nivel2());
 
-        // 3. Buscar en BDNS
-        List<ConvocatoriaDTO> candidatasBdns = bdnsClientService.buscarPorFiltros(filtros);
+        // 3. Buscar según plan del usuario: BD local (gratuito) o API live (premium)
+        Plan plan = proyecto.getUsuario().getPlan();
+        List<ConvocatoriaDTO> candidatasBdns;
+        if (Plan.GRATUITO.equals(plan)) {
+            log.info("Búsqueda rápida: modo GRATUITO — usando BD local");
+            candidatasBdns = convocatoriaBdLocalService.buscar(proyecto, perfil);
+        } else {
+            log.info("Búsqueda rápida: modo PREMIUM — usando API live BDNS");
+            candidatasBdns = bdnsClientService.buscarPorFiltros(filtros);
+        }
 
         // 4. Deduplicar y filtrar caducadas
         Map<String, ConvocatoriaDTO> candidatasUnicas = deduplicarYFiltrar(candidatasBdns);
