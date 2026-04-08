@@ -7,6 +7,7 @@ import com.syntia.ai.model.dto.ConvocatoriaDTO;
 import com.syntia.ai.model.dto.ImportacionBdnsEstadoDTO;
 import com.syntia.ai.repository.ProyectoRepository;
 import com.syntia.ai.repository.RecomendacionRepository;
+import com.syntia.ai.service.BdnsEtlPanelService;
 import com.syntia.ai.service.BdnsImportJobService;
 import com.syntia.ai.service.ModoImportacion;
 import com.syntia.ai.service.ConvocatoriaService;
@@ -42,6 +43,7 @@ public class AdminController {
     private final ProyectoRepository proyectoRepository;
     private final RecomendacionRepository recomendacionRepository;
     private final BdnsImportJobService bdnsImportJobService;
+    private final BdnsEtlPanelService bdnsEtlPanelService;
 
     public AdminController(UsuarioService usuarioService,
                            ConvocatoriaService convocatoriaService,
@@ -49,7 +51,8 @@ public class AdminController {
                            RecomendacionService recomendacionService,
                            ProyectoRepository proyectoRepository,
                            RecomendacionRepository recomendacionRepository,
-                           BdnsImportJobService bdnsImportJobService) {
+                           BdnsImportJobService bdnsImportJobService,
+                           BdnsEtlPanelService bdnsEtlPanelService) {
         this.usuarioService = usuarioService;
         this.convocatoriaService = convocatoriaService;
         this.proyectoService = proyectoService;
@@ -57,6 +60,7 @@ public class AdminController {
         this.proyectoRepository = proyectoRepository;
         this.recomendacionRepository = recomendacionRepository;
         this.bdnsImportJobService = bdnsImportJobService;
+        this.bdnsEtlPanelService = bdnsEtlPanelService;
     }
 
     // ─────────────────────────────────────────────
@@ -219,6 +223,32 @@ public class AdminController {
                 job.error(),
                 job.modo() != null ? job.modo().name() : null
         ));
+    }
+
+    /**
+     * Lista el estado actual de los 23 ejes territoriales desde la tabla sync_state.
+     * Devuelve solo los ejes que han sido procesados al menos una vez.
+     */
+    @GetMapping("/bdns/ejes")
+    public ResponseEntity<?> estadoEjesBdns() {
+        return ResponseEntity.ok(bdnsEtlPanelService.obtenerEstadoEjes());
+    }
+
+    /**
+     * Historial de ejecuciones resumido: una entrada por ejecucionId con stats agregadas.
+     * Ordenado de más reciente a más antiguo.
+     */
+    @GetMapping("/bdns/historial")
+    public ResponseEntity<?> historialImportaciones() {
+        return ResponseEntity.ok(bdnsEtlPanelService.obtenerHistorial());
+    }
+
+    /**
+     * Detalle página a página de una ejecución concreta.
+     */
+    @GetMapping("/bdns/historial/{ejecucionId}")
+    public ResponseEntity<?> detalleEjecucion(@PathVariable String ejecucionId) {
+        return ResponseEntity.ok(bdnsEtlPanelService.obtenerLogsEjecucion(ejecucionId));
     }
 
     @GetMapping("/bdns/ultima-importacion")

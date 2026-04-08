@@ -12,4 +12,6 @@ public interface SyncLogRepository extends JpaRepository<SyncLog, Long> {
     List<SyncLog> findByEjecucionIdOrderByTsAsc(String ejecucionId);
 
     List<SyncLog> findByEjeOrderByTsDesc(String eje);
+
+    List<SyncLog> findAllByOrderByTsDesc();
 }
