@@ -2,8 +2,10 @@ package com.syntia.ai.service;
 
 
 
+import com.syntia.ai.model.HistorialCorreo;
 import com.syntia.ai.model.Rol;
 import com.syntia.ai.model.Usuario;
+import com.syntia.ai.repository.HistorialCorreoRepository;
 import com.syntia.ai.repository.UsuarioRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -23,10 +25,14 @@ import java.util.Optional;
 public class UsuarioService {
 
     private final UsuarioRepository usuarioRepository;
+    private final HistorialCorreoRepository historialCorreoRepository;
     private final PasswordEncoder passwordEncoder;
 
-    public UsuarioService(UsuarioRepository usuarioRepository, PasswordEncoder passwordEncoder) {
+    public UsuarioService(UsuarioRepository usuarioRepository,
+                          HistorialCorreoRepository historialCorreoRepository,
+                          PasswordEncoder passwordEncoder) {
         this.usuarioRepository = usuarioRepository;
+        this.historialCorreoRepository = historialCorreoRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -154,6 +160,10 @@ public class UsuarioService {
      * @throws IllegalStateException si el nuevo email ya está registrado
      */
     public Usuario cambiarEmail(Long id, String passwordActual, String nuevoEmail) {
+        return cambiarEmail(id, passwordActual, nuevoEmail, null);
+    }
+
+    public Usuario cambiarEmail(Long id, String passwordActual, String nuevoEmail, String actorEmail) {
         Usuario usuario = usuarioRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Usuario no encontrado: " + id));
 
@@ -169,8 +179,28 @@ public class UsuarioService {
             throw new IllegalStateException("El email ya está registrado: " + nuevoEmail);
         }
 
+        String emailAnterior = usuario.getEmail();
         usuario.setEmail(nuevoEmail);
-        return usuarioRepository.save(usuario);
+        Usuario actualizado = usuarioRepository.save(usuario);
+
+        historialCorreoRepository.save(HistorialCorreo.builder()
+                .usuario(actualizado)
+                .anterior(emailAnterior)
+                .nuevo(nuevoEmail)
+                .actor(actorEmail != null && !actorEmail.isBlank() ? actorEmail : emailAnterior)
+                .build());
+
+        return actualizado;
+    }
+
+    @Transactional(readOnly = true)
+    public boolean emailCambiado(Long usuarioId) {
+        return historialCorreoRepository.existsByUsuarioId(usuarioId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<HistorialCorreo> obtenerHistorialCorreo(Long usuarioId) {
+        return historialCorreoRepository.findByUsuarioIdOrderByFechaDesc(usuarioId);
     }
 
     /**

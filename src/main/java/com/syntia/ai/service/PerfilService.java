@@ -71,6 +71,9 @@ public class PerfilService {
                 .usuario(usuario)
                 .sector(dto.getSector())
                 .ubicacion(dto.getUbicacion())
+                .empresa(dto.getEmpresa())
+                .provincia(dto.getProvincia())
+                .telefono(dto.getTelefono())
                 .tipoEntidad(dto.getTipoEntidad())
                 .objetivos(dto.getObjetivos())
                 .necesidadesFinanciacion(dto.getNecesidadesFinanciacion())
@@ -99,6 +102,9 @@ public class PerfilService {
         /** Se aplican cambios campo por campo para mantener control explícito de actualización. */
         perfil.setSector(dto.getSector());
         perfil.setUbicacion(dto.getUbicacion());
+        perfil.setEmpresa(dto.getEmpresa());
+        perfil.setProvincia(dto.getProvincia());
+        perfil.setTelefono(dto.getTelefono());
         perfil.setTipoEntidad(dto.getTipoEntidad());
         perfil.setObjetivos(dto.getObjetivos());
         perfil.setNecesidadesFinanciacion(dto.getNecesidadesFinanciacion());
@@ -121,6 +127,9 @@ public class PerfilService {
         PerfilDTO dto = new PerfilDTO();
         dto.setSector(perfil.getSector());
         dto.setUbicacion(perfil.getUbicacion());
+        dto.setEmpresa(perfil.getEmpresa());
+        dto.setProvincia(perfil.getProvincia());
+        dto.setTelefono(perfil.getTelefono());
         dto.setTipoEntidad(perfil.getTipoEntidad());
         dto.setObjetivos(perfil.getObjetivos());
         dto.setNecesidadesFinanciacion(perfil.getNecesidadesFinanciacion());
