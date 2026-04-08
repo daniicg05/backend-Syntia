@@ -30,9 +30,18 @@ public class BdnsImportJobService {
             ModoImportacion modo
     ) {}
 
-    private final AtomicBoolean enCurso = new AtomicBoolean(false);
+    private final AtomicBoolean enCurso    = new AtomicBoolean(false);
+    private final AtomicBoolean cancelado  = new AtomicBoolean(false);
     private final AtomicReference<EstadoJob> estadoActual =
             new AtomicReference<>(new EstadoJob(EstadoImportacion.INACTIVO, 0, null, null, null, null, null));
+
+    /** Solicita la cancelación del job en curso. No-op si no hay ninguno. */
+    public boolean cancelar() {
+        if (!enCurso.get()) return false;
+        cancelado.set(true);
+        log.info("BDNS import: cancelación solicitada");
+        return true;
+    }
 
     private final BdnsImportExecutor bdnsImportExecutor;
 
@@ -56,6 +65,7 @@ public class BdnsImportJobService {
             log.warn("Ya hay una importación BDNS en curso — petición ignorada");
             return false;
         }
+        cancelado.set(false);
         LocalDateTime inicio = LocalDateTime.now();
         estadoActual.set(new EstadoJob(EstadoImportacion.EN_CURSO, 0, "Iniciando...", inicio, null, null, modo));
 
@@ -66,13 +76,16 @@ public class BdnsImportJobService {
                     estadoActual.set(new EstadoJob(
                             EstadoImportacion.COMPLETADO, total, null, inicio, LocalDateTime.now(), null, modo));
                     enCurso.set(false);
+                    cancelado.set(false);
                 },
                 (error, total) -> {
                     estadoActual.set(new EstadoJob(
                             EstadoImportacion.FALLIDO, total, null, inicio, LocalDateTime.now(), error, modo));
                     enCurso.set(false);
+                    cancelado.set(false);
                 },
-                modo
+                modo,
+                cancelado
         );
         return true;
     }

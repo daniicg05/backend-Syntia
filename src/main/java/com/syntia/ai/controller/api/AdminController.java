@@ -255,6 +255,14 @@ public class AdminController {
                              "modo", modoImportacion.name()));
     }
 
+    @DeleteMapping("/bdns/importar")
+    public ResponseEntity<?> cancelarImportacionBdns() {
+        boolean cancelado = bdnsImportJobService.cancelar();
+        if (!cancelado) return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("error", "No hay importación en curso"));
+        return ResponseEntity.ok(Map.of("mensaje", "Cancelación solicitada"));
+    }
+
     @GetMapping("/bdns/estado")
     public ResponseEntity<ImportacionBdnsEstadoDTO> estadoImportacionBdns() {
         BdnsImportJobService.EstadoJob job = bdnsImportJobService.obtenerEstado();

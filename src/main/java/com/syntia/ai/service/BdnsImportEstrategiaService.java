@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
 /**
@@ -54,7 +55,8 @@ public class BdnsImportEstrategiaService {
      * @return total de registros nuevos importados
      */
     public int importarTodo(BiConsumer<String, Integer> onProgreso,
-                            ModoImportacion modo) throws InterruptedException {
+                            ModoImportacion modo,
+                            AtomicBoolean cancelado) throws InterruptedException {
         String ejecucionId = UUID.randomUUID().toString();
         log.info("BDNS import global: ejecucionId={} modo={}", ejecucionId, modo);
 
@@ -90,7 +92,7 @@ public class BdnsImportEstrategiaService {
         int maxPaginas = Integer.MAX_VALUE;
 
         try {
-            while (pag <= maxPaginas) {
+            while (pag <= maxPaginas && !cancelado.get()) {
                 onProgreso.accept("GLOBAL – pág. " + pag, nuevosTotal);
 
                 BdnsClientService.PaginaBdns pagina = bdnsClientService.importarPorEje(null, null, pag, TAM_PAGINA);
@@ -140,7 +142,7 @@ public class BdnsImportEstrategiaService {
                 Thread.sleep(delayMs);
             }
 
-            syncState.setEstado(SyncState.Estado.COMPLETADO);
+            syncState.setEstado(cancelado.get() ? SyncState.Estado.ERROR : SyncState.Estado.COMPLETADO);
             syncState.setTsUltimaCarga(Instant.now());
             syncStateRepo.save(syncState);
 
