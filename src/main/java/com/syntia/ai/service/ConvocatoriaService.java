@@ -122,6 +122,7 @@ public class ConvocatoriaService {
         int nuevas = 0;
         int duplicadas = 0;
         int rechazadas = 0;
+        int actualizados = 0;
 
         for (ConvocatoriaDTO dto : importadas) {
             // Validar antes de intentar persistir
@@ -133,20 +134,58 @@ public class ConvocatoriaService {
             }
 
             // Deduplicar por idBdns (clave oficial) si está disponible, si no por título+fuente
-            boolean existe = (dto.getIdBdns() != null && !dto.getIdBdns().isBlank())
-                    ? convocatoriaRepository.existsByIdBdns(dto.getIdBdns())
-                    : convocatoriaRepository.existsByTituloIgnoreCaseAndFuente(dto.getTitulo(), dto.getFuente());
-            if (!existe) {
-                crear(dto);
-                nuevas++;
+            if (dto.getIdBdns() != null && !dto.getIdBdns().isBlank()) {
+                if (!convocatoriaRepository.existsByIdBdns(dto.getIdBdns())) {
+                    crear(dto);
+                    nuevas++;
+                } else {
+                    boolean actualizado = actualizarCamposNulos(dto);
+                    if (actualizado) actualizados++;
+                    else duplicadas++;
+                }
             } else {
-                duplicadas++;
+                boolean existe = convocatoriaRepository
+                        .existsByTituloIgnoreCaseAndFuente(dto.getTitulo(), dto.getFuente());
+                if (!existe) {
+                    crear(dto);
+                    nuevas++;
+                } else {
+                    duplicadas++;
+                }
             }
         }
 
-        log.info("BDNS import: {} procesadas — {} nuevas, {} duplicadas, {} rechazadas",
-                importadas.size(), nuevas, duplicadas, rechazadas);
-        return new ResultadoPersistencia(nuevas, duplicadas, rechazadas);
+        log.info("BDNS import: {} procesadas — {} nuevas, {} actualizadas, {} duplicadas, {} rechazadas",
+                importadas.size(), nuevas, actualizados, duplicadas, rechazadas);
+        return new ResultadoPersistencia(nuevas, duplicadas, rechazadas, actualizados);
+    }
+
+    /**
+     * Rellena solo los campos que están a null en un registro existente.
+     * No sobreescribe datos ya presentes (protege ediciones manuales).
+     * @return true si se modificó algún campo
+     */
+    private boolean actualizarCamposNulos(ConvocatoriaDTO dto) {
+        return convocatoriaRepository.findByIdBdns(dto.getIdBdns()).map(c -> {
+            boolean cambios = false;
+            if (c.getOrganismo() == null && dto.getOrganismo() != null) {
+                c.setOrganismo(dto.getOrganismo()); cambios = true;
+            }
+            if (c.getFechaPublicacion() == null && dto.getFechaPublicacion() != null) {
+                c.setFechaPublicacion(dto.getFechaPublicacion()); cambios = true;
+            }
+            if (c.getDescripcion() == null && dto.getDescripcion() != null) {
+                c.setDescripcion(dto.getDescripcion()); cambios = true;
+            }
+            if (c.getTextoCompleto() == null && dto.getTextoCompleto() != null) {
+                c.setTextoCompleto(dto.getTextoCompleto()); cambios = true;
+            }
+            if (c.getFechaCierre() == null && dto.getFechaCierre() != null) {
+                c.setFechaCierre(dto.getFechaCierre()); cambios = true;
+            }
+            if (cambios) convocatoriaRepository.save(c);
+            return cambios;
+        }).orElse(false);
     }
 
     /** Convierte una entidad a DTO para precargar formularios de edición. */

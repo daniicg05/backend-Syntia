@@ -141,6 +141,7 @@ public class BdnsImportEstrategiaService {
 
                 syncState.setUltimaPaginaOk(pag);
                 syncState.setRegistrosNuevos(syncState.getRegistrosNuevos() + resultado.nuevas());
+                syncState.setRegistrosActualizados(syncState.getRegistrosActualizados() + resultado.actualizados());
                 syncState.setTsUltimaCarga(Instant.now());
                 syncStateRepo.save(syncState);
 
@@ -149,7 +150,7 @@ public class BdnsImportEstrategiaService {
                         .eje(ejeKey)
                         .pagina(pag)
                         .registrosNuevos(resultado.nuevas())
-                        .registrosActualizados(0)
+                        .registrosActualizados(resultado.actualizados())
                         .errores(resultado.rechazadas())
                         .ts(Instant.now())
                         .build());
