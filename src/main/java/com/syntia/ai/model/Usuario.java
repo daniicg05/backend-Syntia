@@ -79,6 +79,29 @@ public class Usuario {
     private Plan plan = Plan.GRATUITO;
 
     /**
+     * Indica si el usuario ya verificó su cuenta.
+     * Por defecto, todo usuario nuevo nace sin verificar.
+     */
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean verified = false;
+
+    /**
+     * Token único para validar la cuenta por enlace.
+     * Es nullable porque, una vez verificada la cuenta, se limpia.
+     */
+    @Column(name = "verification_token")
+    private String verificationToken;
+
+    /**
+     * Fecha/hora de expiración del token de verificación.
+     * Es nullable porque se elimina al completar la verificación.
+     */
+    @Column(name = "token_expiration")
+    private LocalDateTime tokenExpiration;
+
+
+    /**
      * Fecha y hora de creación del registro.
      *
      * <p>Se establece automáticamente al persistir por primera vez y no es actualizable.</p>

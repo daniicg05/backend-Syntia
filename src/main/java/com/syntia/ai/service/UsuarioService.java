@@ -12,6 +12,8 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.time.LocalDateTime;
+import java.util.UUID;
 
 import java.util.List;
 import java.util.Optional;
@@ -37,12 +39,28 @@ public class UsuarioService {
     }
 
     /**
-     * Registra un nuevo usuario con la contraseña cifrada.
+     * Genera un token único para la verificación de cuenta.
+     *
+     * @return token aleatorio en formato UUID
+     */
+    private String generarToken() {
+        return UUID.randomUUID().toString();
+    }
+
+    /**
+     * Registra un nuevo usuario con contraseña cifrada y estado inicial no verificado.
+     *
+     * <p>Durante el alta se inicializan datos de verificación de cuenta:
+     * <ul>
+     *   <li>verified = false</li>
+     *   <li>verificationToken = UUID aleatorio</li>
+     *   <li>tokenExpiration = ahora + 24 horas</li>
+     * </ul>
      *
      * @param email email del usuario
      * @param password contraseña en texto plano
      * @param rol rol del usuario
-     * @return usuario creado
+     * @return usuario creado y persistido
      * @throws IllegalStateException si el email ya está registrado
      */
     public Usuario registrar(String email, String password, Rol rol) {
@@ -50,13 +68,48 @@ public class UsuarioService {
             throw new IllegalStateException("El email ya está registrado: " + email);
         }
 
+        /** Inicializa la cuenta pendiente de verificación por token (24h de vigencia). */
+
         Usuario usuario = Usuario.builder()
                 .email(email)
                 .password(passwordEncoder.encode(password))
                 .rol(rol)
+
+                .verified(false)
+                .verificationToken(generarToken())
+                .tokenExpiration(LocalDateTime.now().plusHours(24))
                 .build();
 
         return usuarioRepository.save(usuario);
+    }
+
+    /**
+     * Verifica una cuenta de usuario usando su token de verificación.
+     *
+     * <p>Reglas:
+     * <ul>
+     *   <li>Si el token no existe, lanza IllegalArgumentException("Token inválido").</li>
+     *   <li>Si el token expiró, lanza IllegalArgumentException("Token expirado").</li>
+     *   <li>Si es válido, marca verified=true y limpia token/expiración.</li>
+     * </ul>
+     *
+     * @param token token de verificación recibido por query param
+     * @throws IllegalArgumentException si el token es inválido o expirado
+     */
+    public void verificarToken(String token) {
+        Usuario usuario = usuarioRepository.findByVerificationToken(token)
+                .orElseThrow(() -> new IllegalArgumentException("Token inválido"));
+
+        if (usuario.getTokenExpiration() == null
+                || usuario.getTokenExpiration().isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("Token expirado");
+        }
+
+        usuario.setVerified(true);
+        usuario.setVerificationToken(null);
+        usuario.setTokenExpiration(null);
+
+        usuarioRepository.save(usuario);
     }
 
     /**

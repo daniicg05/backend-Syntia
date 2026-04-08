@@ -20,6 +20,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.*;
+import com.syntia.ai.service.EmailService;
 
 import java.util.Map;
 
@@ -35,6 +36,7 @@ public class AuthController {
     private final JwtService jwtService;
     private final UsuarioService usuarioService;
     private final DashboardService dashboardService;
+    private final EmailService emailService;
 
     @Value("${jwt.expiration}")
     private long jwtExpiration;
@@ -42,11 +44,12 @@ public class AuthController {
     public AuthController(AuthenticationManager authenticationManager,
                           JwtService jwtService,
                           UsuarioService usuarioService,
-                          DashboardService dashboardService) {
+                          DashboardService dashboardService, EmailService emailService) {
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.usuarioService = usuarioService;
         this.dashboardService = dashboardService;
+        this.emailService = emailService;
     }
 
     // ==========================
@@ -82,20 +85,51 @@ public class AuthController {
                     .body(Map.of("error", "Las contraseñas no coinciden"));
         }
 
+        Usuario usuarioCreado;
         try {
-            usuarioService.registrar(dto.getEmail(), dto.getPassword(), Rol.USUARIO);
+            usuarioCreado = usuarioService.registrar(dto.getEmail(), dto.getPassword(), Rol.USUARIO);
+
+            /**
+             * Envía automáticamente el correo de verificación tras crear la cuenta.
+             * Si falla el envío, se propaga IllegalStateException y lo gestiona
+             * GlobalExceptionHandler.
+             */
+            emailService.sendVerificationEmail(
+                    usuarioCreado.getEmail(),
+                    usuarioCreado.getVerificationToken()
+            );
+
         } catch (IllegalStateException e) {
             return ResponseEntity.badRequest()
                     .body(Map.of("error", e.getMessage()));
         }
 
-        Usuario usuarioCreado = usuarioService.buscarPorEmail(dto.getEmail())
-                .orElseThrow(() -> new IllegalStateException("Usuario no encontrado tras registro"));
-
         String token = jwtService.generarToken(usuarioCreado.getEmail(), usuarioCreado.getRol().name());
 
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(new LoginResponseDTO(token, usuarioCreado.getEmail(), usuarioCreado.getRol().name(), jwtExpiration));
+                .body(new LoginResponseDTO(
+                        token,
+                        usuarioCreado.getEmail(),
+                        usuarioCreado.getRol().name(),
+                        jwtExpiration
+                ));
+    }
+
+    /**
+     * Verifica la cuenta de un usuario a partir de un token recibido por query param.
+     *
+     * <p>Ejemplo de uso:
+     * <ul>
+     *   <li>GET /api/auth/verify?token=abc123</li>
+     * </ul>
+     *
+     * @param token token de verificación generado en el registro
+     * @return mensaje de confirmación si la verificación fue exitosa
+     */
+    @GetMapping("/auth/verify")
+    public ResponseEntity<?> verify(@RequestParam("token") String token) {
+        usuarioService.verificarToken(token);
+        return ResponseEntity.ok(Map.of("mensaje", "Cuenta verificada correctamente"));
     }
 
     // ==========================
@@ -131,6 +165,14 @@ public class AuthController {
         Usuario usuario = usuarioService.buscarPorEmail(request.getEmail())
                 .orElseThrow(() ->
                         new IllegalStateException("Usuario no encontrado tras autenticación"));
+
+        /**
+         * Bloquea el inicio de sesión hasta que la cuenta se verifique por token.
+         * GlobalExceptionHandler transformará IllegalStateException en HTTP 409.
+         */
+        if (!usuario.isVerified()) {
+            throw new IllegalStateException("Debes verificar tu email antes de iniciar sesión");
+        }
 
         String token = jwtService.generarToken(
                 usuario.getEmail(),
