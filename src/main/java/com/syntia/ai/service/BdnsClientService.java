@@ -2,10 +2,18 @@ package com.syntia.ai.service;
 
 import com.syntia.ai.model.dto.ConvocatoriaDTO;
 import com.syntia.ai.model.dto.FiltrosBdns;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Recover;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 import javax.net.ssl.*;
 import java.net.HttpURLConnection;
@@ -52,13 +60,22 @@ public class BdnsClientService {
     private record CachedDetalle(String texto, Instant savedAt) {}
     private final ConcurrentHashMap<String, CachedDetalle> cacheDetalle = new ConcurrentHashMap<>();
 
-    private final RestClient restClient;
+    @Value("${bdns.client.connect-timeout-ms:10000}")
+    private int connectTimeoutMs;
 
-    public BdnsClientService() {
+    @Value("${bdns.client.read-timeout-ms:30000}")
+    private int readTimeoutMs;
+
+    private RestClient restClient;
+
+    @PostConstruct
+    void init() {
         this.restClient = RestClient.builder()
-                .requestFactory(createSslPermissiveFactory())
+                .requestFactory(createSslPermissiveFactory(connectTimeoutMs, readTimeoutMs))
                 .defaultHeader("Accept", "application/json")
                 .build();
+        log.info("BdnsClientService iniciado — connectTimeout={}ms readTimeout={}ms",
+                connectTimeoutMs, readTimeoutMs);
     }
 
     /**
@@ -69,6 +86,12 @@ public class BdnsClientService {
      * @return lista de ConvocatoriaDTO mapeados desde la respuesta de BDNS
      * @throws BdnsException si la API no está disponible o devuelve error
      */
+    @Retryable(
+        retryFor = {ResourceAccessException.class, RestClientException.class},
+        noRetryFor = HttpClientErrorException.class,
+        maxAttemptsExpression = "${bdns.client.max-reintentos:3}",
+        backoff = @Backoff(delayExpression = "${bdns.client.reintento-delay-ms:1500}", multiplier = 2.0)
+    )
     public List<ConvocatoriaDTO> importar(int pagina, int tamano) {
         log.info("Consultando API BDNS real: pagina={} tamano={}", pagina, tamano);
 
@@ -111,6 +134,12 @@ public class BdnsClientService {
      * @param pagina número de página (0-indexed)
      * @param tamano registros por página (máximo 50)
      */
+    @Retryable(
+        retryFor = {ResourceAccessException.class, RestClientException.class},
+        noRetryFor = HttpClientErrorException.class,
+        maxAttemptsExpression = "${bdns.client.max-reintentos:3}",
+        backoff = @Backoff(delayExpression = "${bdns.client.reintento-delay-ms:1500}", multiplier = 2.0)
+    )
     public List<ConvocatoriaDTO> importarPorEje(String nivel1, String nivel2, int pagina, int tamano) {
         StringBuilder url = new StringBuilder(BDNS_BUSQUEDA)
                 .append("?vpn=GE&vln=es&numPag=").append(pagina)
@@ -133,6 +162,12 @@ public class BdnsClientService {
         return mapearRespuesta(respuesta);
     }
 
+    @Retryable(
+        retryFor = {ResourceAccessException.class, RestClientException.class},
+        noRetryFor = HttpClientErrorException.class,
+        maxAttemptsExpression = "${bdns.client.max-reintentos:3}",
+        backoff = @Backoff(delayExpression = "${bdns.client.reintento-delay-ms:1500}", multiplier = 2.0)
+    )
     public List<ConvocatoriaDTO> buscarPorTexto(String keywords, int pagina, int tamano) {
         log.info("BDNS búsqueda por texto: '{}' pagina={} tamano={}", keywords, pagina, tamano);
 
@@ -228,6 +263,29 @@ public class BdnsClientService {
 
         log.info("BDNS filtrada '{}' ccaa='{}': {} combinadas, {} tras dedup", keyword, ccaa, combinadas.size(), resultado.size());
         return resultado;
+    }
+
+    // ── Recover (agotados los reintentos) ────────────────────────────────────
+
+    @Recover
+    public List<ConvocatoriaDTO> recoverImportar(RestClientException ex, int pagina, int tamano) {
+        log.error("BDNS importar: agotados reintentos (pagina={} tamano={}): {}", pagina, tamano, ex.getMessage());
+        throw new BdnsException("BDNS no disponible tras " + "${bdns.client.max-reintentos:3}" + " intentos", ex);
+    }
+
+    @Recover
+    public List<ConvocatoriaDTO> recoverImportarPorEje(RestClientException ex,
+            String nivel1, String nivel2, int pagina, int tamano) {
+        log.error("BDNS importarPorEje: agotados reintentos (nivel1={} nivel2={} pag={}): {}",
+                nivel1, nivel2, pagina, ex.getMessage());
+        throw new BdnsException("BDNS no disponible para eje " + nivel1 + " tras reintentos", ex);
+    }
+
+    @Recover
+    public List<ConvocatoriaDTO> recoverBuscarPorTexto(RestClientException ex,
+            String keywords, int pagina, int tamano) {
+        log.error("BDNS buscarPorTexto: agotados reintentos (keywords='{}' pag={}): {}", keywords, pagina, ex.getMessage());
+        throw new BdnsException("BDNS búsqueda no disponible tras reintentos: " + keywords, ex);
     }
 
     // ── Detalle enriquecido de una convocatoria ──────────────────────────────
@@ -627,7 +685,7 @@ public class BdnsClientService {
 
     // ── SSL permisivo para el certificado del gobierno ───────────────────────
 
-    private SimpleClientHttpRequestFactory createSslPermissiveFactory() {
+    private SimpleClientHttpRequestFactory createSslPermissiveFactory(int connectMs, int readMs) {
         try {
             TrustManager[] trustAll = new TrustManager[]{
                     new X509TrustManager() {
@@ -640,7 +698,7 @@ public class BdnsClientService {
             SSLContext sslCtx = SSLContext.getInstance("TLS");
             sslCtx.init(null, trustAll, new java.security.SecureRandom());
 
-            return new SimpleClientHttpRequestFactory() {
+            SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory() {
                 @Override
                 protected void prepareConnection(HttpURLConnection connection, String httpMethod)
                         throws java.io.IOException {
@@ -651,9 +709,15 @@ public class BdnsClientService {
                     super.prepareConnection(connection, httpMethod);
                 }
             };
+            factory.setConnectTimeout(connectMs);
+            factory.setReadTimeout(readMs);
+            return factory;
         } catch (Exception e) {
             log.error("Error configurando SSL para BDNS: {}", e.getMessage());
-            return new SimpleClientHttpRequestFactory();
+            SimpleClientHttpRequestFactory fallback = new SimpleClientHttpRequestFactory();
+            fallback.setConnectTimeout(connectMs);
+            fallback.setReadTimeout(readMs);
+            return fallback;
         }
     }
 
