@@ -77,5 +77,21 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
             "   OR LOWER(c.ubicacion) LIKE LOWER(CONCAT('%', :ubicacion, '%')))")
     List<Convocatoria> buscarParaModoGratuito(@Param("keyword") String keyword,
                                               @Param("ubicacion") String ubicacion);
+
+    // ── Queries de cobertura de campos ──────────────────────────────────────
+
+    long countByOrganismoIsNotNull();
+
+    long countByFechaPublicacionIsNotNull();
+
+    long countByDescripcionIsNotNull();
+
+    long countByTextoCompletoIsNotNull();
+
+    long countBySectorIsNotNull();
+
+    long countByFechaCierreIsNotNull();
+
+    long countByUbicacionIsNotNull();
 }
 

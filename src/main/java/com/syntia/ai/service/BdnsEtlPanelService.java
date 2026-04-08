@@ -2,8 +2,10 @@ package com.syntia.ai.service;
 
 import com.syntia.ai.model.SyncLog;
 import com.syntia.ai.model.SyncState;
+import com.syntia.ai.model.dto.CoberturaDTO;
 import com.syntia.ai.model.dto.ResumenEjecucionDTO;
 import com.syntia.ai.model.dto.SyncStateDTO;
+import com.syntia.ai.repository.ConvocatoriaRepository;
 import com.syntia.ai.repository.SyncLogRepository;
 import com.syntia.ai.repository.SyncStateRepository;
 import org.springframework.stereotype.Service;
@@ -23,11 +25,14 @@ public class BdnsEtlPanelService {
 
     private final SyncStateRepository syncStateRepo;
     private final SyncLogRepository syncLogRepo;
+    private final ConvocatoriaRepository convocatoriaRepo;
 
     public BdnsEtlPanelService(SyncStateRepository syncStateRepo,
-                                SyncLogRepository syncLogRepo) {
+                                SyncLogRepository syncLogRepo,
+                                ConvocatoriaRepository convocatoriaRepo) {
         this.syncStateRepo = syncStateRepo;
         this.syncLogRepo = syncLogRepo;
+        this.convocatoriaRepo = convocatoriaRepo;
     }
 
     /**
@@ -65,7 +70,32 @@ public class BdnsEtlPanelService {
         return syncLogRepo.findByEjecucionIdOrderByTsAsc(ejecucionId);
     }
 
+    /**
+     * Calcula el porcentaje de convocatorias en BD que tienen cada campo relleno.
+     */
+    public CoberturaDTO obtenerCobertura() {
+        long total = convocatoriaRepo.count();
+        if (total == 0) {
+            return new CoberturaDTO(0, List.of());
+        }
+        List<CoberturaDTO.CampoCobertura> campos = List.of(
+                campo("organismo",        convocatoriaRepo.countByOrganismoIsNotNull(),        total),
+                campo("fechaPublicacion", convocatoriaRepo.countByFechaPublicacionIsNotNull(), total),
+                campo("descripcion",      convocatoriaRepo.countByDescripcionIsNotNull(),      total),
+                campo("textoCompleto",    convocatoriaRepo.countByTextoCompletoIsNotNull(),    total),
+                campo("sector",           convocatoriaRepo.countBySectorIsNotNull(),           total),
+                campo("fechaCierre",      convocatoriaRepo.countByFechaCierreIsNotNull(),      total),
+                campo("ubicacion",        convocatoriaRepo.countByUbicacionIsNotNull(),        total)
+        );
+        return new CoberturaDTO(total, campos);
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
+
+    private CoberturaDTO.CampoCobertura campo(String nombre, long conValor, long total) {
+        double pct = total > 0 ? Math.round(conValor * 1000.0 / total) / 10.0 : 0.0;
+        return new CoberturaDTO.CampoCobertura(nombre, conValor, pct);
+    }
 
     private SyncStateDTO toDTO(SyncState s) {
         return new SyncStateDTO(

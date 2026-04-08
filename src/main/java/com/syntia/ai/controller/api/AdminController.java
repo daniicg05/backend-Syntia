@@ -251,6 +251,14 @@ public class AdminController {
         return ResponseEntity.ok(bdnsEtlPanelService.obtenerLogsEjecucion(ejecucionId));
     }
 
+    /**
+     * Métricas de cobertura: qué % de convocatorias en BD tiene cada campo relleno.
+     */
+    @GetMapping("/bdns/cobertura")
+    public ResponseEntity<?> coberturaDatos() {
+        return ResponseEntity.ok(bdnsEtlPanelService.obtenerCobertura());
+    }
+
     @GetMapping("/bdns/ultima-importacion")
     public ResponseEntity<?> ultimaImportacionBdns() {
         BdnsImportJobService.EstadoJob job = bdnsImportJobService.obtenerEstado();
