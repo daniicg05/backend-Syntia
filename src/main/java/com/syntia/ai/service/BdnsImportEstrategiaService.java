@@ -93,7 +93,10 @@ public class BdnsImportEstrategiaService {
 
         try {
             while (pag <= maxPaginas && !cancelado.get()) {
-                onProgreso.accept("GLOBAL – pág. " + pag, nuevosTotal);
+                String progStr = maxPaginas == Integer.MAX_VALUE
+                        ? "GLOBAL – pág. " + pag
+                        : "GLOBAL – pág. " + pag + "/" + (maxPaginas + 1);
+                onProgreso.accept(progStr, nuevosTotal);
 
                 BdnsClientService.PaginaBdns pagina = bdnsClientService.importarPorEje(null, null, pag, TAM_PAGINA);
 
