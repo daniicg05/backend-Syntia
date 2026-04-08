@@ -26,12 +26,13 @@ public class BdnsImportJobService {
             String ejeActual,
             LocalDateTime iniciadoEn,
             LocalDateTime finalizadoEn,
-            String error
+            String error,
+            ModoImportacion modo
     ) {}
 
     private final AtomicBoolean enCurso = new AtomicBoolean(false);
     private final AtomicReference<EstadoJob> estadoActual =
-            new AtomicReference<>(new EstadoJob(EstadoImportacion.INACTIVO, 0, null, null, null, null));
+            new AtomicReference<>(new EstadoJob(EstadoImportacion.INACTIVO, 0, null, null, null, null, null));
 
     private final BdnsImportExecutor bdnsImportExecutor;
 
@@ -47,30 +48,31 @@ public class BdnsImportJobService {
     /**
      * Lanza la importación completa como job asíncrono.
      *
+     * @param modo FULL o INCREMENTAL
      * @return true si se inició correctamente, false si ya había uno en curso
      */
-    public boolean iniciar() {
+    public boolean iniciar(ModoImportacion modo) {
         if (!enCurso.compareAndSet(false, true)) {
             log.warn("Ya hay una importación BDNS en curso — petición ignorada");
             return false;
         }
         LocalDateTime inicio = LocalDateTime.now();
-        estadoActual.set(new EstadoJob(EstadoImportacion.EN_CURSO, 0, "Iniciando...", inicio, null, null));
+        estadoActual.set(new EstadoJob(EstadoImportacion.EN_CURSO, 0, "Iniciando...", inicio, null, null, modo));
 
-        // Llamada a través del proxy Spring → @Async funciona correctamente
         bdnsImportExecutor.ejecutar(
                 (eje, total) -> estadoActual.set(new EstadoJob(
-                        EstadoImportacion.EN_CURSO, total, eje, inicio, null, null)),
+                        EstadoImportacion.EN_CURSO, total, eje, inicio, null, null, modo)),
                 (total) -> {
                     estadoActual.set(new EstadoJob(
-                            EstadoImportacion.COMPLETADO, total, null, inicio, LocalDateTime.now(), null));
+                            EstadoImportacion.COMPLETADO, total, null, inicio, LocalDateTime.now(), null, modo));
                     enCurso.set(false);
                 },
                 (error, total) -> {
                     estadoActual.set(new EstadoJob(
-                            EstadoImportacion.FALLIDO, total, null, inicio, LocalDateTime.now(), error));
+                            EstadoImportacion.FALLIDO, total, null, inicio, LocalDateTime.now(), error, modo));
                     enCurso.set(false);
-                }
+                },
+                modo
         );
         return true;
     }

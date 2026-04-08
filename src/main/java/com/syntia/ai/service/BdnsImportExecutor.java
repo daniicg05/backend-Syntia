@@ -34,11 +34,12 @@ public class BdnsImportExecutor {
     @Async
     public void ejecutar(BiConsumer<String, Integer> onProgreso,
                          Consumer<Integer> onCompletado,
-                         BiConsumer<String, Integer> onFallido) {
+                         BiConsumer<String, Integer> onFallido,
+                         ModoImportacion modo) {
         int total = 0;
         try {
-            log.info("=== BdnsImportExecutor: arrancando importación masiva por ejes ===");
-            total = estrategiaService.importarTodo(onProgreso);
+            log.info("=== BdnsImportExecutor: arrancando importación masiva — modo={} ===", modo);
+            total = estrategiaService.importarTodo(onProgreso, modo);
             log.info("=== BdnsImportExecutor: importación completada — {} nuevos ===", total);
             onCompletado.accept(total);
         } catch (InterruptedException e) {

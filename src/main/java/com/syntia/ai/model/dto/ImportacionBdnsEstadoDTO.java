@@ -8,5 +8,6 @@ public record ImportacionBdnsEstadoDTO(
         String ejeActual,
         LocalDateTime iniciadoEn,
         LocalDateTime finalizadoEn,
-        String error
+        String error,
+        String modo
 ) {}

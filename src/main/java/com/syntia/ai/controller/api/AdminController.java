@@ -8,6 +8,7 @@ import com.syntia.ai.model.dto.ImportacionBdnsEstadoDTO;
 import com.syntia.ai.repository.ProyectoRepository;
 import com.syntia.ai.repository.RecomendacionRepository;
 import com.syntia.ai.service.BdnsImportJobService;
+import com.syntia.ai.service.ModoImportacion;
 import com.syntia.ai.service.ConvocatoriaService;
 import com.syntia.ai.service.ProyectoService;
 import com.syntia.ai.service.RecomendacionService;
@@ -187,14 +188,23 @@ public class AdminController {
     // ─────────────────────────────────────────────
 
     @PostMapping("/bdns/importar")
-    public ResponseEntity<?> lanzarImportacionBdns() {
-        boolean iniciado = bdnsImportJobService.iniciar();
+    public ResponseEntity<?> lanzarImportacionBdns(
+            @RequestParam(defaultValue = "FULL") String modo) {
+        ModoImportacion modoImportacion;
+        try {
+            modoImportacion = ModoImportacion.valueOf(modo.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Modo inválido. Valores permitidos: FULL, INCREMENTAL"));
+        }
+        boolean iniciado = bdnsImportJobService.iniciar(modoImportacion);
         if (!iniciado) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("error", "Ya hay una importación BDNS en curso."));
         }
         return ResponseEntity.accepted()
-                .body(Map.of("message", "Importación masiva BDNS iniciada en segundo plano."));
+                .body(Map.of("message", "Importación masiva BDNS iniciada en segundo plano.",
+                             "modo", modoImportacion.name()));
     }
 
     @GetMapping("/bdns/estado")
@@ -206,7 +216,8 @@ public class AdminController {
                 job.ejeActual(),
                 job.iniciadoEn(),
                 job.finalizadoEn(),
-                job.error()
+                job.error(),
+                job.modo() != null ? job.modo().name() : null
         ));
     }
 
