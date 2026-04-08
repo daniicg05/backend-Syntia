@@ -1,14 +1,19 @@
 package com.syntia.ai.controller.api;
 
+import com.syntia.ai.model.Perfil;
 import com.syntia.ai.model.Proyecto;
 import com.syntia.ai.model.Rol;
 import com.syntia.ai.model.Usuario;
+import com.syntia.ai.model.dto.AdminDetalleUsuarioResponseDTO;
+import com.syntia.ai.model.dto.AdminUsuarioDetalleDTO;
 import com.syntia.ai.model.dto.ConvocatoriaDTO;
+import com.syntia.ai.model.dto.HistorialCorreoDTO;
 import com.syntia.ai.model.dto.ImportacionBdnsEstadoDTO;
 import com.syntia.ai.repository.ProyectoRepository;
 import com.syntia.ai.repository.RecomendacionRepository;
 import com.syntia.ai.service.BdnsImportJobService;
 import com.syntia.ai.service.ConvocatoriaService;
+import com.syntia.ai.service.PerfilService;
 import com.syntia.ai.service.ProyectoService;
 import com.syntia.ai.service.RecomendacionService;
 import com.syntia.ai.service.UsuarioService;
@@ -35,6 +40,7 @@ import java.util.stream.Collectors;
 public class AdminController {
 
     private final UsuarioService usuarioService;
+    private final PerfilService perfilService;
     private final ConvocatoriaService convocatoriaService;
     private final ProyectoService proyectoService;
     private final RecomendacionService recomendacionService;
@@ -43,6 +49,7 @@ public class AdminController {
     private final BdnsImportJobService bdnsImportJobService;
 
     public AdminController(UsuarioService usuarioService,
+                           PerfilService perfilService,
                            ConvocatoriaService convocatoriaService,
                            ProyectoService proyectoService,
                            RecomendacionService recomendacionService,
@@ -50,6 +57,7 @@ public class AdminController {
                            RecomendacionRepository recomendacionRepository,
                            BdnsImportJobService bdnsImportJobService) {
         this.usuarioService = usuarioService;
+        this.perfilService = perfilService;
         this.convocatoriaService = convocatoriaService;
         this.proyectoService = proyectoService;
         this.recomendacionService = recomendacionService;
@@ -89,17 +97,53 @@ public class AdminController {
     public ResponseEntity<?> detalleUsuario(@PathVariable Long id) {
         Usuario usuario = usuarioService.buscarPorId(id)
                 .orElseThrow(() -> new EntityNotFoundException("Usuario no encontrado: " + id));
+
+        Perfil perfil = perfilService.obtenerPerfil(id).orElse(null);
         List<Proyecto> proyectos = proyectoService.obtenerProyectos(id);
         Map<Long, Long> recsPerProyecto = proyectos.stream()
                 .collect(Collectors.toMap(
                         Proyecto::getId,
                         p -> recomendacionService.contarPorProyecto(p.getId())
                 ));
-        return ResponseEntity.ok(Map.of(
-                "usuarioDetalle", usuario,
-                "proyectos", proyectos.stream().map(proyectoService::toDTO).toList(),
-                "recsPerProyecto", recsPerProyecto
-        ));
+
+        AdminUsuarioDetalleDTO usuarioDto = AdminUsuarioDetalleDTO.builder()
+                .id(usuario.getId())
+                .email(usuario.getEmail())
+                .rol(usuario.getRol().name())
+                .creadoEn(usuario.getCreadoEn())
+                .empresa(perfil != null ? perfil.getEmpresa() : null)
+                .provincia(perfil != null ? perfil.getProvincia() : null)
+                .telefono(perfil != null ? perfil.getTelefono() : null)
+                .build();
+
+        List<Map<String, Object>> proyectosDto = proyectos.stream()
+                .map(p -> {
+                    Map<String, Object> proyectoMap = new java.util.HashMap<>();
+                    proyectoMap.put("id", p.getId());
+                    proyectoMap.put("nombre", p.getNombre() != null ? p.getNombre() : "");
+                    proyectoMap.put("sector", p.getSector() != null ? p.getSector() : "");
+                    return proyectoMap;
+                })
+                .toList();
+
+        List<HistorialCorreoDTO> historialDto = usuarioService.obtenerHistorialCorreo(id).stream()
+                .map(h -> HistorialCorreoDTO.builder()
+                        .anterior(h.getAnterior())
+                        .nuevo(h.getNuevo())
+                        .fecha(h.getFecha())
+                        .actor(h.getActor())
+                        .build())
+                .toList();
+
+        AdminDetalleUsuarioResponseDTO response = AdminDetalleUsuarioResponseDTO.builder()
+                .usuario(usuarioDto)
+                .proyectos(proyectosDto)
+                .recsPerProyecto(recsPerProyecto)
+                .emailCambiado(usuarioService.emailCambiado(id))
+                .historialCorreo(historialDto)
+                .build();
+
+        return ResponseEntity.ok(response);
     }
 
     @PutMapping("/usuarios/{id}/rol")

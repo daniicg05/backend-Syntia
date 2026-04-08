@@ -14,6 +14,15 @@ public class PerfilDTO {
     @NotBlank(message = "La ubicación es obligatoria")
     private String ubicacion;
 
+    @Size(max = 255, message = "La empresa no puede superar los 255 caracteres")
+    private String empresa;
+
+    @Size(max = 100, message = "La provincia no puede superar los 100 caracteres")
+    private String provincia;
+
+    @Size(max = 30, message = "El teléfono no puede superar los 30 caracteres")
+    private String telefono;
+
     private String tipoEntidad;
 
     @Size(max = 500, message = "Los objetivos no pueden superar los 500 caracteres")

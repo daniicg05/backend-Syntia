@@ -1,8 +1,11 @@
 package com.syntia.ai.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.syntia.ai.model.ErrorResponse;
 import com.syntia.ai.model.Rol;
 import com.syntia.ai.security.JwtAuthenticationFilter;
 import com.syntia.ai.service.CustomUserDetailService;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -16,6 +19,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import java.time.LocalDateTime;
 
 /**
  * Seguridad para backend API REST (React + Spring Boot).
@@ -39,6 +44,30 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            ErrorResponse error = new ErrorResponse(
+                                    HttpServletResponse.SC_UNAUTHORIZED,
+                                    "No autenticado o token inválido",
+                                    LocalDateTime.now(),
+                                    request.getRequestURI()
+                            );
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            response.setContentType("application/json");
+                            new ObjectMapper().writeValue(response.getOutputStream(), error);
+                        })
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            ErrorResponse error = new ErrorResponse(
+                                    HttpServletResponse.SC_FORBIDDEN,
+                                    "Acceso denegado",
+                                    LocalDateTime.now(),
+                                    request.getRequestURI()
+                            );
+                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            response.setContentType("application/json");
+                            new ObjectMapper().writeValue(response.getOutputStream(), error);
+                        })
+                )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/api/auth/**",

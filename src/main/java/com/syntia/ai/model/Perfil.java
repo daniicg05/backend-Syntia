@@ -28,6 +28,15 @@ public class Perfil {
     @Column(nullable = false)
     private String ubicacion;
 
+    @Column(length = 255)
+    private String empresa;
+
+    @Column(length = 100)
+    private String provincia;
+
+    @Column(length = 30)
+    private String telefono;
+
     @Column(name = "tipo_entidad")
     private String tipoEntidad;
 

@@ -95,7 +95,12 @@ public class PerfilController {
         Usuario usuario = resolverUsuario(authentication);
 
         try {
-            Usuario actualizado = usuarioService.cambiarEmail(usuario.getId(), dto.getPasswordActual(), dto.getNuevoEmail());
+            Usuario actualizado = usuarioService.cambiarEmail(
+                    usuario.getId(),
+                    dto.getPasswordActual(),
+                    dto.getNuevoEmail(),
+                    authentication.getName()
+            );
             String nuevoToken = jwtService.generarToken(actualizado.getEmail(), actualizado.getRol().name());
             return ResponseEntity.ok(new LoginResponseDTO(nuevoToken, actualizado.getEmail(), actualizado.getRol().name(), 86400000L));
         } catch (IllegalArgumentException e) {
