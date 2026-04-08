@@ -544,9 +544,10 @@ public class BdnsClientService {
         // Ubicación: nivel2 contiene la comunidad/organismo
         dto.setUbicacion(mapearUbicacion(nivel1, getString(c, "nivel2", null)));
 
-        // Fuente
+        // Organismo y fuente
         String organismo = getString(c, "nivel3",
                 getString(c, "nivel2", "BDNS"));
+        dto.setOrganismo(organismo);
         dto.setFuente("BDNS – " + organismo);
 
         // ID interno BDNS — necesario para obtener el detalle completo
@@ -563,6 +564,19 @@ public class BdnsClientService {
             // Fallback: buscar por ID interno (puede dar "Error al obtener datos" en la SPA)
             dto.setUrlOficial("https://www.infosubvenciones.es/bdnstrans/GE/es/convocatoria/" + idBdns);
         }
+
+        // Fecha de publicación: fechaRecepcion = fecha de registro en BDNS
+        String fechaRecepcion = getString(c, "fechaRecepcion", null);
+        if (fechaRecepcion != null) {
+            try {
+                dto.setFechaPublicacion(LocalDate.parse(fechaRecepcion.substring(0, 10)));
+            } catch (Exception e) {
+                log.debug("BDNS: no se pudo parsear fechaRecepcion: {}", fechaRecepcion);
+            }
+        }
+
+        // Descripcion: mismo campo que el título en BDNS, se guarda también como descripción
+        dto.setDescripcion(dto.getTitulo());
 
         // Fecha de cierre: intentar campos reales de plazo (fechaRecepcion es la de REGISTRO, no cierre)
         String fechaCierre = getString(c, "fechaFinSolicitud",

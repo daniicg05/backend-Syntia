@@ -72,6 +72,10 @@ public class ConvocatoriaService {
         c.setFechaCierre(dto.getFechaCierre());
         c.setIdBdns(dto.getIdBdns());
         c.setNumeroConvocatoria(dto.getNumeroConvocatoria());
+        c.setOrganismo(dto.getOrganismo());
+        c.setFechaPublicacion(dto.getFechaPublicacion());
+        c.setDescripcion(dto.getDescripcion());
+        c.setTextoCompleto(dto.getTextoCompleto());
         return convocatoriaRepository.save(c);
     }
 
@@ -139,6 +143,10 @@ public class ConvocatoriaService {
         dto.setFechaCierre(c.getFechaCierre());
         dto.setIdBdns(c.getIdBdns());
         dto.setNumeroConvocatoria(c.getNumeroConvocatoria());
+        dto.setOrganismo(c.getOrganismo());
+        dto.setFechaPublicacion(c.getFechaPublicacion());
+        dto.setDescripcion(c.getDescripcion());
+        dto.setTextoCompleto(c.getTextoCompleto());
         // Construir URL fiable: numConv > idBdns > url guardada
         String url;
         if (c.getNumeroConvocatoria() != null && !c.getNumeroConvocatoria().isBlank()) {

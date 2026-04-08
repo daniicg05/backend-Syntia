@@ -27,6 +27,15 @@ public class ConvocatoriaDTO {
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDate fechaCierre;
 
+    private String organismo;
+
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+    private LocalDate fechaPublicacion;
+
+    private String descripcion;
+
+    private String textoCompleto;
+
     public ConvocatoriaDTO() {
     }
 
@@ -100,5 +109,37 @@ public class ConvocatoriaDTO {
 
     public void setFechaCierre(LocalDate fechaCierre) {
         this.fechaCierre = fechaCierre;
+    }
+
+    public String getOrganismo() {
+        return organismo;
+    }
+
+    public void setOrganismo(String organismo) {
+        this.organismo = organismo;
+    }
+
+    public LocalDate getFechaPublicacion() {
+        return fechaPublicacion;
+    }
+
+    public void setFechaPublicacion(LocalDate fechaPublicacion) {
+        this.fechaPublicacion = fechaPublicacion;
+    }
+
+    public String getDescripcion() {
+        return descripcion;
+    }
+
+    public void setDescripcion(String descripcion) {
+        this.descripcion = descripcion;
+    }
+
+    public String getTextoCompleto() {
+        return textoCompleto;
+    }
+
+    public void setTextoCompleto(String textoCompleto) {
+        this.textoCompleto = textoCompleto;
     }
 }
