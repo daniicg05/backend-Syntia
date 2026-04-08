@@ -1,11 +1,17 @@
 package com.syntia.ai.service;
 
+import com.syntia.ai.model.SyncLog;
+import com.syntia.ai.model.SyncState;
 import com.syntia.ai.model.dto.ConvocatoriaDTO;
+import com.syntia.ai.repository.SyncLogRepository;
+import com.syntia.ai.repository.SyncStateRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 import java.util.function.BiConsumer;
 
 /**
@@ -40,11 +46,17 @@ public class BdnsImportEstrategiaService {
 
     private final BdnsClientService bdnsClientService;
     private final ConvocatoriaService convocatoriaService;
+    private final SyncStateRepository syncStateRepo;
+    private final SyncLogRepository syncLogRepo;
 
     public BdnsImportEstrategiaService(BdnsClientService bdnsClientService,
-                                       ConvocatoriaService convocatoriaService) {
+                                       ConvocatoriaService convocatoriaService,
+                                       SyncStateRepository syncStateRepo,
+                                       SyncLogRepository syncLogRepo) {
         this.bdnsClientService = bdnsClientService;
         this.convocatoriaService = convocatoriaService;
+        this.syncStateRepo = syncStateRepo;
+        this.syncLogRepo = syncLogRepo;
     }
 
     /**
@@ -54,50 +66,98 @@ public class BdnsImportEstrategiaService {
      * @return total de registros nuevos importados
      */
     public int importarTodo(BiConsumer<String, Integer> onProgreso) throws InterruptedException {
+        String ejecucionId = UUID.randomUUID().toString();
+        log.info("BDNS estrategia: ejecucionId={}", ejecucionId);
+
         int total = 0;
 
-        total += importarEje("ESTADO", null, total, onProgreso);
+        total += importarEje("ESTADO", null, total, onProgreso, ejecucionId);
         for (String ccaa : CCAA) {
-            total += importarEje("AUTONOMICA", ccaa, total, onProgreso);
+            total += importarEje("AUTONOMICA", ccaa, total, onProgreso, ejecucionId);
         }
-        total += importarEje("LOCAL", null, total, onProgreso);
-        total += importarEje("OTROS", null, total, onProgreso);
+        total += importarEje("LOCAL", null, total, onProgreso, ejecucionId);
+        total += importarEje("OTROS", null, total, onProgreso, ejecucionId);
 
         return total;
     }
 
     private int importarEje(String nivel1, String nivel2, int totalPrevio,
-                             BiConsumer<String, Integer> onProgreso) throws InterruptedException {
-        String ejeDesc = nivel2 != null ? nivel1 + " – " + nivel2 : nivel1;
-        log.info("BDNS estrategia: iniciando eje [{}]", ejeDesc);
+                             BiConsumer<String, Integer> onProgreso,
+                             String ejecucionId) throws InterruptedException {
+        String ejeKey = nivel2 != null ? nivel1 + " – " + nivel2 : nivel1;
+        log.info("BDNS estrategia: iniciando eje [{}]", ejeKey);
+
+        // Crear o resetear SyncState para este eje
+        SyncState syncState = syncStateRepo.findByEje(ejeKey)
+                .orElse(SyncState.builder().eje(ejeKey).build());
+        syncState.setEstado(SyncState.Estado.EN_PROGRESO);
+        syncState.setTsInicio(Instant.now());
+        syncState.setTsUltimaCarga(null);
+        syncState.setUltimaPaginaOk(-1);
+        syncState.setRegistrosNuevos(0);
+        syncState.setRegistrosActualizados(0);
+        syncState = syncStateRepo.save(syncState);
 
         int pag = 0;
         int nuevosEje = 0;
 
-        while (true) {
-            onProgreso.accept(ejeDesc + " – pág. " + pag, totalPrevio + nuevosEje);
+        try {
+            while (true) {
+                onProgreso.accept(ejeKey + " – pág. " + pag, totalPrevio + nuevosEje);
 
-            List<ConvocatoriaDTO> pagina = bdnsClientService.importarPorEje(nivel1, nivel2, pag, TAM_PAGINA);
+                List<ConvocatoriaDTO> pagina = bdnsClientService.importarPorEje(nivel1, nivel2, pag, TAM_PAGINA);
 
-            if (pagina.isEmpty()) {
-                log.info("BDNS estrategia: eje [{}] completado — {} páginas, {} nuevos", ejeDesc, pag, nuevosEje);
-                break;
+                if (pagina.isEmpty()) {
+                    log.info("BDNS estrategia: eje [{}] completado — {} páginas, {} nuevos", ejeKey, pag, nuevosEje);
+                    break;
+                }
+
+                int nuevasPag = convocatoriaService.persistirNuevas(pagina);
+                nuevosEje += nuevasPag;
+
+                // Persistir progreso por página
+                syncState.setUltimaPaginaOk(pag);
+                syncState.setRegistrosNuevos(syncState.getRegistrosNuevos() + nuevasPag);
+                syncState.setTsUltimaCarga(Instant.now());
+                syncStateRepo.save(syncState);
+
+                syncLogRepo.save(SyncLog.builder()
+                        .ejecucionId(ejecucionId)
+                        .eje(ejeKey)
+                        .pagina(pag)
+                        .registrosNuevos(nuevasPag)
+                        .registrosActualizados(0)
+                        .errores(0)
+                        .ts(Instant.now())
+                        .build());
+
+                if (pag % 10 == 0) {
+                    log.info("BDNS estrategia: eje [{}] pág. {} — {} nuevos en este eje", ejeKey, pag, nuevosEje);
+                }
+
+                if (pagina.size() < TAM_PAGINA) {
+                    log.info("BDNS estrategia: eje [{}] completado — {} páginas, {} nuevos", ejeKey, pag + 1, nuevosEje);
+                    break;
+                }
+
+                pag++;
+                Thread.sleep(delayMs);
             }
 
-            int nuevasPag = convocatoriaService.persistirNuevas(pagina);
-            nuevosEje += nuevasPag;
+            syncState.setEstado(SyncState.Estado.COMPLETADO);
+            syncState.setTsUltimaCarga(Instant.now());
+            syncStateRepo.save(syncState);
 
-            if (pag % 10 == 0) {
-                log.info("BDNS estrategia: eje [{}] pág. {} — {} nuevos en este eje", ejeDesc, pag, nuevosEje);
-            }
-
-            if (pagina.size() < TAM_PAGINA) {
-                log.info("BDNS estrategia: eje [{}] completado — {} páginas, {} nuevos", ejeDesc, pag + 1, nuevosEje);
-                break;
-            }
-
-            pag++;
-            Thread.sleep(delayMs);
+        } catch (InterruptedException e) {
+            syncState.setEstado(SyncState.Estado.ERROR);
+            syncState.setTsUltimaCarga(Instant.now());
+            syncStateRepo.save(syncState);
+            throw e;
+        } catch (Exception e) {
+            syncState.setEstado(SyncState.Estado.ERROR);
+            syncState.setTsUltimaCarga(Instant.now());
+            syncStateRepo.save(syncState);
+            log.error("BDNS estrategia: error en eje [{}] pág. {}: {}", ejeKey, pag, e.getMessage());
         }
 
         return nuevosEje;
