@@ -39,4 +39,15 @@ public class Convocatoria {
 
     @Column(name = "fecha_cierre")
     private LocalDate fechaCierre;
+
+    private String organismo;
+
+    @Column(name = "fecha_publicacion")
+    private LocalDate fechaPublicacion;
+
+    @Column(columnDefinition = "TEXT")
+    private String descripcion;
+
+    @Column(name = "texto_completo", columnDefinition = "TEXT")
+    private String textoCompleto;
 }
