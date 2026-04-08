@@ -124,19 +124,27 @@ public class BdnsImportEstrategiaService {
 
         int pag = paginaInicio;
         int nuevosEje = 0;
+        int maxPaginasEje = Integer.MAX_VALUE;
 
         try {
-            while (true) {
+            while (pag <= maxPaginasEje) {
                 onProgreso.accept(ejeKey + " – pág. " + pag, totalPrevio + nuevosEje);
 
-                List<ConvocatoriaDTO> pagina = bdnsClientService.importarPorEje(nivel1, nivel2, pag, TAM_PAGINA);
+                BdnsClientService.PaginaBdns pagina = bdnsClientService.importarPorEje(nivel1, nivel2, pag, TAM_PAGINA);
 
-                if (pagina.isEmpty()) {
+                // En la primera página, calcular el total exacto de páginas del eje
+                if (pag == paginaInicio && pagina.totalElements() > 0) {
+                    maxPaginasEje = (int) Math.ceil((double) pagina.totalElements() / TAM_PAGINA) - 1;
+                    log.info("BDNS estrategia: eje [{}] totalElements={} → {} páginas máx.",
+                            ejeKey, pagina.totalElements(), maxPaginasEje + 1);
+                }
+
+                if (pagina.items().isEmpty()) {
                     log.info("BDNS estrategia: eje [{}] completado — {} páginas, {} nuevos", ejeKey, pag, nuevosEje);
                     break;
                 }
 
-                ResultadoPersistencia resultado = convocatoriaService.persistirNuevas(pagina);
+                ResultadoPersistencia resultado = convocatoriaService.persistirNuevas(pagina.items());
                 nuevosEje += resultado.nuevas();
 
                 syncState.setUltimaPaginaOk(pag);
@@ -156,16 +164,22 @@ public class BdnsImportEstrategiaService {
                         .build());
 
                 if (pag % 10 == 0) {
-                    log.info("BDNS estrategia: eje [{}] pág. {} — {} nuevos en este eje", ejeKey, pag, nuevosEje);
+                    log.info("BDNS estrategia: eje [{}] pág. {}/{} — {} nuevos en este eje",
+                            ejeKey, pag, maxPaginasEje + 1, nuevosEje);
                 }
 
-                if (pagina.size() < TAM_PAGINA) {
+                if (pagina.items().size() < TAM_PAGINA) {
                     log.info("BDNS estrategia: eje [{}] completado — {} páginas, {} nuevos", ejeKey, pag + 1, nuevosEje);
                     break;
                 }
 
                 pag++;
                 Thread.sleep(delayMs);
+            }
+
+            if (pag > maxPaginasEje) {
+                log.info("BDNS estrategia: eje [{}] completado por totalElements — {} páginas, {} nuevos",
+                        ejeKey, pag, nuevosEje);
             }
 
             syncState.setEstado(SyncState.Estado.COMPLETADO);

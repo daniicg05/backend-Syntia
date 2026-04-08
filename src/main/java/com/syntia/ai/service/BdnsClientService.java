@@ -134,13 +134,16 @@ public class BdnsClientService {
      * @param pagina número de página (0-indexed)
      * @param tamano registros por página (máximo 50)
      */
+    /** Resultado paginado de un eje BDNS: registros mapeados + total de elementos del eje. */
+    public record PaginaBdns(List<ConvocatoriaDTO> items, long totalElements) {}
+
     @Retryable(
         retryFor = {ResourceAccessException.class, RestClientException.class},
         noRetryFor = HttpClientErrorException.class,
         maxAttemptsExpression = "${bdns.client.max-reintentos:3}",
         backoff = @Backoff(delayExpression = "${bdns.client.reintento-delay-ms:1500}", multiplier = 2.0)
     )
-    public List<ConvocatoriaDTO> importarPorEje(String nivel1, String nivel2, int pagina, int tamano) {
+    public PaginaBdns importarPorEje(String nivel1, String nivel2, int pagina, int tamano) {
         StringBuilder url = new StringBuilder(BDNS_BUSQUEDA)
                 .append("?vpn=GE&vln=es&numPag=").append(pagina)
                 .append("&tamPag=").append(Math.min(tamano, 50))
@@ -158,8 +161,13 @@ public class BdnsClientService {
                 .retrieve()
                 .body(Map.class);
 
-        if (respuesta == null) return List.of();
-        return mapearRespuesta(respuesta);
+        if (respuesta == null) return new PaginaBdns(List.of(), 0L);
+
+        long total = 0L;
+        Object totalObj = respuesta.get("totalElements");
+        if (totalObj instanceof Number n) total = n.longValue();
+
+        return new PaginaBdns(mapearRespuesta(respuesta), total);
     }
 
     @Retryable(
@@ -274,7 +282,7 @@ public class BdnsClientService {
     }
 
     @Recover
-    public List<ConvocatoriaDTO> recoverImportarPorEje(RestClientException ex,
+    public PaginaBdns recoverImportarPorEje(RestClientException ex,
             String nivel1, String nivel2, int pagina, int tamano) {
         log.error("BDNS importarPorEje: agotados reintentos (nivel1={} nivel2={} pag={}): {}",
                 nivel1, nivel2, pagina, ex.getMessage());
