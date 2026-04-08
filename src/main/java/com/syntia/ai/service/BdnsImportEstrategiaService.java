@@ -3,6 +3,7 @@ package com.syntia.ai.service;
 import com.syntia.ai.model.SyncLog;
 import com.syntia.ai.model.SyncState;
 import com.syntia.ai.model.dto.ConvocatoriaDTO;
+import com.syntia.ai.model.dto.ResultadoPersistencia;
 import com.syntia.ai.repository.SyncLogRepository;
 import com.syntia.ai.repository.SyncStateRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -135,11 +136,11 @@ public class BdnsImportEstrategiaService {
                     break;
                 }
 
-                int nuevasPag = convocatoriaService.persistirNuevas(pagina);
-                nuevosEje += nuevasPag;
+                ResultadoPersistencia resultado = convocatoriaService.persistirNuevas(pagina);
+                nuevosEje += resultado.nuevas();
 
                 syncState.setUltimaPaginaOk(pag);
-                syncState.setRegistrosNuevos(syncState.getRegistrosNuevos() + nuevasPag);
+                syncState.setRegistrosNuevos(syncState.getRegistrosNuevos() + resultado.nuevas());
                 syncState.setTsUltimaCarga(Instant.now());
                 syncStateRepo.save(syncState);
 
@@ -147,9 +148,9 @@ public class BdnsImportEstrategiaService {
                         .ejecucionId(ejecucionId)
                         .eje(ejeKey)
                         .pagina(pag)
-                        .registrosNuevos(nuevasPag)
+                        .registrosNuevos(resultado.nuevas())
                         .registrosActualizados(0)
-                        .errores(0)
+                        .errores(resultado.rechazadas())
                         .ts(Instant.now())
                         .build());
 

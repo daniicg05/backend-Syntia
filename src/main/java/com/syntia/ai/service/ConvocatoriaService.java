@@ -2,8 +2,8 @@ package com.syntia.ai.service;
 
 import com.syntia.ai.model.Convocatoria;
 import com.syntia.ai.model.dto.ConvocatoriaDTO;
+import com.syntia.ai.model.dto.ResultadoPersistencia;
 import com.syntia.ai.repository.ConvocatoriaRepository;
-import com.syntia.ai.service.BdnsClientService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -21,11 +21,14 @@ public class ConvocatoriaService {
 
     private final ConvocatoriaRepository convocatoriaRepository;
     private final BdnsClientService bdnsClientService;
+    private final ConvocatoriaValidador validador;
 
     public ConvocatoriaService(ConvocatoriaRepository convocatoriaRepository,
-                               BdnsClientService bdnsClientService) {
+                               BdnsClientService bdnsClientService,
+                               ConvocatoriaValidador validador) {
         this.convocatoriaRepository = convocatoriaRepository;
         this.bdnsClientService = bdnsClientService;
+        this.validador = validador;
     }
 
     /** Corrige URLs antiguas /convocatoria/ → /convocatorias/ en toda la BD. Retorna el número de registros actualizados. */
@@ -110,14 +113,25 @@ public class ConvocatoriaService {
     @Transactional
     public int importarDesdeBdns(int pagina, int tamano) {
         List<ConvocatoriaDTO> importadas = bdnsClientService.importar(pagina, tamano);
-        return persistirNuevas(importadas);
+        return persistirNuevas(importadas).nuevas();
     }
 
 
     @Transactional
-    public int persistirNuevas(List<ConvocatoriaDTO> importadas) {
+    public ResultadoPersistencia persistirNuevas(List<ConvocatoriaDTO> importadas) {
         int nuevas = 0;
+        int duplicadas = 0;
+        int rechazadas = 0;
+
         for (ConvocatoriaDTO dto : importadas) {
+            // Validar antes de intentar persistir
+            ConvocatoriaValidador.ResultadoValidacion validacion = validador.validar(dto);
+            if (!validacion.valida()) {
+                log.debug("Convocatoria rechazada ({}): idBdns={}", validacion.razon(), dto.getIdBdns());
+                rechazadas++;
+                continue;
+            }
+
             // Deduplicar por idBdns (clave oficial) si está disponible, si no por título+fuente
             boolean existe = (dto.getIdBdns() != null && !dto.getIdBdns().isBlank())
                     ? convocatoriaRepository.existsByIdBdns(dto.getIdBdns())
@@ -125,11 +139,14 @@ public class ConvocatoriaService {
             if (!existe) {
                 crear(dto);
                 nuevas++;
+            } else {
+                duplicadas++;
             }
         }
-        log.info("BDNS import: {} importadas, {} nuevas, {} duplicadas omitidas",
-                importadas.size(), nuevas, importadas.size() - nuevas);
-        return nuevas;
+
+        log.info("BDNS import: {} procesadas — {} nuevas, {} duplicadas, {} rechazadas",
+                importadas.size(), nuevas, duplicadas, rechazadas);
+        return new ResultadoPersistencia(nuevas, duplicadas, rechazadas);
     }
 
     /** Convierte una entidad a DTO para precargar formularios de edición. */
