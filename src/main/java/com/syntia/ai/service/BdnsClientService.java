@@ -134,8 +134,8 @@ public class BdnsClientService {
      * @param pagina número de página (0-indexed)
      * @param tamano registros por página (máximo 50)
      */
-    /** Resultado paginado de un eje BDNS: registros mapeados + total de elementos del eje. */
-    public record PaginaBdns(List<ConvocatoriaDTO> items, long totalElements) {}
+    /** Resultado paginado de un eje BDNS: registros mapeados + total de elementos + si es la última página. */
+    public record PaginaBdns(List<ConvocatoriaDTO> items, long totalElements, boolean esUltima) {}
 
     @Retryable(
         retryFor = {ResourceAccessException.class, RestClientException.class},
@@ -145,8 +145,8 @@ public class BdnsClientService {
     )
     public PaginaBdns importarPorEje(String nivel1, String nivel2, int pagina, int tamano) {
         StringBuilder url = new StringBuilder(BDNS_BUSQUEDA)
-                .append("?vpn=GE&vln=es&numPag=").append(pagina)
-                .append("&tamPag=").append(Math.min(tamano, 50))
+                .append("?vpn=GE&vln=es&page=").append(pagina)
+                .append("&size=").append(Math.min(tamano, 50))
                 .append("&nivel1=").append(nivel1);
 
         if (nivel2 != null && !nivel2.isBlank()) {
@@ -161,13 +161,15 @@ public class BdnsClientService {
                 .retrieve()
                 .body(Map.class);
 
-        if (respuesta == null) return new PaginaBdns(List.of(), 0L);
+        if (respuesta == null) return new PaginaBdns(List.of(), 0L, true);
 
         long total = 0L;
         Object totalObj = respuesta.get("totalElements");
         if (totalObj instanceof Number n) total = n.longValue();
 
-        return new PaginaBdns(mapearRespuesta(respuesta), total);
+        boolean esUltima = Boolean.TRUE.equals(respuesta.get("last"));
+
+        return new PaginaBdns(mapearRespuesta(respuesta), total, esUltima);
     }
 
     @Retryable(

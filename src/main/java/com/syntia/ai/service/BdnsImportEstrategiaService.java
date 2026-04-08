@@ -168,18 +168,13 @@ public class BdnsImportEstrategiaService {
                             ejeKey, pag, maxPaginasEje + 1, nuevosEje);
                 }
 
-                if (pagina.items().size() < TAM_PAGINA) {
-                    log.info("BDNS estrategia: eje [{}] completado — {} páginas, {} nuevos", ejeKey, pag + 1, nuevosEje);
+                if (pagina.esUltima()) {
+                    log.info("BDNS estrategia: eje [{}] completado (last=true) — {} páginas, {} nuevos", ejeKey, pag + 1, nuevosEje);
                     break;
                 }
 
                 pag++;
                 Thread.sleep(delayMs);
-            }
-
-            if (pag > maxPaginasEje) {
-                log.info("BDNS estrategia: eje [{}] completado por totalElements — {} páginas, {} nuevos",
-                        ejeKey, pag, nuevosEje);
             }
 
             syncState.setEstado(SyncState.Estado.COMPLETADO);
