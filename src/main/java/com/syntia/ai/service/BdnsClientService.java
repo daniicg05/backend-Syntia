@@ -146,9 +146,11 @@ public class BdnsClientService {
     public PaginaBdns importarPorEje(String nivel1, String nivel2, int pagina, int tamano) {
         StringBuilder url = new StringBuilder(BDNS_BUSQUEDA)
                 .append("?vpn=GE&vln=es&page=").append(pagina)
-                .append("&size=").append(Math.min(tamano, 50))
-                .append("&nivel1=").append(nivel1);
+                .append("&size=").append(Math.min(tamano, 50));
 
+        if (nivel1 != null && !nivel1.isBlank()) {
+            url.append("&nivel1=").append(nivel1);
+        }
         if (nivel2 != null && !nivel2.isBlank()) {
             url.append("&nivel2=").append(URLEncoder.encode(nivel2, StandardCharsets.UTF_8));
         }

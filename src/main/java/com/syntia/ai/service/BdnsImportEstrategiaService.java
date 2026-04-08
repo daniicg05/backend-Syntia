@@ -2,7 +2,6 @@ package com.syntia.ai.service;
 
 import com.syntia.ai.model.SyncLog;
 import com.syntia.ai.model.SyncState;
-import com.syntia.ai.model.dto.ConvocatoriaDTO;
 import com.syntia.ai.model.dto.ResultadoPersistencia;
 import com.syntia.ai.repository.SyncLogRepository;
 import com.syntia.ai.repository.SyncStateRepository;
@@ -11,36 +10,23 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 import java.util.function.BiConsumer;
 
 /**
- * Estrategia de importación masiva BDNS por ejes territoriales.
+ * Estrategia de importación masiva BDNS mediante paginación global.
  * <p>
- * En lugar de paginar linealmente (que devuelve un subconjunto rotativo),
- * itera por cada combinación de nivel1 + nivel2:
- * <ul>
- *   <li>ESTADO (todas las páginas)</li>
- *   <li>AUTONOMICA × 19 CCAA (todas las páginas de cada una)</li>
- *   <li>LOCAL (todas las páginas)</li>
- *   <li>OTROS (todas las páginas)</li>
- * </ul>
- * La deduplicación por idBdns evita duplicados entre ejes.
+ * La API de BDNS ignora los filtros nivel1/nivel2 — siempre devuelve el dataset
+ * completo (~620k registros). Por ello se itera una única vez sin filtros,
+ * usando los parámetros estándar Spring Data {@code page} y {@code size}.
+ * La deduplicación por idBdns evita duplicados en reimportaciones.
  */
 @Slf4j
 @Service
 public class BdnsImportEstrategiaService {
 
     private static final int TAM_PAGINA = 50;
-
-    /** Las 19 CCAA exactas que acepta nivel2 en la API BDNS. */
-    private static final List<String> CCAA = List.of(
-            "Andalucía", "Aragón", "Asturias", "Baleares", "Canarias",
-            "Cantabria", "Castilla y León", "Castilla-La Mancha", "Cataluña",
-            "Comunidad Valenciana", "Extremadura", "Galicia", "Madrid",
-            "Murcia", "Navarra", "País Vasco", "La Rioja", "Ceuta", "Melilla"
-    );
+    private static final String EJE_GLOBAL = "GLOBAL";
 
     @Value("${bdns.import.delay-ms:300}")
     private long delayMs;
@@ -61,57 +47,34 @@ public class BdnsImportEstrategiaService {
     }
 
     /**
-     * Ejecuta la importación por todos los ejes territoriales.
+     * Ejecuta la importación global de BDNS.
      *
-     * @param onProgreso callback invocado tras cada página: (ejeActual, totalNuevosAcumulados)
-     * @param modo       FULL reinicia todos los ejes; INCREMENTAL salta los COMPLETADOS y reanuda los ERROR
+     * @param onProgreso callback invocado tras cada página: (descripción, totalNuevosAcumulados)
+     * @param modo       FULL reinicia desde página 0; INCREMENTAL reanuda desde la última ok
      * @return total de registros nuevos importados
      */
     public int importarTodo(BiConsumer<String, Integer> onProgreso,
                             ModoImportacion modo) throws InterruptedException {
         String ejecucionId = UUID.randomUUID().toString();
-        log.info("BDNS estrategia: ejecucionId={} modo={}", ejecucionId, modo);
+        log.info("BDNS import global: ejecucionId={} modo={}", ejecucionId, modo);
 
-        int total = 0;
+        SyncState syncState = syncStateRepo.findByEje(EJE_GLOBAL)
+                .orElse(SyncState.builder().eje(EJE_GLOBAL).build());
 
-        total += importarEje("ESTADO", null, total, onProgreso, ejecucionId, modo);
-        for (String ccaa : CCAA) {
-            total += importarEje("AUTONOMICA", ccaa, total, onProgreso, ejecucionId, modo);
-        }
-        total += importarEje("LOCAL", null, total, onProgreso, ejecucionId, modo);
-        total += importarEje("OTROS", null, total, onProgreso, ejecucionId, modo);
-
-        return total;
-    }
-
-    private int importarEje(String nivel1, String nivel2, int totalPrevio,
-                             BiConsumer<String, Integer> onProgreso,
-                             String ejecucionId,
-                             ModoImportacion modo) throws InterruptedException {
-        String ejeKey = nivel2 != null ? nivel1 + " – " + nivel2 : nivel1;
-
-        SyncState syncState = syncStateRepo.findByEje(ejeKey)
-                .orElse(SyncState.builder().eje(ejeKey).build());
-
-        // ── Lógica de modo incremental ────────────────────────────────────────
         if (modo == ModoImportacion.INCREMENTAL && syncState.getEstado() == SyncState.Estado.COMPLETADO) {
-            log.info("BDNS estrategia: eje [{}] ya COMPLETADO — omitido en modo INCREMENTAL", ejeKey);
-            onProgreso.accept(ejeKey + " [omitido]", totalPrevio);
+            log.info("BDNS import global: ya COMPLETADO en modo INCREMENTAL, omitido");
+            onProgreso.accept("GLOBAL [omitido]", 0);
             return 0;
         }
 
-        // En INCREMENTAL, reanudar desde la página siguiente a la última ok
         int paginaInicio = 0;
         if (modo == ModoImportacion.INCREMENTAL && syncState.getEstado() == SyncState.Estado.ERROR
                 && syncState.getUltimaPaginaOk() >= 0) {
             paginaInicio = syncState.getUltimaPaginaOk() + 1;
-            log.info("BDNS estrategia: eje [{}] reanudado desde pág. {} (última ok: {})",
-                    ejeKey, paginaInicio, syncState.getUltimaPaginaOk());
-        } else {
-            log.info("BDNS estrategia: iniciando eje [{}] desde pág. 0", ejeKey);
+            log.info("BDNS import global: reanudando desde pág. {} (última ok: {})",
+                    paginaInicio, syncState.getUltimaPaginaOk());
         }
 
-        // Inicializar / resetear estado para esta ejecución
         syncState.setEstado(SyncState.Estado.EN_PROGRESO);
         syncState.setTsInicio(Instant.now());
         syncState.setTsUltimaCarga(null);
@@ -123,29 +86,28 @@ public class BdnsImportEstrategiaService {
         syncState = syncStateRepo.save(syncState);
 
         int pag = paginaInicio;
-        int nuevosEje = 0;
-        int maxPaginasEje = Integer.MAX_VALUE;
+        int nuevosTotal = 0;
+        int maxPaginas = Integer.MAX_VALUE;
 
         try {
-            while (pag <= maxPaginasEje) {
-                onProgreso.accept(ejeKey + " – pág. " + pag, totalPrevio + nuevosEje);
+            while (pag <= maxPaginas) {
+                onProgreso.accept("GLOBAL – pág. " + pag, nuevosTotal);
 
-                BdnsClientService.PaginaBdns pagina = bdnsClientService.importarPorEje(nivel1, nivel2, pag, TAM_PAGINA);
+                BdnsClientService.PaginaBdns pagina = bdnsClientService.importarPorEje(null, null, pag, TAM_PAGINA);
 
-                // En la primera página, calcular el total exacto de páginas del eje
                 if (pag == paginaInicio && pagina.totalElements() > 0) {
-                    maxPaginasEje = (int) Math.ceil((double) pagina.totalElements() / TAM_PAGINA) - 1;
-                    log.info("BDNS estrategia: eje [{}] totalElements={} → {} páginas máx.",
-                            ejeKey, pagina.totalElements(), maxPaginasEje + 1);
+                    maxPaginas = (int) Math.ceil((double) pagina.totalElements() / TAM_PAGINA) - 1;
+                    log.info("BDNS import global: totalElements={} → {} páginas máx.",
+                            pagina.totalElements(), maxPaginas + 1);
                 }
 
                 if (pagina.items().isEmpty()) {
-                    log.info("BDNS estrategia: eje [{}] completado — {} páginas, {} nuevos", ejeKey, pag, nuevosEje);
+                    log.info("BDNS import global: completado — {} páginas, {} nuevos", pag, nuevosTotal);
                     break;
                 }
 
                 ResultadoPersistencia resultado = convocatoriaService.persistirNuevas(pagina.items());
-                nuevosEje += resultado.nuevas();
+                nuevosTotal += resultado.nuevas();
 
                 syncState.setUltimaPaginaOk(pag);
                 syncState.setRegistrosNuevos(syncState.getRegistrosNuevos() + resultado.nuevas());
@@ -155,7 +117,7 @@ public class BdnsImportEstrategiaService {
 
                 syncLogRepo.save(SyncLog.builder()
                         .ejecucionId(ejecucionId)
-                        .eje(ejeKey)
+                        .eje(EJE_GLOBAL)
                         .pagina(pag)
                         .registrosNuevos(resultado.nuevas())
                         .registrosActualizados(resultado.actualizados())
@@ -163,13 +125,14 @@ public class BdnsImportEstrategiaService {
                         .ts(Instant.now())
                         .build());
 
-                if (pag % 10 == 0) {
-                    log.info("BDNS estrategia: eje [{}] pág. {}/{} — {} nuevos en este eje",
-                            ejeKey, pag, maxPaginasEje + 1, nuevosEje);
+                if (pag % 100 == 0) {
+                    log.info("BDNS import global: pág. {}/{} — {} nuevos acumulados",
+                            pag, maxPaginas + 1, nuevosTotal);
                 }
 
                 if (pagina.esUltima()) {
-                    log.info("BDNS estrategia: eje [{}] completado (last=true) — {} páginas, {} nuevos", ejeKey, pag + 1, nuevosEje);
+                    log.info("BDNS import global: completado (last=true) — {} páginas, {} nuevos",
+                            pag + 1, nuevosTotal);
                     break;
                 }
 
@@ -190,9 +153,9 @@ public class BdnsImportEstrategiaService {
             syncState.setEstado(SyncState.Estado.ERROR);
             syncState.setTsUltimaCarga(Instant.now());
             syncStateRepo.save(syncState);
-            log.error("BDNS estrategia: error en eje [{}] pág. {}: {}", ejeKey, pag, e.getMessage());
+            log.error("BDNS import global: error en pág. {}: {}", pag, e.getMessage());
         }
 
-        return nuevosEje;
+        return nuevosTotal;
     }
 }
