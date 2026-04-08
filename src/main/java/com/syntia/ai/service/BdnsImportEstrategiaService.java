@@ -60,45 +60,68 @@ public class BdnsImportEstrategiaService {
     }
 
     /**
-     * Ejecuta la importación completa por todos los ejes territoriales.
+     * Ejecuta la importación por todos los ejes territoriales.
      *
      * @param onProgreso callback invocado tras cada página: (ejeActual, totalNuevosAcumulados)
+     * @param modo       FULL reinicia todos los ejes; INCREMENTAL salta los COMPLETADOS y reanuda los ERROR
      * @return total de registros nuevos importados
      */
-    public int importarTodo(BiConsumer<String, Integer> onProgreso) throws InterruptedException {
+    public int importarTodo(BiConsumer<String, Integer> onProgreso,
+                            ModoImportacion modo) throws InterruptedException {
         String ejecucionId = UUID.randomUUID().toString();
-        log.info("BDNS estrategia: ejecucionId={}", ejecucionId);
+        log.info("BDNS estrategia: ejecucionId={} modo={}", ejecucionId, modo);
 
         int total = 0;
 
-        total += importarEje("ESTADO", null, total, onProgreso, ejecucionId);
+        total += importarEje("ESTADO", null, total, onProgreso, ejecucionId, modo);
         for (String ccaa : CCAA) {
-            total += importarEje("AUTONOMICA", ccaa, total, onProgreso, ejecucionId);
+            total += importarEje("AUTONOMICA", ccaa, total, onProgreso, ejecucionId, modo);
         }
-        total += importarEje("LOCAL", null, total, onProgreso, ejecucionId);
-        total += importarEje("OTROS", null, total, onProgreso, ejecucionId);
+        total += importarEje("LOCAL", null, total, onProgreso, ejecucionId, modo);
+        total += importarEje("OTROS", null, total, onProgreso, ejecucionId, modo);
 
         return total;
     }
 
     private int importarEje(String nivel1, String nivel2, int totalPrevio,
                              BiConsumer<String, Integer> onProgreso,
-                             String ejecucionId) throws InterruptedException {
+                             String ejecucionId,
+                             ModoImportacion modo) throws InterruptedException {
         String ejeKey = nivel2 != null ? nivel1 + " – " + nivel2 : nivel1;
-        log.info("BDNS estrategia: iniciando eje [{}]", ejeKey);
 
-        // Crear o resetear SyncState para este eje
         SyncState syncState = syncStateRepo.findByEje(ejeKey)
                 .orElse(SyncState.builder().eje(ejeKey).build());
+
+        // ── Lógica de modo incremental ────────────────────────────────────────
+        if (modo == ModoImportacion.INCREMENTAL && syncState.getEstado() == SyncState.Estado.COMPLETADO) {
+            log.info("BDNS estrategia: eje [{}] ya COMPLETADO — omitido en modo INCREMENTAL", ejeKey);
+            onProgreso.accept(ejeKey + " [omitido]", totalPrevio);
+            return 0;
+        }
+
+        // En INCREMENTAL, reanudar desde la página siguiente a la última ok
+        int paginaInicio = 0;
+        if (modo == ModoImportacion.INCREMENTAL && syncState.getEstado() == SyncState.Estado.ERROR
+                && syncState.getUltimaPaginaOk() >= 0) {
+            paginaInicio = syncState.getUltimaPaginaOk() + 1;
+            log.info("BDNS estrategia: eje [{}] reanudado desde pág. {} (última ok: {})",
+                    ejeKey, paginaInicio, syncState.getUltimaPaginaOk());
+        } else {
+            log.info("BDNS estrategia: iniciando eje [{}] desde pág. 0", ejeKey);
+        }
+
+        // Inicializar / resetear estado para esta ejecución
         syncState.setEstado(SyncState.Estado.EN_PROGRESO);
         syncState.setTsInicio(Instant.now());
         syncState.setTsUltimaCarga(null);
-        syncState.setUltimaPaginaOk(-1);
-        syncState.setRegistrosNuevos(0);
-        syncState.setRegistrosActualizados(0);
+        if (modo == ModoImportacion.FULL || paginaInicio == 0) {
+            syncState.setUltimaPaginaOk(-1);
+            syncState.setRegistrosNuevos(0);
+            syncState.setRegistrosActualizados(0);
+        }
         syncState = syncStateRepo.save(syncState);
 
-        int pag = 0;
+        int pag = paginaInicio;
         int nuevosEje = 0;
 
         try {
@@ -115,7 +138,6 @@ public class BdnsImportEstrategiaService {
                 int nuevasPag = convocatoriaService.persistirNuevas(pagina);
                 nuevosEje += nuevasPag;
 
-                // Persistir progreso por página
                 syncState.setUltimaPaginaOk(pag);
                 syncState.setRegistrosNuevos(syncState.getRegistrosNuevos() + nuevasPag);
                 syncState.setTsUltimaCarga(Instant.now());

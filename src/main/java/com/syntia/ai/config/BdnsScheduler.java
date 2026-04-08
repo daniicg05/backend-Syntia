@@ -1,6 +1,7 @@
 package com.syntia.ai.config;
 
 import com.syntia.ai.service.BdnsImportJobService;
+import com.syntia.ai.service.ModoImportacion;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -25,7 +26,7 @@ public class BdnsScheduler {
     @Scheduled(cron = "${bdns.scheduler.cron:0 0 3 1 1,7 *}")
     public void importacionAutomatica() {
         log.info("Scheduler BDNS: lanzando importación masiva automática...");
-        boolean iniciado = bdnsImportJobService.iniciar();
+        boolean iniciado = bdnsImportJobService.iniciar(ModoImportacion.FULL);
         if (!iniciado) {
             log.warn("Scheduler BDNS: ya había un job en curso, se omite esta ejecución.");
         } else {
