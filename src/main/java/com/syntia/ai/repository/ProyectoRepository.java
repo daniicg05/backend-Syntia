@@ -13,6 +13,8 @@ import java.util.Optional;
 public interface ProyectoRepository extends JpaRepository<Proyecto, Long> {
     List<Proyecto> findByUsuarioId(Long usuarioId);
 
+    void deleteByUsuarioId(Long usuarioId);
+
     @Query("SELECT p FROM Proyecto p JOIN FETCH p.usuario WHERE p.id = :id")
     Optional<Proyecto> findByIdWithUsuario(@Param("id") Long id);
 

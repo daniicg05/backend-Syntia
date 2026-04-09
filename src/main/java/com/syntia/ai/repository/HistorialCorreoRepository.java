@@ -11,5 +11,6 @@ public interface HistorialCorreoRepository extends JpaRepository<HistorialCorreo
     List<HistorialCorreo> findByUsuarioIdOrderByFechaDesc(Long usuarioId);
 
     boolean existsByUsuarioId(Long usuarioId);
-}
 
+    void deleteByUsuarioId(Long usuarioId);
+}
