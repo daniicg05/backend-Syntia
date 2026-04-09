@@ -30,6 +30,14 @@ public interface RecomendacionRepository extends JpaRepository<Recomendacion, In
     void deleteByProyectoId(@Param("proyectoId") Long proyectoId);
 
     /**
+     * Elimina todas las recomendaciones asociadas a los proyectos de un usuario.
+     * Se usa para eliminación administrativa de usuario sin violar FK.
+     */
+    @Modifying
+    @Query("DELETE FROM Recomendacion r WHERE r.proyecto.usuario.id = :usuarioId")
+    void deleteByProyectoUsuarioId(@Param("usuarioId") Long usuarioId);
+
+    /**
      * Cuenta las recomendaciones de un proyecto.
      */
     long countByProyectoId(Long proyectoId);

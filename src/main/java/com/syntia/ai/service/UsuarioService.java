@@ -6,6 +6,9 @@ import com.syntia.ai.model.HistorialCorreo;
 import com.syntia.ai.model.Rol;
 import com.syntia.ai.model.Usuario;
 import com.syntia.ai.repository.HistorialCorreoRepository;
+import com.syntia.ai.repository.PerfilRepository;
+import com.syntia.ai.repository.ProyectoRepository;
+import com.syntia.ai.repository.RecomendacionRepository;
 import com.syntia.ai.repository.UsuarioRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -26,13 +29,22 @@ public class UsuarioService {
 
     private final UsuarioRepository usuarioRepository;
     private final HistorialCorreoRepository historialCorreoRepository;
+    private final PerfilRepository perfilRepository;
+    private final ProyectoRepository proyectoRepository;
+    private final RecomendacionRepository recomendacionRepository;
     private final PasswordEncoder passwordEncoder;
 
     public UsuarioService(UsuarioRepository usuarioRepository,
                           HistorialCorreoRepository historialCorreoRepository,
+                          PerfilRepository perfilRepository,
+                          ProyectoRepository proyectoRepository,
+                          RecomendacionRepository recomendacionRepository,
                           PasswordEncoder passwordEncoder) {
         this.usuarioRepository = usuarioRepository;
         this.historialCorreoRepository = historialCorreoRepository;
+        this.perfilRepository = perfilRepository;
+        this.proyectoRepository = proyectoRepository;
+        this.recomendacionRepository = recomendacionRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -113,6 +125,12 @@ public class UsuarioService {
         if (!usuarioRepository.existsById(id)) {
             throw new EntityNotFoundException("Usuario no encontrado: " + id);
         }
+
+        // Orden importante para respetar FKs: recomendaciones -> proyectos -> perfil/historial -> usuario.
+        recomendacionRepository.deleteByProyectoUsuarioId(id);
+        proyectoRepository.deleteByUsuarioId(id);
+        perfilRepository.deleteByUsuarioId(id);
+        historialCorreoRepository.deleteByUsuarioId(id);
         usuarioRepository.deleteById(id);
     }
 
