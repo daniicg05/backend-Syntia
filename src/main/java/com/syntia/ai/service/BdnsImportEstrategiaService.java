@@ -56,9 +56,11 @@ public class BdnsImportEstrategiaService {
      */
     public int importarTodo(BiConsumer<String, Integer> onProgreso,
                             ModoImportacion modo,
-                            AtomicBoolean cancelado) throws InterruptedException {
+                            AtomicBoolean cancelado,
+                            long delayMsOverride) throws InterruptedException {
+        long efectiveDelayMs = delayMsOverride >= 0 ? delayMsOverride : this.delayMs;
         String ejecucionId = UUID.randomUUID().toString();
-        log.info("BDNS import global: ejecucionId={} modo={}", ejecucionId, modo);
+        log.info("BDNS import global: ejecucionId={} modo={} delayMs={}", ejecucionId, modo, efectiveDelayMs);
 
         SyncState syncState = syncStateRepo.findByEje(EJE_GLOBAL)
                 .orElse(SyncState.builder().eje(EJE_GLOBAL).build());
@@ -70,8 +72,11 @@ public class BdnsImportEstrategiaService {
         }
 
         int paginaInicio = 0;
-        if (modo == ModoImportacion.INCREMENTAL && syncState.getEstado() == SyncState.Estado.ERROR
-                && syncState.getUltimaPaginaOk() >= 0) {
+        boolean esReanudacion = modo == ModoImportacion.INCREMENTAL
+                && (syncState.getEstado() == SyncState.Estado.ERROR
+                    || syncState.getEstado() == SyncState.Estado.EN_PROGRESO)
+                && syncState.getUltimaPaginaOk() >= 0;
+        if (esReanudacion) {
             paginaInicio = syncState.getUltimaPaginaOk() + 1;
             log.info("BDNS import global: reanudando desde pág. {} (última ok: {})",
                     paginaInicio, syncState.getUltimaPaginaOk());
@@ -142,7 +147,7 @@ public class BdnsImportEstrategiaService {
                 }
 
                 pag++;
-                Thread.sleep(delayMs);
+                if (efectiveDelayMs > 0) Thread.sleep(efectiveDelayMs);
             }
 
             syncState.setEstado(cancelado.get() ? SyncState.Estado.ERROR : SyncState.Estado.COMPLETADO);

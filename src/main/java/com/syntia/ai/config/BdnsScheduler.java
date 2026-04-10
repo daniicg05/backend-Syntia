@@ -26,7 +26,7 @@ public class BdnsScheduler {
     @Scheduled(cron = "${bdns.scheduler.cron:0 0 3 1 1,7 *}")
     public void importacionAutomatica() {
         log.info("Scheduler BDNS: lanzando importación masiva automática...");
-        boolean iniciado = bdnsImportJobService.iniciar(ModoImportacion.FULL);
+        boolean iniciado = bdnsImportJobService.iniciar(ModoImportacion.FULL, -1);
         if (!iniciado) {
             log.warn("Scheduler BDNS: ya había un job en curso, se omite esta ejecución.");
         } else {

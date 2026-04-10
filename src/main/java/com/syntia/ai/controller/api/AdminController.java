@@ -3,7 +3,9 @@ package com.syntia.ai.controller.api;
 import com.syntia.ai.model.Perfil;
 import com.syntia.ai.model.Proyecto;
 import com.syntia.ai.model.Rol;
+import com.syntia.ai.model.SyncState;
 import com.syntia.ai.model.Usuario;
+import com.syntia.ai.repository.SyncStateRepository;
 import com.syntia.ai.model.dto.AdminDetalleUsuarioResponseDTO;
 import com.syntia.ai.model.dto.AdminUsuarioDetalleDTO;
 import com.syntia.ai.model.dto.ConvocatoriaDTO;
@@ -53,6 +55,7 @@ public class AdminController {
     private final RecomendacionRepository recomendacionRepository;
     private final BdnsImportJobService bdnsImportJobService;
     private final BdnsEtlPanelService bdnsEtlPanelService;
+    private final SyncStateRepository syncStateRepository;
 
     public AdminController(UsuarioService usuarioService,
                            PerfilService perfilService,
@@ -62,7 +65,8 @@ public class AdminController {
                            ProyectoRepository proyectoRepository,
                            RecomendacionRepository recomendacionRepository,
                            BdnsImportJobService bdnsImportJobService,
-                           BdnsEtlPanelService bdnsEtlPanelService) {
+                           BdnsEtlPanelService bdnsEtlPanelService,
+                           SyncStateRepository syncStateRepository) {
         this.usuarioService = usuarioService;
         this.perfilService = perfilService;
         this.convocatoriaService = convocatoriaService;
@@ -72,6 +76,7 @@ public class AdminController {
         this.recomendacionRepository = recomendacionRepository;
         this.bdnsImportJobService = bdnsImportJobService;
         this.bdnsEtlPanelService = bdnsEtlPanelService;
+        this.syncStateRepository = syncStateRepository;
     }
 
     // ─────────────────────────────────────────────
@@ -248,7 +253,8 @@ public class AdminController {
 
     @PostMapping("/bdns/importar")
     public ResponseEntity<?> lanzarImportacionBdns(
-            @RequestParam(defaultValue = "FULL") String modo) {
+            @RequestParam(defaultValue = "FULL") String modo,
+            @RequestParam(defaultValue = "-1") long delayMs) {
         ModoImportacion modoImportacion;
         try {
             modoImportacion = ModoImportacion.valueOf(modo.toUpperCase());
@@ -256,14 +262,37 @@ public class AdminController {
             return ResponseEntity.badRequest()
                     .body(Map.of("error", "Modo inválido. Valores permitidos: FULL, INCREMENTAL"));
         }
-        boolean iniciado = bdnsImportJobService.iniciar(modoImportacion);
+        boolean iniciado = bdnsImportJobService.iniciar(modoImportacion, delayMs);
         if (!iniciado) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("error", "Ya hay una importación BDNS en curso."));
         }
         return ResponseEntity.accepted()
                 .body(Map.of("message", "Importación masiva BDNS iniciada en segundo plano.",
-                             "modo", modoImportacion.name()));
+                             "modo", modoImportacion.name(),
+                             "delayMs", delayMs < 0 ? "configuración por defecto" : delayMs));
+    }
+
+    /**
+     * Permite saltar directamente a una página concreta sin esperar a procesarlas todas.
+     * Útil para recuperarse de reinicios inesperados cuando ya se sabe hasta qué página
+     * se llegó. Fuerza el estado a ERROR para que el modo INCREMENTAL retome desde ahí.
+     */
+    @PutMapping("/bdns/sync-state/pagina")
+    public ResponseEntity<?> establecerPaginaInicio(@RequestParam int pagina) {
+        if (pagina < 0) {
+            return ResponseEntity.badRequest().body(Map.of("error", "La página debe ser >= 0"));
+        }
+        SyncState state = syncStateRepository.findByEje("GLOBAL")
+                .orElse(SyncState.builder().eje("GLOBAL").build());
+        state.setUltimaPaginaOk(pagina);
+        state.setEstado(SyncState.Estado.ERROR);
+        syncStateRepository.save(state);
+        return ResponseEntity.ok(Map.of(
+                "message", "Punto de reanudación establecido. La próxima importación INCREMENTAL empezará desde la página " + (pagina + 1),
+                "ultimaPaginaOk", pagina,
+                "siguientePagina", pagina + 1
+        ));
     }
 
     @DeleteMapping("/bdns/importar")

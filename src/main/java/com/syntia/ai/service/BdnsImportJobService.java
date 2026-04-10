@@ -57,10 +57,11 @@ public class BdnsImportJobService {
     /**
      * Lanza la importación completa como job asíncrono.
      *
-     * @param modo FULL o INCREMENTAL
+     * @param modo        FULL o INCREMENTAL
+     * @param delayMsOverride ms de espera entre páginas; -1 usa el valor de configuración; 0 = turbo (sin delay)
      * @return true si se inició correctamente, false si ya había uno en curso
      */
-    public boolean iniciar(ModoImportacion modo) {
+    public boolean iniciar(ModoImportacion modo, long delayMsOverride) {
         if (!enCurso.compareAndSet(false, true)) {
             log.warn("Ya hay una importación BDNS en curso — petición ignorada");
             return false;
@@ -85,7 +86,8 @@ public class BdnsImportJobService {
                     cancelado.set(false);
                 },
                 modo,
-                cancelado
+                cancelado,
+                delayMsOverride
         );
         return true;
     }
