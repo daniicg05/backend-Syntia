@@ -8,6 +8,65 @@ Formato de cada entrada:
 
 ---
 
+## [4.6.0] – 2026-04-10
+
+### ETL BDNS Masivo + Plan GRATUITO/PREMIUM + Mejoras admin y frontend (Fase 14)
+
+#### Backend – nuevos archivos
+
+- `Plan.java` — enum `GRATUITO` / `PREMIUM`; campo `plan` añadido a `Usuario` (default `GRATUITO`)
+- `ConvocatoriaBdLocalService.java` — busca en BD local extrayendo keyword + ubicación del proyecto/perfil; query flexible en `ConvocatoriaRepository.buscarParaModoGratuito`
+- `BdnsImportJobService.java` — gestiona el job async (start, cancel, estado); un solo job a la vez (HTTP 409 si ya hay uno en curso)
+- `BdnsImportExecutor.java` — bean `@Async` separado para resolver el problema de self-invocation; ejecuta el ETL completo
+- `BdnsImportEstrategiaService.java` — itera los 23 ejes (ESTADO + AUTONOMICA×19CCAA + LOCAL + OTROS), paginando hasta el fin con delay configurable
+- `BdnsScheduler.java` — `@Scheduled` que lanza importación FULL cada 1 ene y 1 jul a las 3 AM; omite si job en curso
+- `ConvocatoriaValidador.java` — rechaza DTOs con título blank o >500 chars antes de persistir
+- `ResultadoPersistencia.java` — record (nuevas, duplicadas, rechazadas) reemplaza `int` en `persistirNuevas()`
+- `CoberturaDTO.java` — record con `totalConvocatorias` + lista de `CampoCobertura(campo, conValor, %)`
+- `SyncStateDTO.java`, `ResumenEjecucionDTO.java` — records para respuestas del panel ETL admin
+
+#### Backend – archivos modificados
+
+- `BusquedaRapidaService.java` — enruta según plan: `GRATUITO → BD local`, `PREMIUM → API live BDNS`
+- `BdnsClientService.java` — `importarPorEje(nivel1, nivel2, pag, tam)` sin restricción de vigencia; `@Retryable` con backoff exponencial (1.5 → 3 → 6s), no reintenta en 4xx
+- `BdnsImportEstrategiaService.java` — usa `ResultadoPersistencia`; rechazadas → errores en `SyncLog`; importación incremental: eje COMPLETADO → omite; eje ERROR → reanuda desde `ultimaPaginaOk+1`
+- `ConvocatoriaRepository.java` — `existsByIdBdns`, `buscarParaModoGratuito`, 7 `countBy*IsNotNull()` para métricas de cobertura
+- `ConvocatoriaService.java` — `persistirNuevas` valida + deduplica por `idBdns`; guarda `organismo`, `fechaPublicacion`, `descripcion`, `textoCompleto`
+- `BdnsEtlPanelService.java` — `obtenerEstadoEjes()`, `obtenerHistorial()` (agrupado por ejecucionId), `obtenerLogsEjecucion()`, `obtenerCobertura()`
+- `AdminController.java` — 9 nuevos endpoints BDNS ETL; `GET /admin/usuarios/{id}` devuelve `AdminDetalleUsuarioResponseDTO` con historial de correo
+- `SyncStateRepository.java` — `findAllByOrderByEjeAsc()`, `countByEstado(Estado)`
+- `SyncLogRepository.java` — `findAllByOrderByTsDesc()`
+- `PerfilController.java` / `UsuarioService.java` — `PUT /perfil/email` con verificación de contraseña; devuelve nuevo `LoginResponseDTO` con JWT actualizado; persiste `HistorialCorreo`
+- `AsyncConfig.java` — añadido `@EnableRetry` + `@EnableScheduling`
+- `pom.xml` — añadidos `spring-retry` + `spring-boot-starter-aop`
+- `application.properties` — nuevas propiedades: `bdns.client.connect-timeout-ms`, `bdns.client.read-timeout-ms`, `bdns.client.max-reintentos`, `bdns.client.reintento-delay-ms`, `bdns.import.delay-ms`, `bdns.scheduler.cron`
+
+#### Frontend – nuevas páginas y componentes
+
+- `src/app/admin/bdns/page.tsx` — Panel ETL BDNS completo: estado job, barras de cobertura, historial de ejecuciones, modal de confirmación con selección FULL/INCREMENTAL, polling cada 5s
+- `src/app/guias/page.tsx` — Sección estática con guías informativas sobre tipos de subvenciones (Innovación, PYMEs, Sostenibilidad, Cultura, Startups)
+- `src/components/PageTransition.tsx` — Wrapper Framer Motion para transiciones suaves entre páginas
+
+#### Frontend – archivos modificados
+
+- `src/lib/api.ts` — endpoints BDNS admin (importar, cancelar, estado, ejes, historial, cobertura), cambio email/password
+- `src/app/perfil/page.tsx` — modales funcionales para cambio de email (devuelve nuevo JWT) y cambio de contraseña; sección preferencias de notificación en `localStorage`
+- `src/app/admin/usuarios/[id]/page.tsx` — vista detalle con email, teléfono, historial de cambios de correo
+- `src/app/layout.tsx` / `src/app/template.tsx` — integración de `PageTransition` con Framer Motion
+- Dark mode: correcciones en imports y tokens CSS en todos los componentes
+- `package.json` — Next.js 16.2.0, React 19.2.4, Tailwind CSS 4, Framer Motion 11, React Hook Form 7, Zod 4
+
+#### Bugs corregidos
+
+- `CustomErrorController` devolvía siempre HTTP 500 aunque el error real fuera 403/404 → usa `jakarta.servlet.error.status_code`
+- Middleware de Next.js en raíz ignorado con directorio `src/` → movido a `src/middleware.ts`
+- Password change: validaciones de confirmación corregidas en frontend
+- Dark mode: imports de tipos CSS incorrectos corregidos
+
+**Autor(es):** Equipo técnico
+
+---
+
 ## [4.5.0] – 2026-03-27
 
 ### Rate Limiting + Caché BDNS (Fase 13)
