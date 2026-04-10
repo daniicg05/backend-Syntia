@@ -21,6 +21,7 @@ import com.syntia.ai.service.RecomendacionService;
 import com.syntia.ai.service.UsuarioService;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -40,6 +41,8 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/admin")
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminController {
+
+    private static final int CONVOCATORIAS_POR_PAGINA = 50;
 
     private final UsuarioService usuarioService;
     private final PerfilService perfilService;
@@ -79,7 +82,7 @@ public class AdminController {
         Map<String, Object> data = Map.of(
                 "adminEmail", authentication.getName(),
                 "totalUsuarios", usuarioService.obtenerTodos().size(),
-                "totalConvocatorias", convocatoriaService.obtenerTodas().size(),
+                "totalConvocatorias", convocatoriaService.contarTodas(),
                 "totalProyectos", proyectoRepository.countAll(),
                 "totalRecomendaciones", recomendacionRepository.countAll()
         );
@@ -182,8 +185,16 @@ public class AdminController {
     // ─────────────────────────────────────────────
 
     @GetMapping("/convocatorias")
-    public ResponseEntity<?> listarConvocatorias() {
-        return ResponseEntity.ok(convocatoriaService.obtenerTodas());
+    public ResponseEntity<?> listarConvocatorias(@RequestParam(defaultValue = "0") int page) {
+        Page<?> convocatoriasPage = convocatoriaService.obtenerPagina(page, CONVOCATORIAS_POR_PAGINA);
+        return ResponseEntity.ok(Map.of(
+                "convocatorias", convocatoriasPage.getContent(),
+                "page", convocatoriasPage.getNumber(),
+                "size", convocatoriasPage.getSize(),
+                "totalElements", convocatoriasPage.getTotalElements(),
+                "totalPages", convocatoriasPage.getTotalPages(),
+                "hasNext", convocatoriasPage.hasNext()
+        ));
     }
 
     @PostMapping("/convocatorias")

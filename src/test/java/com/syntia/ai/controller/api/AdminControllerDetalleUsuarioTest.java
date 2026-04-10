@@ -1,6 +1,7 @@
 package com.syntia.ai.controller.api;
 
 import com.syntia.ai.config.SecurityConfig;
+import com.syntia.ai.model.Convocatoria;
 import com.syntia.ai.model.Perfil;
 import com.syntia.ai.model.Proyecto;
 import com.syntia.ai.model.Rol;
@@ -20,14 +21,18 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.IntStream;
 
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -125,6 +130,43 @@ class AdminControllerDetalleUsuarioTest {
         mockMvc.perform(get("/api/admin/usuarios/123"))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void listarConvocatorias_devuelvePaginaConTamanoFijo50() throws Exception {
+        List<Convocatoria> convocatorias = IntStream.range(0, 50)
+                .mapToObj(i -> Convocatoria.builder().id((long) i + 1).titulo("Convocatoria " + i).build())
+                .toList();
+
+        when(convocatoriaService.obtenerPagina(eq(0), eq(50)))
+                .thenReturn(new PageImpl<>(convocatorias, PageRequest.of(0, 50), 120));
+
+        mockMvc.perform(get("/api/admin/convocatorias"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.convocatorias").isArray())
+                .andExpect(jsonPath("$.convocatorias.length()").value(50))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(50))
+                .andExpect(jsonPath("$.totalElements").value(120))
+                .andExpect(jsonPath("$.totalPages").value(3))
+                .andExpect(jsonPath("$.hasNext").value(true));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void listarConvocatorias_respondePaginaSolicitada() throws Exception {
+        List<Convocatoria> convocatorias = IntStream.range(0, 20)
+                .mapToObj(i -> Convocatoria.builder().id((long) i + 101).titulo("Convocatoria " + i).build())
+                .toList();
+
+        when(convocatoriaService.obtenerPagina(eq(2), eq(50)))
+                .thenReturn(new PageImpl<>(convocatorias, PageRequest.of(2, 50), 120));
+
+        mockMvc.perform(get("/api/admin/convocatorias").param("page", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.convocatorias.length()").value(20))
+                .andExpect(jsonPath("$.page").value(2))
+                .andExpect(jsonPath("$.size").value(50))
+                .andExpect(jsonPath("$.hasNext").value(false));
+    }
 }
-
-

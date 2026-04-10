@@ -6,6 +6,9 @@ import com.syntia.ai.model.dto.ResultadoPersistencia;
 import com.syntia.ai.repository.ConvocatoriaRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,6 +49,19 @@ public class ConvocatoriaService {
             }
         }
         return corregidas;
+    }
+
+    /** Obtiene una pagina de convocatorias para listados de admin. */
+    public Page<Convocatoria> obtenerPagina(int page, int size) {
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.max(size, 1);
+        PageRequest pageRequest = PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id"));
+        return convocatoriaRepository.findAll(pageRequest);
+    }
+
+    /** Cuenta total de convocatorias sin cargar entidades en memoria. */
+    public long contarTodas() {
+        return convocatoriaRepository.count();
     }
 
     /** Obtiene todas las convocatorias registradas. */

@@ -28,7 +28,7 @@ public class ConvocatoriaInitializer {
         }
 
         // 2. Importar si la tabla está vacía
-        long total = convocatoriaService.obtenerTodas().size();
+        long total = convocatoriaService.contarTodas();
         if (total > 0) {
             log.info("Ya existen {} convocatorias en BD — no se importan nuevas al arrancar.", total);
             return;
