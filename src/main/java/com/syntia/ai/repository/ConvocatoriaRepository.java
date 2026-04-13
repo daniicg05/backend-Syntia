@@ -111,5 +111,23 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
     List<Convocatoria> findEnriquecimientoBatch(@Param("lastId") Long lastId, Pageable pageable);
 
     long countByNumeroConvocatoriaIsNotNull();
+
+    /**
+     * Búsqueda pública full-text: filtra por keyword en título/descripción/sector
+     * y opcionalmente por sector (LIKE). Usado por el endpoint público de búsqueda.
+     */
+    @Query("SELECT c FROM Convocatoria c WHERE " +
+            "(:q IS NULL OR :q = '' OR " +
+            "   LOWER(c.titulo) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
+            "   (c.descripcion IS NOT NULL AND LOWER(c.descripcion) LIKE LOWER(CONCAT('%', :q, '%'))) OR " +
+            "   (c.sector IS NOT NULL AND LOWER(c.sector) LIKE LOWER(CONCAT('%', :q, '%')))) AND " +
+            "(:sector IS NULL OR :sector = '' OR " +
+            "   (c.sector IS NOT NULL AND LOWER(c.sector) LIKE LOWER(CONCAT('%', :sector, '%'))))")
+    Page<Convocatoria> buscarPublico(@Param("q") String q,
+                                     @Param("sector") String sector,
+                                     Pageable pageable);
+
+    /** Últimas convocatorias para la sección destacadas del Home. */
+    List<Convocatoria> findTop16ByOrderByIdDesc();
 }
 
