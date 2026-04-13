@@ -32,6 +32,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.security.access.AccessDeniedException;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -163,28 +164,40 @@ public class AdminController {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * Cambia el rol de un usuario administrado.
+     * Regla local: el admin autenticado no puede cambiar su propio rol.
+     * Regla de superadmin protegido: se aplica en UsuarioService.
+     */
     @PutMapping("/usuarios/{id}/rol")
     public ResponseEntity<?> cambiarRol(@PathVariable Long id,
                                         @RequestBody Map<String, String> body,
                                         Authentication authentication) {
         Rol rol = Rol.valueOf(body.get("rol"));
         Usuario admin = resolverUsuario(authentication);
+
         if (admin.getId().equals(id)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("error", "No puedes cambiar tu propio rol."));
+            throw new AccessDeniedException("No puedes cambiar tu propio rol.");
         }
+
         usuarioService.cambiarRol(id, rol);
         return ResponseEntity.ok(Map.of("message", "Rol actualizado correctamente."));
     }
 
+    /**
+     * Elimina un usuario administrado.
+     * Regla local: el admin autenticado no puede eliminarse a sí mismo.
+     * Regla de superadmin protegido: se aplica en UsuarioService.
+     */
     @DeleteMapping("/usuarios/{id}")
     public ResponseEntity<?> eliminarUsuario(@PathVariable Long id,
                                              Authentication authentication) {
         Usuario admin = resolverUsuario(authentication);
+
         if (admin.getId().equals(id)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("error", "No puedes eliminarte a ti mismo."));
+            throw new AccessDeniedException("No puedes eliminarte a ti mismo.");
         }
+
         usuarioService.eliminar(id);
         return ResponseEntity.ok(Map.of("message", "Usuario eliminado correctamente."));
     }

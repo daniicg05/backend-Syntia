@@ -34,6 +34,34 @@ public class UsuarioService {
     private final RecomendacionRepository recomendacionRepository;
     private final PasswordEncoder passwordEncoder;
 
+    /**
+     * Email reservado para la cuenta superadministradora protegida.
+     * Esta protección es lógica de negocio de backend y no depende del frontend.
+     */
+    private static final String SUPERADMIN_EMAIL = "admin@syntia.com";
+
+    /**
+     * Determina si el usuario objetivo corresponde al superadmin protegido.
+     */
+    private boolean isSuperAdmin(Usuario usuario) {
+        return usuario != null
+                && usuario.getEmail() != null
+                && usuario.getEmail().equalsIgnoreCase(SUPERADMIN_EMAIL);
+    }
+
+    /**
+     * Bloquea operaciones sensibles sobre la cuenta superadministradora.
+     *
+     * @throws IllegalStateException cuando se intenta modificar/eliminar superadmin
+     */
+    private void validarNoEsSuperAdminProtegido(Usuario usuario) {
+        if (isSuperAdmin(usuario)) {
+            throw new IllegalStateException(
+                    "No se puede modificar ni eliminar el usuario superadministrador."
+            );
+        }
+    }
+
     public UsuarioService(UsuarioRepository usuarioRepository,
                           HistorialCorreoRepository historialCorreoRepository,
                           PerfilRepository perfilRepository,
@@ -117,14 +145,17 @@ public class UsuarioService {
 
     /**
      * Elimina un usuario por ID.
+     * Aplica protección para impedir borrar la cuenta superadministradora.
      *
      * @param id ID del usuario a eliminar
      * @throws EntityNotFoundException si el usuario no existe
+     * @throws IllegalStateException si el usuario es superadmin protegido
      */
     public void eliminar(Long id) {
-        if (!usuarioRepository.existsById(id)) {
-            throw new EntityNotFoundException("Usuario no encontrado: " + id);
-        }
+        Usuario usuario = usuarioRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Usuario no encontrado: " + id));
+
+        validarNoEsSuperAdminProtegido(usuario);
 
         // Orden importante para respetar FKs: recomendaciones -> proyectos -> perfil/historial -> usuario.
         recomendacionRepository.deleteByProyectoUsuarioId(id);
@@ -136,15 +167,19 @@ public class UsuarioService {
 
     /**
      * Cambia el rol de un usuario.
+     * Aplica protección para impedir cambiar el rol del superadmin.
      *
      * @param id ID del usuario
      * @param nuevoRol nuevo rol a asignar
      * @return usuario actualizado
      * @throws EntityNotFoundException si el usuario no existe
+     * @throws IllegalStateException si el usuario es superadmin protegido
      */
     public Usuario cambiarRol(Long id, Rol nuevoRol) {
         Usuario usuario = usuarioRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Usuario no encontrado: " + id));
+
+        validarNoEsSuperAdminProtegido(usuario);
 
         usuario.setRol(nuevoRol);
         return usuarioRepository.save(usuario);

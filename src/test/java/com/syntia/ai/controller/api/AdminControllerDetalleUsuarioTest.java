@@ -25,11 +25,21 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
+import com.syntia.ai.repository.SyncStateRepository;
+import com.syntia.ai.service.BdnsEnrichmentService;
+import com.syntia.ai.service.BdnsEtlPanelService;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.IntStream;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.junit.jupiter.api.BeforeEach;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+
 
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -65,6 +75,13 @@ class AdminControllerDetalleUsuarioTest {
     private RecomendacionRepository recomendacionRepository;
     @MockBean
     private BdnsImportJobService bdnsImportJobService;
+
+    @MockBean
+    private BdnsEtlPanelService bdnsEtlPanelService;
+    @MockBean
+    private SyncStateRepository syncStateRepository;
+    @MockBean
+    private BdnsEnrichmentService bdnsEnrichmentService;
 
     @Test
     @WithMockUser(roles = "ADMIN")
@@ -168,5 +185,24 @@ class AdminControllerDetalleUsuarioTest {
                 .andExpect(jsonPath("$.page").value(2))
                 .andExpect(jsonPath("$.size").value(50))
                 .andExpect(jsonPath("$.hasNext").value(false));
+    }
+
+    /**
+     * Hace que el mock del filtro JWT no interrumpa la cadena de filtros.
+     * Sin esto, MockMvc puede devolver 200 con body vacío y romper las aserciones.
+     */
+    @BeforeEach
+    void configurarFiltroJwtMock() throws Exception {
+        doAnswer(invocation -> {
+            HttpServletRequest request = invocation.getArgument(0);
+            HttpServletResponse response = invocation.getArgument(1);
+            FilterChain chain = invocation.getArgument(2);
+            chain.doFilter(request, response);
+            return null;
+        }).when(jwtAuthenticationFilter).doFilter(
+                any(HttpServletRequest.class),
+                any(HttpServletResponse.class),
+                any(FilterChain.class)
+        );
     }
 }
