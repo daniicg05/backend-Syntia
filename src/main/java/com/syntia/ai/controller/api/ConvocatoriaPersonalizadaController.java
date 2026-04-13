@@ -159,9 +159,9 @@ public class ConvocatoriaPersonalizadaController {
         if (perfil != null && perfil.getSector() != null) {
             List<String> kws = getKeywords(perfil.getSector());
             pool.addAll(convocatoriaRepository.buscarCandidatosPorKeywords(
-                    kws.size() > 0 ? kws.get(0) : null,
-                    kws.size() > 1 ? kws.get(1) : null,
-                    kws.size() > 2 ? kws.get(2) : null,
+                    kws.size() > 0 ? kws.get(0) : "",
+                    kws.size() > 1 ? kws.get(1) : "",
+                    kws.size() > 2 ? kws.get(2) : "",
                     PageRequest.of(0, POOL_SECTOR)
             ));
         }
@@ -171,9 +171,9 @@ public class ConvocatoriaPersonalizadaController {
             if (p.getSector() == null || pool.size() >= 150) break;
             List<String> kws = getKeywords(p.getSector());
             pool.addAll(convocatoriaRepository.buscarCandidatosPorKeywords(
-                    kws.size() > 0 ? kws.get(0) : null,
-                    kws.size() > 1 ? kws.get(1) : null,
-                    kws.size() > 2 ? kws.get(2) : null,
+                    kws.size() > 0 ? kws.get(0) : "",
+                    kws.size() > 1 ? kws.get(1) : "",
+                    kws.size() > 2 ? kws.get(2) : "",
                     PageRequest.of(0, 40)
             ));
         }
