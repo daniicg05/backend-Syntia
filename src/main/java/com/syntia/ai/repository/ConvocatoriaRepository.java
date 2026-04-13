@@ -129,5 +129,20 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
 
     /** Últimas convocatorias para la sección destacadas del Home. */
     List<Convocatoria> findTop16ByOrderByIdDesc();
+
+    /**
+     * Pool de candidatos para recomendaciones personalizadas.
+     * Devuelve convocatorias cuyo sector/título contenga alguna keyword del usuario,
+     * más un fallback de recientes. Limitado para scoring en memoria.
+     */
+    @Query("SELECT c FROM Convocatoria c WHERE " +
+            "(:kw1 IS NOT NULL AND (LOWER(c.sector) LIKE LOWER(CONCAT('%',:kw1,'%')) OR LOWER(c.titulo) LIKE LOWER(CONCAT('%',:kw1,'%')))) OR " +
+            "(:kw2 IS NOT NULL AND (LOWER(c.sector) LIKE LOWER(CONCAT('%',:kw2,'%')) OR LOWER(c.titulo) LIKE LOWER(CONCAT('%',:kw2,'%')))) OR " +
+            "(:kw3 IS NOT NULL AND (LOWER(c.sector) LIKE LOWER(CONCAT('%',:kw3,'%')) OR LOWER(c.titulo) LIKE LOWER(CONCAT('%',:kw3,'%')))) " +
+            "ORDER BY c.id DESC")
+    List<Convocatoria> buscarCandidatosPorKeywords(@Param("kw1") String kw1,
+                                                    @Param("kw2") String kw2,
+                                                    @Param("kw3") String kw3,
+                                                    Pageable pageable);
 }
 

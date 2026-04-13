@@ -20,4 +20,8 @@ public class ConvocatoriaPublicaDTO {
     private String urlOficial;
     private String idBdns;
     private String numeroConvocatoria;
+    /** Puntuación de afinidad 0-100. Null en endpoints públicos sin autenticación. */
+    private Integer matchScore;
+    /** Razón breve del match. Null en endpoints públicos. */
+    private String matchRazon;
 }
