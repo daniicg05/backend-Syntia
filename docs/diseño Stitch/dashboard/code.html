@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+
+<html class="light" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Syntia - Estratega Lúcido</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                "on-primary-fixed": "#001f29",
+                "on-tertiary-fixed-variant": "#005236",
+                "secondary-container": "#d5e0f8",
+                "primary": "#005a71",
+                "surface-tint": "#006781",
+                "surface-container-high": "#e6e8ea",
+                "outline-variant": "#bec8cd",
+                "surface-container-highest": "#e0e3e5",
+                "primary-fixed-dim": "#81d1f0",
+                "on-error-container": "#93000a",
+                "outline": "#6f787d",
+                "on-secondary-container": "#586377",
+                "error": "#ba1a1a",
+                "tertiary-container": "#007a53",
+                "tertiary-fixed-dim": "#4edea3",
+                "on-tertiary-fixed": "#002113",
+                "on-primary-container": "#d3f1ff",
+                "secondary-fixed-dim": "#bcc7de",
+                "on-secondary-fixed-variant": "#3c475a",
+                "surface-dim": "#d8dadc",
+                "on-tertiary-container": "#a3ffd0",
+                "on-surface": "#191c1e",
+                "primary-container": "#0e7490",
+                "surface-container-lowest": "#ffffff",
+                "on-secondary": "#ffffff",
+                "on-tertiary": "#ffffff",
+                "surface-container-low": "#f2f4f6",
+                "background": "#f7f9fb",
+                "surface": "#f7f9fb",
+                "primary-fixed": "#b9eaff",
+                "tertiary-fixed": "#6ffbbe",
+                "surface-container": "#eceef0",
+                "secondary": "#545f73",
+                "error-container": "#ffdad6",
+                "on-background": "#191c1e",
+                "inverse-primary": "#81d1f0",
+                "on-secondary-fixed": "#111c2d",
+                "on-error": "#ffffff",
+                "secondary-fixed": "#d8e3fb",
+                "on-surface-variant": "#3f484c",
+                "on-primary-fixed-variant": "#004d62",
+                "surface-bright": "#f7f9fb",
+                "surface-variant": "#e0e3e5",
+                "on-primary": "#ffffff",
+                "inverse-on-surface": "#eff1f3",
+                "inverse-surface": "#2d3133",
+                "tertiary": "#005f40"
+            },
+            "borderRadius": {
+                "DEFAULT": "0.25rem",
+                "lg": "0.5rem",
+                "xl": "0.75rem",
+                "2xl": "1rem",
+                "3xl": "1.5rem",
+                "full": "9999px"
+            },
+            "fontFamily": {
+                "headline": ["Manrope"],
+                "body": ["Inter"],
+                "label": ["Inter"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+        }
+        .tonal-shift {
+            transition: background-color 0.3s ease;
+        }
+    </style>
+</head>
+<body class="bg-background font-body text-on-surface antialiased">
+<!-- SideNavBar -->
+<aside class="h-screen w-64 fixed left-0 top-0 hidden lg:flex flex-col bg-cyan-950 dark:bg-slate-950 shadow-2xl z-50 font-['Manrope'] text-sm tracking-tight">
+<div class="flex flex-col p-6 h-full">
+<div class="mb-10">
+<span class="text-2xl font-bold tracking-tighter text-white">Syntia</span>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 text-white font-semibold border-r-4 border-cyan-500 bg-cyan-900/50" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span>Panel</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 text-cyan-200/60 hover:text-white hover:bg-cyan-900/30" href="#">
+<span class="material-symbols-outlined">payments</span>
+<span>Subvenciones</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 text-cyan-200/60 hover:text-white hover:bg-cyan-900/30" href="#">
+<span class="material-symbols-outlined">gavel</span>
+<span>Licitaciones</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 text-cyan-200/60 hover:text-white hover:bg-cyan-900/30" href="#">
+<span class="material-symbols-outlined">star</span>
+<span>Favoritos</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 text-cyan-200/60 hover:text-white hover:bg-cyan-900/30" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span>Ajustes</span>
+</a>
+</nav>
+<div class="mt-auto space-y-6">
+<button class="w-full py-3 px-4 rounded-3xl bg-cyan-500 text-cyan-950 font-bold hover:scale-95 transition-transform duration-150">
+                    Nueva Búsqueda
+                </button>
+<div class="flex items-center gap-3 p-2 bg-cyan-900/20 rounded-2xl">
+<div class="w-10 h-10 rounded-full bg-cyan-800 flex items-center justify-center overflow-hidden">
+<img alt="Usuario Perfil" class="w-full h-full object-cover" data-alt="professional portrait of a high-level corporate strategist with a minimalist aesthetic and soft lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDBkgCKhaSFZy2FyEvI2fx9SRhHCiV9MTJREhD-2cpb2F07xTxygRuhogq6GxwJLUOuzB-75cMSUt8sK1EvFngGNE05fTtlXAzwbQvXqXbc3KfSLAWN4Z1TFzCSvAIn767YSgh67MxcNkMPjnjmy3ObikNDw_sn3C48bJWZgWw6lZmbPRao2pHFpMJq9WkPU_QEOKITRweCEcUyC4owtV0p6Ep2ONqM1NcdqxdizzrbaljiNfIdUgg303dJ8X2TMrEg7K5btkVc8_g"/>
+</div>
+<div>
+<p class="text-white font-bold leading-none">Syntia</p>
+<p class="text-cyan-400 text-xs mt-1">Estratega Lúcido</p>
+</div>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="lg:ml-64 min-h-screen">
+<!-- TopNavBar -->
+<header class="fixed top-0 right-0 w-full lg:w-[calc(100%-16rem)] h-16 z-40 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-xl flex items-center justify-between px-8 py-2 shadow-sm font-['Inter'] text-sm">
+<div class="flex-1 flex items-center">
+<div class="relative w-full max-w-md group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+<input class="w-full pl-10 pr-4 py-2 bg-slate-100 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 ring-cyan-500/20 text-on-surface-variant" placeholder="Buscar licitaciones, pliegos o subvenciones..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-4 text-slate-500">
+<button class="hover:text-cyan-600 transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="hover:text-cyan-600 transition-colors">
+<span class="material-symbols-outlined">history</span>
+</button>
+</div>
+<div class="h-6 w-[1px] bg-slate-200 dark:bg-slate-700"></div>
+<div class="flex items-center gap-4">
+<button class="text-slate-500 hover:text-cyan-600 transition-colors font-medium">Ayuda</button>
+<button class="bg-primary text-white px-5 py-2 rounded-3xl font-bold text-xs uppercase tracking-wider hover:bg-primary-container transition-colors shadow-sm">Perfil</button>
+</div>
+</div>
+</header>
+<!-- Canvas Area -->
+<div class="pt-24 pb-12 px-8 max-w-7xl mx-auto space-y-8">
+<!-- Header Section -->
+<section class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+<div class="space-y-1">
+<h1 class="text-4xl font-headline font-bold text-on-surface tracking-tight">Panel Estratégico</h1>
+<p class="text-on-surface-variant font-body">Bienvenido, Estratega. Aquí tienes el pulso de tus oportunidades activas.</p>
+</div>
+<div class="flex gap-2">
+<div class="bg-surface-container px-4 py-2 rounded-xl flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-tertiary"></span>
+<span class="text-xs font-semibold text-on-surface-variant uppercase tracking-tighter">Sincronizado: Ahora</span>
+</div>
+</div>
+</section>
+<!-- KPI Bento Grid -->
+<section class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- KPI 1 -->
+<div class="bg-surface-container-lowest p-6 rounded-3xl shadow-sm space-y-4">
+<div class="flex justify-between items-start">
+<div class="p-3 bg-primary/10 rounded-2xl text-primary">
+<span class="material-symbols-outlined">payments</span>
+</div>
+<span class="text-xs font-bold text-tertiary bg-tertiary-container/20 px-2 py-1 rounded-full">+12% vs mes anterior</span>
+</div>
+<div>
+<p class="text-sm font-medium text-on-surface-variant">Subvenciones Activas</p>
+<p class="text-4xl font-headline font-bold mt-1 tracking-tight">124.5M<span class="text-lg font-medium text-primary">€</span></p>
+</div>
+</div>
+<!-- KPI 2 -->
+<div class="bg-surface-container-lowest p-6 rounded-3xl shadow-sm space-y-4">
+<div class="flex justify-between items-start">
+<div class="p-3 bg-error/10 rounded-2xl text-error">
+<span class="material-symbols-outlined">schedule</span>
+</div>
+<div class="flex -space-x-2">
+<div class="w-6 h-6 rounded-full border-2 border-white bg-slate-200"></div>
+<div class="w-6 h-6 rounded-full border-2 border-white bg-slate-300"></div>
+</div>
+</div>
+<div>
+<p class="text-sm font-medium text-on-surface-variant">Próximas a Vencer</p>
+<p class="text-4xl font-headline font-bold mt-1 text-error tracking-tight">08</p>
+<p class="text-xs text-on-surface-variant mt-2">Acción requerida antes de 48h</p>
+</div>
+</div>
+<!-- KPI 3 -->
+<div class="bg-surface-container-lowest p-6 rounded-3xl shadow-sm space-y-4">
+<div class="flex justify-between items-start">
+<div class="p-3 bg-secondary/10 rounded-2xl text-secondary">
+<span class="material-symbols-outlined">star</span>
+</div>
+</div>
+<div>
+<p class="text-sm font-medium text-on-surface-variant">Oportunidades Guardadas</p>
+<div class="flex items-center gap-3">
+<p class="text-4xl font-headline font-bold mt-1 tracking-tight">42</p>
+<div class="h-8 w-[1px] bg-slate-200 mx-2"></div>
+<div class="space-y-0.5">
+<p class="text-[10px] uppercase font-bold text-on-surface-variant tracking-widest leading-none">Filtro IA</p>
+<p class="text-xs font-semibold text-primary">94% Coincidencia</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Main Interactive Section -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+<!-- Recent Activity (Large Column) -->
+<section class="lg:col-span-8 space-y-6">
+<div class="flex items-center justify-between">
+<h2 class="text-xl font-headline font-bold">Actividad Reciente</h2>
+<button class="text-primary text-sm font-bold hover:underline">Ver todo</button>
+</div>
+<div class="space-y-4">
+<!-- Activity Card 1 -->
+<div class="group bg-surface-container-lowest p-5 rounded-3xl hover:bg-primary-fixed/10 transition-all duration-300">
+<div class="flex gap-4">
+<div class="flex-shrink-0 w-12 h-12 bg-surface-container rounded-2xl flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined">description</span>
+</div>
+<div class="flex-1">
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+<h3 class="font-bold text-on-surface group-hover:text-primary transition-colors">Digitalización Pyme 2024</h3>
+<span class="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest">Hace 2 horas</span>
+</div>
+<p class="text-sm text-on-surface-variant mt-1 line-clamp-1">Nueva actualización en el pliego de condiciones técnicas para infraestructuras críticas.</p>
+<div class="flex flex-wrap gap-2 mt-4">
+<span class="px-3 py-1 bg-tertiary-container/10 text-on-tertiary-fixed-variant rounded-full text-[10px] font-bold uppercase tracking-wider">Alta financiación</span>
+<span class="px-3 py-1 bg-secondary-container/30 text-on-secondary-container rounded-full text-[10px] font-bold uppercase tracking-wider">Madrid</span>
+<span class="px-3 py-1 bg-slate-100 text-slate-500 rounded-full text-[10px] font-bold uppercase tracking-wider">Tech</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Activity Card 2 -->
+<div class="group bg-surface-container-lowest p-5 rounded-3xl hover:bg-primary-fixed/10 transition-all duration-300">
+<div class="flex gap-4">
+<div class="flex-shrink-0 w-12 h-12 bg-surface-container rounded-2xl flex items-center justify-center text-error group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined">emergency</span>
+</div>
+<div class="flex-1">
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+<h3 class="font-bold text-on-surface group-hover:text-primary transition-colors">Energías Renovables IV</h3>
+<span class="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest">Hace 5 horas</span>
+</div>
+<p class="text-sm text-on-surface-variant mt-1 line-clamp-1">Cierre de plazo inminente. Quedan 24 horas para la presentación telemática.</p>
+<div class="flex flex-wrap gap-2 mt-4">
+<span class="px-3 py-1 bg-error-container/20 text-on-error-container rounded-full text-[10px] font-bold uppercase tracking-wider">Plazo corto</span>
+<span class="px-3 py-1 bg-slate-100 text-slate-500 rounded-full text-[10px] font-bold uppercase tracking-wider">Energía</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Activity Card 3 -->
+<div class="group bg-surface-container-lowest p-5 rounded-3xl hover:bg-primary-fixed/10 transition-all duration-300">
+<div class="flex gap-4">
+<div class="flex-shrink-0 w-12 h-12 bg-surface-container rounded-2xl flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined">rocket_launch</span>
+</div>
+<div class="flex-1">
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+<h3 class="font-bold text-on-surface group-hover:text-primary transition-colors">Smart Cities 5G</h3>
+<span class="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest">Ayer</span>
+</div>
+<p class="text-sm text-on-surface-variant mt-1 line-clamp-1">Publicación oficial de la resolución del BOE. 3 nuevas partidas disponibles.</p>
+<div class="flex flex-wrap gap-2 mt-4">
+<span class="px-3 py-1 bg-tertiary-container/10 text-on-tertiary-fixed-variant rounded-full text-[10px] font-bold uppercase tracking-wider">Alta financiación</span>
+<span class="px-3 py-1 bg-primary-fixed/30 text-on-primary-fixed-variant rounded-full text-[10px] font-bold uppercase tracking-wider">Nacional</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Mis Favoritos (Sidebar Column) -->
+<aside class="lg:col-span-4 space-y-6">
+<div class="bg-surface-container-lowest rounded-3xl p-6 shadow-sm">
+<div class="flex items-center justify-between mb-6">
+<h2 class="text-lg font-headline font-bold">Mis Favoritos</h2>
+<span class="material-symbols-outlined text-primary">sort</span>
+</div>
+<div class="space-y-5">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100">
+<span class="material-symbols-outlined text-slate-400">inventory_2</span>
+</div>
+<div class="flex-1 overflow-hidden">
+<p class="font-semibold text-sm truncate">I+D Automoción Eléctrica</p>
+<p class="text-xs text-on-surface-variant">4.2M€ • 12 Mayo</p>
+</div>
+<span class="material-symbols-outlined text-primary fill-current" style="font-variation-settings: 'FILL' 1;">star</span>
+</div>
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100">
+<span class="material-symbols-outlined text-slate-400">biotech</span>
+</div>
+<div class="flex-1 overflow-hidden">
+<p class="font-semibold text-sm truncate">HealthTech Disruptive</p>
+<p class="text-xs text-on-surface-variant">1.5M€ • 28 Abril</p>
+</div>
+<span class="material-symbols-outlined text-primary fill-current" style="font-variation-settings: 'FILL' 1;">star</span>
+</div>
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100">
+<span class="material-symbols-outlined text-slate-400">agriculture</span>
+</div>
+<div class="flex-1 overflow-hidden">
+<p class="font-semibold text-sm truncate">AgroSostenible 2030</p>
+<p class="text-xs text-on-surface-variant">800k€ • 15 Mayo</p>
+</div>
+<span class="material-symbols-outlined text-primary fill-current" style="font-variation-settings: 'FILL' 1;">star</span>
+</div>
+</div>
+<div class="mt-8 pt-6 border-t border-slate-100">
+<div class="bg-primary/5 rounded-2xl p-4">
+<p class="text-xs font-bold text-primary uppercase tracking-widest mb-2">Resumen de Cartera</p>
+<div class="flex items-end gap-1">
+<div class="w-full h-12 bg-primary/10 rounded-t-lg"></div>
+<div class="w-full h-16 bg-primary/20 rounded-t-lg"></div>
+<div class="w-full h-24 bg-primary/40 rounded-t-lg"></div>
+<div class="w-full h-14 bg-primary/20 rounded-t-lg"></div>
+<div class="w-full h-20 bg-primary/60 rounded-t-lg"></div>
+</div>
+<p class="text-[10px] text-center mt-2 text-on-surface-variant">Tendencia de volumen en favoritos (últimos 30 días)</p>
+</div>
+</div>
+</div>
+<!-- Insight Card (Glassmorphism) -->
+<div class="relative overflow-hidden rounded-3xl p-6 bg-primary-container text-white">
+<div class="absolute top-0 right-0 p-4 opacity-20 transform translate-x-4 -translate-y-4">
+<span class="material-symbols-outlined text-8xl" style="font-size: 8rem;">psychology</span>
+</div>
+<h3 class="text-lg font-headline font-bold mb-2">Syntia Insight IA</h3>
+<p class="text-sm text-on-primary-container leading-relaxed">
+                            Hemos detectado una nueva licitación en "Navarra" que encaja con un 98% en tu perfil estratégico actual.
+                        </p>
+<button class="mt-4 px-4 py-2 bg-white text-primary text-xs font-bold rounded-2xl hover:bg-primary-fixed transition-colors">
+                            Analizar Oportunidad
+                        </button>
+</div>
+</aside>
+</div>
+</div>
+<!-- Footer -->
+<footer class="w-full py-12 px-8 bg-white dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4 font-['Inter'] text-xs uppercase tracking-widest">
+<div class="font-black text-cyan-900 dark:text-white">Syntia Intelligence</div>
+<div class="text-slate-400">© 2024 Syntia Intelligence. Todos los derechos reservados.</div>
+<nav class="flex gap-6">
+<a class="text-slate-400 hover:text-cyan-500 transition-colors" href="#">Privacidad</a>
+<a class="text-slate-400 hover:text-cyan-500 transition-colors" href="#">Términos</a>
+<a class="text-slate-400 hover:text-cyan-500 transition-colors" href="#">Contacto</a>
+</nav>
+</footer>
+</main>
+</body></html>
