@@ -24,6 +24,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/usuario/perfil")
 public class PerfilController {
@@ -56,6 +58,13 @@ public class PerfilController {
     @GetMapping("/ver")
     public ResponseEntity<?> verPerfil(Authentication authentication, HttpServletRequest request) {
         return obtenerPerfil(authentication, request);
+    }
+
+    @GetMapping("/estado")
+    public ResponseEntity<?> estadoPerfil(Authentication authentication) {
+        Usuario usuario = resolverUsuario(authentication);
+        boolean perfilCompleto = perfilService.tienePerfil(usuario.getId());
+        return ResponseEntity.ok(Map.of("perfilCompleto", perfilCompleto));
     }
 
     @PutMapping

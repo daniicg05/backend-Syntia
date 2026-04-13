@@ -1,6 +1,7 @@
 package com.syntia.ai.repository;
 
 import com.syntia.ai.model.Convocatoria;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -111,5 +112,38 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
     List<Convocatoria> findEnriquecimientoBatch(@Param("lastId") Long lastId, Pageable pageable);
 
     long countByNumeroConvocatoriaIsNotNull();
+
+    /**
+     * Búsqueda pública full-text: filtra por keyword en título/descripción/sector
+     * y opcionalmente por sector (LIKE). Usado por el endpoint público de búsqueda.
+     */
+    @Query("SELECT c FROM Convocatoria c WHERE " +
+            "(:q IS NULL OR :q = '' OR " +
+            "   LOWER(c.titulo) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
+            "   (c.descripcion IS NOT NULL AND LOWER(c.descripcion) LIKE LOWER(CONCAT('%', :q, '%'))) OR " +
+            "   (c.sector IS NOT NULL AND LOWER(c.sector) LIKE LOWER(CONCAT('%', :q, '%')))) AND " +
+            "(:sector IS NULL OR :sector = '' OR " +
+            "   (c.sector IS NOT NULL AND LOWER(c.sector) LIKE LOWER(CONCAT('%', :sector, '%'))))")
+    Page<Convocatoria> buscarPublico(@Param("q") String q,
+                                     @Param("sector") String sector,
+                                     Pageable pageable);
+
+    /** Últimas convocatorias para la sección destacadas del Home. */
+    List<Convocatoria> findTop16ByOrderByIdDesc();
+
+    /**
+     * Pool de candidatos para recomendaciones personalizadas.
+     * Pasa siempre los 3 parámetros; usa "" como centinela para "sin keyword".
+     * En JPQL no se puede usar :param IS NOT NULL en OR, se usa <> '' en su lugar.
+     */
+    @Query("SELECT c FROM Convocatoria c WHERE " +
+            "(:kw1 <> '' AND (LOWER(c.sector) LIKE LOWER(CONCAT('%',:kw1,'%')) OR LOWER(c.titulo) LIKE LOWER(CONCAT('%',:kw1,'%')))) OR " +
+            "(:kw2 <> '' AND (LOWER(c.sector) LIKE LOWER(CONCAT('%',:kw2,'%')) OR LOWER(c.titulo) LIKE LOWER(CONCAT('%',:kw2,'%')))) OR " +
+            "(:kw3 <> '' AND (LOWER(c.sector) LIKE LOWER(CONCAT('%',:kw3,'%')) OR LOWER(c.titulo) LIKE LOWER(CONCAT('%',:kw3,'%')))) " +
+            "ORDER BY c.id DESC")
+    List<Convocatoria> buscarCandidatosPorKeywords(@Param("kw1") String kw1,
+                                                    @Param("kw2") String kw2,
+                                                    @Param("kw3") String kw3,
+                                                    Pageable pageable);
 }
 
