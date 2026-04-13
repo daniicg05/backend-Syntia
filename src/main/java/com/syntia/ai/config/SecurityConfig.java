@@ -31,11 +31,14 @@ public class SecurityConfig {
 
     private final CustomUserDetailService userDetailsService;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final ObjectMapper objectMapper;
 
     public SecurityConfig(CustomUserDetailService userDetailsService,
-                          JwtAuthenticationFilter jwtAuthenticationFilter) {
+                          JwtAuthenticationFilter jwtAuthenticationFilter,
+                          ObjectMapper objectMapper) {
         this.userDetailsService = userDetailsService;
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.objectMapper = objectMapper;
     }
 
     @Bean
@@ -54,7 +57,7 @@ public class SecurityConfig {
                             );
                             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                             response.setContentType("application/json");
-                            new ObjectMapper().writeValue(response.getOutputStream(), error);
+                            objectMapper.writeValue(response.getOutputStream(), error);
                         })
                         .accessDeniedHandler((request, response, accessDeniedException) -> {
                             ErrorResponse error = new ErrorResponse(
@@ -65,7 +68,7 @@ public class SecurityConfig {
                             );
                             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                             response.setContentType("application/json");
-                            new ObjectMapper().writeValue(response.getOutputStream(), error);
+                            objectMapper.writeValue(response.getOutputStream(), error);
                         })
                 )
                 .authorizeHttpRequests(auth -> auth
