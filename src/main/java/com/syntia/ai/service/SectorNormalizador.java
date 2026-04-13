@@ -157,6 +157,109 @@ public final class SectorNormalizador {
         reg("juventud", "subvencion empleo joven juventud");
     }
 
+    /** Mapa de sector normalizado → ID numérico del catálogo /api/finalidades de BDNS. */
+    private static final Map<String, Integer> SECTOR_A_FINALIDAD_ID = new HashMap<>();
+
+    static {
+        // Tecnología e I+D+i → 17
+        SECTOR_A_FINALIDAD_ID.put("tecnologia", 17);
+        SECTOR_A_FINALIDAD_ID.put("tecnología", 17);
+        SECTOR_A_FINALIDAD_ID.put("tic", 17);
+        SECTOR_A_FINALIDAD_ID.put("informatica", 17);
+        SECTOR_A_FINALIDAD_ID.put("informática", 17);
+        SECTOR_A_FINALIDAD_ID.put("software", 17);
+        SECTOR_A_FINALIDAD_ID.put("inteligencia artificial", 17);
+        SECTOR_A_FINALIDAD_ID.put("ia", 17);
+        SECTOR_A_FINALIDAD_ID.put("investigacion", 17);
+        SECTOR_A_FINALIDAD_ID.put("investigación", 17);
+        SECTOR_A_FINALIDAD_ID.put("i+d", 17);
+        SECTOR_A_FINALIDAD_ID.put("i+d+i", 17);
+        SECTOR_A_FINALIDAD_ID.put("innovacion", 17);
+        SECTOR_A_FINALIDAD_ID.put("innovación", 17);
+        SECTOR_A_FINALIDAD_ID.put("digitalizacion", 17);
+        SECTOR_A_FINALIDAD_ID.put("digitalización", 17);
+        SECTOR_A_FINALIDAD_ID.put("transformacion digital", 17);
+        SECTOR_A_FINALIDAD_ID.put("transformación digital", 17);
+        SECTOR_A_FINALIDAD_ID.put("blockchain", 17);
+        SECTOR_A_FINALIDAD_ID.put("ciberseguridad", 17);
+        // Comercio, turismo y PYMEs → 14
+        SECTOR_A_FINALIDAD_ID.put("comercio", 14);
+        SECTOR_A_FINALIDAD_ID.put("turismo", 14);
+        SECTOR_A_FINALIDAD_ID.put("pyme", 14);
+        SECTOR_A_FINALIDAD_ID.put("hosteleria", 14);
+        SECTOR_A_FINALIDAD_ID.put("hostelería", 14);
+        SECTOR_A_FINALIDAD_ID.put("emprendimiento", 14);
+        SECTOR_A_FINALIDAD_ID.put("startup", 14);
+        SECTOR_A_FINALIDAD_ID.put("autonomo", 14);
+        SECTOR_A_FINALIDAD_ID.put("autónomo", 14);
+        SECTOR_A_FINALIDAD_ID.put("exportacion", 14);
+        SECTOR_A_FINALIDAD_ID.put("exportación", 14);
+        SECTOR_A_FINALIDAD_ID.put("internacionalizacion", 14);
+        SECTOR_A_FINALIDAD_ID.put("internacionalización", 14);
+        // Empleo → 6
+        SECTOR_A_FINALIDAD_ID.put("empleo", 6);
+        SECTOR_A_FINALIDAD_ID.put("contratacion", 6);
+        SECTOR_A_FINALIDAD_ID.put("contratación", 6);
+        SECTOR_A_FINALIDAD_ID.put("juventud", 6);
+        // Educación → 10
+        SECTOR_A_FINALIDAD_ID.put("educacion", 10);
+        SECTOR_A_FINALIDAD_ID.put("educación", 10);
+        SECTOR_A_FINALIDAD_ID.put("formacion", 10);
+        SECTOR_A_FINALIDAD_ID.put("formación", 10);
+        // Industria y energía → 13
+        SECTOR_A_FINALIDAD_ID.put("industria", 13);
+        SECTOR_A_FINALIDAD_ID.put("energia", 13);
+        SECTOR_A_FINALIDAD_ID.put("energía", 13);
+        SECTOR_A_FINALIDAD_ID.put("energia renovable", 13);
+        SECTOR_A_FINALIDAD_ID.put("energía renovable", 13);
+        SECTOR_A_FINALIDAD_ID.put("automocion", 13);
+        SECTOR_A_FINALIDAD_ID.put("automoción", 13);
+        SECTOR_A_FINALIDAD_ID.put("manufactura", 13);
+        // Agricultura → 12
+        SECTOR_A_FINALIDAD_ID.put("agricultura", 12);
+        SECTOR_A_FINALIDAD_ID.put("ganaderia", 12);
+        SECTOR_A_FINALIDAD_ID.put("ganadería", 12);
+        SECTOR_A_FINALIDAD_ID.put("pesca", 12);
+        SECTOR_A_FINALIDAD_ID.put("agroalimentario", 12);
+        SECTOR_A_FINALIDAD_ID.put("alimentacion", 12);
+        SECTOR_A_FINALIDAD_ID.put("alimentación", 12);
+        // Sanidad → 9
+        SECTOR_A_FINALIDAD_ID.put("salud", 9);
+        SECTOR_A_FINALIDAD_ID.put("sanidad", 9);
+        SECTOR_A_FINALIDAD_ID.put("farmacia", 9);
+        SECTOR_A_FINALIDAD_ID.put("biotecnologia", 9);
+        SECTOR_A_FINALIDAD_ID.put("biotecnología", 9);
+        // Cultura → 11
+        SECTOR_A_FINALIDAD_ID.put("cultura", 11);
+        // Servicios sociales → 5
+        SECTOR_A_FINALIDAD_ID.put("social", 5);
+        SECTOR_A_FINALIDAD_ID.put("ong", 5);
+        SECTOR_A_FINALIDAD_ID.put("discapacidad", 5);
+        SECTOR_A_FINALIDAD_ID.put("inclusion", 5);
+        SECTOR_A_FINALIDAD_ID.put("inclusión", 5);
+        SECTOR_A_FINALIDAD_ID.put("cooperacion", 5);
+        SECTOR_A_FINALIDAD_ID.put("cooperación", 5);
+        // Transporte → 15
+        SECTOR_A_FINALIDAD_ID.put("transporte", 15);
+        SECTOR_A_FINALIDAD_ID.put("logistica", 15);
+        SECTOR_A_FINALIDAD_ID.put("logística", 15);
+        // Vivienda → 8
+        SECTOR_A_FINALIDAD_ID.put("vivienda", 8);
+        SECTOR_A_FINALIDAD_ID.put("construccion", 8);
+        SECTOR_A_FINALIDAD_ID.put("construcción", 8);
+    }
+
+    /**
+     * Convierte un sector de texto libre al ID numérico de finalidad del catálogo BDNS.
+     *
+     * @param sectorLibre texto libre del sector del usuario
+     * @return ID numérico de finalidad BDNS o null si no se reconoce
+     */
+    public static Integer normalizarAFinalidadId(String sectorLibre) {
+        if (sectorLibre == null || sectorLibre.isBlank()) return null;
+        return SECTOR_A_FINALIDAD_ID.get(sectorLibre.toLowerCase().trim());
+    }
+
     /**
      * Convierte un sector libre en un término de búsqueda para BDNS.
      *

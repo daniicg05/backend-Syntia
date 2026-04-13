@@ -117,8 +117,8 @@ public class RecomendacionController {
         Perfil perfil = perfilService.obtenerPerfil(usuario.getId()).orElse(null);
         Convocatoria convocatoria = rec.getConvocatoria();
 
-        String detalleTexto = convocatoria.getIdBdns() != null
-                ? bdnsClientService.obtenerDetalleTexto(convocatoria.getIdBdns())
+        String detalleTexto = convocatoria.getNumeroConvocatoria() != null
+                ? bdnsClientService.obtenerDetalleTexto(convocatoria.getNumeroConvocatoria())
                 : null;
 
         String numConv = convocatoria.getNumeroConvocatoria();

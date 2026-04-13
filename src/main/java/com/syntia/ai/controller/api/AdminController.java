@@ -13,6 +13,7 @@ import com.syntia.ai.model.dto.HistorialCorreoDTO;
 import com.syntia.ai.model.dto.ImportacionBdnsEstadoDTO;
 import com.syntia.ai.repository.ProyectoRepository;
 import com.syntia.ai.repository.RecomendacionRepository;
+import com.syntia.ai.service.BdnsEnrichmentService;
 import com.syntia.ai.service.BdnsEtlPanelService;
 import com.syntia.ai.service.BdnsImportJobService;
 import com.syntia.ai.service.ModoImportacion;
@@ -56,6 +57,7 @@ public class AdminController {
     private final BdnsImportJobService bdnsImportJobService;
     private final BdnsEtlPanelService bdnsEtlPanelService;
     private final SyncStateRepository syncStateRepository;
+    private final BdnsEnrichmentService bdnsEnrichmentService;
 
     public AdminController(UsuarioService usuarioService,
                            PerfilService perfilService,
@@ -66,7 +68,8 @@ public class AdminController {
                            RecomendacionRepository recomendacionRepository,
                            BdnsImportJobService bdnsImportJobService,
                            BdnsEtlPanelService bdnsEtlPanelService,
-                           SyncStateRepository syncStateRepository) {
+                           SyncStateRepository syncStateRepository,
+                           BdnsEnrichmentService bdnsEnrichmentService) {
         this.usuarioService = usuarioService;
         this.perfilService = perfilService;
         this.convocatoriaService = convocatoriaService;
@@ -77,6 +80,7 @@ public class AdminController {
         this.bdnsImportJobService = bdnsImportJobService;
         this.bdnsEtlPanelService = bdnsEtlPanelService;
         this.syncStateRepository = syncStateRepository;
+        this.bdnsEnrichmentService = bdnsEnrichmentService;
     }
 
     // ─────────────────────────────────────────────
@@ -349,6 +353,42 @@ public class AdminController {
     @GetMapping("/bdns/cobertura")
     public ResponseEntity<?> coberturaDatos() {
         return ResponseEntity.ok(bdnsEtlPanelService.obtenerCobertura());
+    }
+
+    @PostMapping("/bdns/enriquecer")
+    public ResponseEntity<?> iniciarEnriquecimiento() {
+        boolean iniciado = bdnsEnrichmentService.iniciar();
+        if (!iniciado) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("error", "Ya hay un enriquecimiento en curso."));
+        }
+        return ResponseEntity.accepted()
+                .body(Map.of("message", "Enriquecimiento iniciado en segundo plano.",
+                             "nota", "Llama a GET /admin/bdns/enriquecer/estado para ver el progreso."));
+    }
+
+    @GetMapping("/bdns/enriquecer/estado")
+    public ResponseEntity<?> estadoEnriquecimiento() {
+        BdnsEnrichmentService.EstadoJob estado = bdnsEnrichmentService.obtenerEstado();
+        return ResponseEntity.ok(Map.of(
+                "estado", estado.estado().name(),
+                "procesados", estado.procesados(),
+                "enriquecidos", estado.enriquecidos(),
+                "errores", estado.errores(),
+                "total", estado.total(),
+                "iniciadoEn", estado.iniciadoEn() != null ? estado.iniciadoEn().toString() : null,
+                "finalizadoEn", estado.finalizadoEn() != null ? estado.finalizadoEn().toString() : null
+        ));
+    }
+
+    @DeleteMapping("/bdns/enriquecer")
+    public ResponseEntity<?> cancelarEnriquecimiento() {
+        boolean cancelado = bdnsEnrichmentService.cancelar();
+        if (!cancelado) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("error", "No hay enriquecimiento en curso."));
+        }
+        return ResponseEntity.ok(Map.of("mensaje", "Cancelación de enriquecimiento solicitada."));
     }
 
     @GetMapping("/bdns/ultima-importacion")

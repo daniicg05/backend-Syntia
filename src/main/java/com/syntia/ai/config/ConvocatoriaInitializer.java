@@ -34,18 +34,6 @@ public class ConvocatoriaInitializer {
             return;
         }
 
-        log.info("Tabla de convocatorias vacía — importando desde la API real de BDNS...");
-        int totalNuevas = 0;
-        try {
-            for (int pag = 0; pag < PAGINAS_INICIALES; pag++) {
-                int nuevas = convocatoriaService.importarDesdeBdns(pag, TAM_PAGINA);
-                totalNuevas += nuevas;
-                log.info("BDNS página {}: {} convocatorias nuevas importadas", pag, nuevas);
-            }
-            log.info("Importación inicial completada: {} convocatorias reales cargadas desde BDNS.", totalNuevas);
-        } catch (Exception e) {
-            log.warn("Error importando desde BDNS (se importaron {} antes del error): {}",
-                    totalNuevas, e.getMessage());
-        }
+        log.info("Tabla de convocatorias vacía — importación automática desactivada. Usa el panel de administración para lanzar el ETL.");
     }
 }

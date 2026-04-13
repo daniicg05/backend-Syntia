@@ -178,5 +178,43 @@ public final class UbicacionNormalizador {
     public static boolean esCcaaReconocida(String ubicacionLibre) {
         return normalizarACcaa(ubicacionLibre) != null;
     }
+
+    /** Mapa de nombre de CCAA normalizado → ID numérico del catálogo /api/regiones de BDNS. */
+    private static final Map<String, Integer> CCAA_A_REGION_ID = new HashMap<>();
+
+    static {
+        CCAA_A_REGION_ID.put("galicia", 3);
+        CCAA_A_REGION_ID.put("asturias", 8);
+        CCAA_A_REGION_ID.put("cantabria", 10);
+        CCAA_A_REGION_ID.put("país vasco", 13);
+        CCAA_A_REGION_ID.put("navarra", 17);
+        CCAA_A_REGION_ID.put("la rioja", 19);
+        CCAA_A_REGION_ID.put("aragón", 21);
+        CCAA_A_REGION_ID.put("madrid", 26);
+        CCAA_A_REGION_ID.put("castilla y león", 29);
+        CCAA_A_REGION_ID.put("castilla-la mancha", 39);
+        CCAA_A_REGION_ID.put("extremadura", 45);
+        CCAA_A_REGION_ID.put("cataluña", 49);
+        CCAA_A_REGION_ID.put("comunidad valenciana", 54);
+        CCAA_A_REGION_ID.put("baleares", 58);
+        CCAA_A_REGION_ID.put("andalucía", 63);
+        CCAA_A_REGION_ID.put("murcia", 72);
+        CCAA_A_REGION_ID.put("ceuta", 74);
+        CCAA_A_REGION_ID.put("melilla", 76);
+        CCAA_A_REGION_ID.put("canarias", 79);
+    }
+
+    /**
+     * Convierte una ubicación de texto libre al ID numérico de región del catálogo BDNS.
+     * Primero normaliza a nombre de CCAA y luego resuelve el ID.
+     *
+     * @param ubicacionLibre texto libre de ubicación del usuario
+     * @return ID numérico de la región BDNS o null si no se reconoce
+     */
+    public static Integer normalizarARegionId(String ubicacionLibre) {
+        String ccaa = normalizarACcaa(ubicacionLibre);
+        if (ccaa == null) return null;
+        return CCAA_A_REGION_ID.get(ccaa.toLowerCase());
+    }
 }
 

@@ -54,8 +54,8 @@ public class BusquedaRapidaService {
 
         // 2. Construir filtros determinísticos
         FiltrosBdns filtros = BdnsFiltrosBuilder.construir(proyecto, perfil);
-        log.info("Búsqueda rápida: proyecto={} descripcion='{}' ccaa='{}'",
-                proyecto.getId(), filtros.descripcion(), filtros.nivel2());
+        log.info("Búsqueda rápida: proyecto={} descripcion='{}' regionId={} finalidadId={}",
+                proyecto.getId(), filtros.descripcion(), filtros.regionId(), filtros.finalidadId());
 
         // 3. Buscar según plan del usuario: BD local (gratuito) o API live (premium)
         Plan plan = proyecto.getUsuario().getPlan();
@@ -66,6 +66,10 @@ public class BusquedaRapidaService {
         } else {
             log.info("Búsqueda rápida: modo PREMIUM — usando API live BDNS");
             candidatasBdns = bdnsClientService.buscarPorFiltros(filtros);
+            // Enriquecer con datos del endpoint de detalle (sector real, presupuesto, fechas)
+            for (ConvocatoriaDTO dto : candidatasBdns) {
+                bdnsClientService.enriquecerConDetalle(dto);
+            }
         }
 
         // 4. Deduplicar y filtrar caducadas
@@ -188,6 +192,15 @@ public class BusquedaRapidaService {
                                 .idBdns(dto.getIdBdns())
                                 .numeroConvocatoria(dto.getNumeroConvocatoria())
                                 .fechaCierre(dto.getFechaCierre())
+                                .mrr(Boolean.TRUE.equals(dto.getMrr()))
+                                .presupuesto(dto.getPresupuesto())
+                                .abierto(dto.getAbierto())
+                                .finalidad(dto.getFinalidad())
+                                .fechaInicio(dto.getFechaInicio())
+                                .organismo(dto.getOrganismo())
+                                .fechaPublicacion(dto.getFechaPublicacion())
+                                .descripcion(dto.getDescripcion())
+                                .textoCompleto(dto.getTextoCompleto())
                                 .build()));
     }
 }

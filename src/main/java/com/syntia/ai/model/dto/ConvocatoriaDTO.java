@@ -36,6 +36,17 @@ public class ConvocatoriaDTO {
 
     private String textoCompleto;
 
+    private Boolean mrr;
+
+    private Double presupuesto;
+
+    private Boolean abierto;
+
+    private String finalidad;
+
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+    private LocalDate fechaInicio;
+
     public ConvocatoriaDTO() {
     }
 
@@ -141,5 +152,45 @@ public class ConvocatoriaDTO {
 
     public void setTextoCompleto(String textoCompleto) {
         this.textoCompleto = textoCompleto;
+    }
+
+    public Boolean getMrr() {
+        return mrr;
+    }
+
+    public void setMrr(Boolean mrr) {
+        this.mrr = mrr;
+    }
+
+    public Double getPresupuesto() {
+        return presupuesto;
+    }
+
+    public void setPresupuesto(Double presupuesto) {
+        this.presupuesto = presupuesto;
+    }
+
+    public Boolean getAbierto() {
+        return abierto;
+    }
+
+    public void setAbierto(Boolean abierto) {
+        this.abierto = abierto;
+    }
+
+    public String getFinalidad() {
+        return finalidad;
+    }
+
+    public void setFinalidad(String finalidad) {
+        this.finalidad = finalidad;
+    }
+
+    public LocalDate getFechaInicio() {
+        return fechaInicio;
+    }
+
+    public void setFechaInicio(LocalDate fechaInicio) {
+        this.fechaInicio = fechaInicio;
     }
 }

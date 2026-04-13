@@ -53,4 +53,19 @@ public class Convocatoria {
 
     @Column(name = "texto_completo", columnDefinition = "TEXT")
     private String textoCompleto;
+
+    @Column(name = "mrr")
+    private Boolean mrr;
+
+    @Column
+    private Double presupuesto;
+
+    @Column
+    private Boolean abierto;
+
+    @Column(columnDefinition = "TEXT")
+    private String finalidad;
+
+    @Column(name = "fecha_inicio")
+    private LocalDate fechaInicio;
 }

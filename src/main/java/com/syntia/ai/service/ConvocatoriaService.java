@@ -95,6 +95,11 @@ public class ConvocatoriaService {
         c.setFechaPublicacion(dto.getFechaPublicacion());
         c.setDescripcion(dto.getDescripcion());
         c.setTextoCompleto(dto.getTextoCompleto());
+        c.setMrr(Boolean.TRUE.equals(dto.getMrr()));
+        c.setPresupuesto(dto.getPresupuesto());
+        c.setAbierto(dto.getAbierto());
+        c.setFinalidad(dto.getFinalidad());
+        c.setFechaInicio(dto.getFechaInicio());
         return convocatoriaRepository.save(c);
     }
 
@@ -198,6 +203,21 @@ public class ConvocatoriaService {
             }
             if (c.getFechaCierre() == null && dto.getFechaCierre() != null) {
                 c.setFechaCierre(dto.getFechaCierre()); cambios = true;
+            }
+            if (c.getMrr() == null && dto.getMrr() != null) {
+                c.setMrr(dto.getMrr()); cambios = true;
+            }
+            if (c.getPresupuesto() == null && dto.getPresupuesto() != null) {
+                c.setPresupuesto(dto.getPresupuesto()); cambios = true;
+            }
+            if (c.getAbierto() == null && dto.getAbierto() != null) {
+                c.setAbierto(dto.getAbierto()); cambios = true;
+            }
+            if (c.getFinalidad() == null && dto.getFinalidad() != null) {
+                c.setFinalidad(dto.getFinalidad()); cambios = true;
+            }
+            if (c.getFechaInicio() == null && dto.getFechaInicio() != null) {
+                c.setFechaInicio(dto.getFechaInicio()); cambios = true;
             }
             if (cambios) convocatoriaRepository.save(c);
             return cambios;

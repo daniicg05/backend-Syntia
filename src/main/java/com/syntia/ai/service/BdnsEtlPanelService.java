@@ -85,7 +85,12 @@ public class BdnsEtlPanelService {
                 campo("textoCompleto",    convocatoriaRepo.countByTextoCompletoIsNotNull(),    total),
                 campo("sector",           convocatoriaRepo.countBySectorIsNotNull(),           total),
                 campo("fechaCierre",      convocatoriaRepo.countByFechaCierreIsNotNull(),      total),
-                campo("ubicacion",        convocatoriaRepo.countByUbicacionIsNotNull(),        total)
+                campo("ubicacion",        convocatoriaRepo.countByUbicacionIsNotNull(),        total),
+                campo("presupuesto",      convocatoriaRepo.countByPresupuestoIsNotNull(),      total),
+                campo("abierto",          convocatoriaRepo.countByAbiertoIsNotNull(),          total),
+                campo("finalidad",        convocatoriaRepo.countByFinalidadIsNotNull(),        total),
+                campo("fechaInicio",      convocatoriaRepo.countByFechaInicioIsNotNull(),      total),
+                campo("mrr",              convocatoriaRepo.countByMrrIsNotNull(),              total)
         );
         return new CoberturaDTO(total, campos);
     }

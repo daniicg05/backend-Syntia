@@ -1,6 +1,7 @@
 package com.syntia.ai.repository;
 
 import com.syntia.ai.model.Convocatoria;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -95,5 +96,20 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
     long countByFechaCierreIsNotNull();
 
     long countByUbicacionIsNotNull();
+
+    long countByPresupuestoIsNotNull();
+
+    long countByAbiertoIsNotNull();
+
+    long countByFinalidadIsNotNull();
+
+    long countByFechaInicioIsNotNull();
+
+    long countByMrrIsNotNull();
+
+    @Query("SELECT c FROM Convocatoria c WHERE c.id > :lastId AND c.numeroConvocatoria IS NOT NULL ORDER BY c.id ASC")
+    List<Convocatoria> findEnriquecimientoBatch(@Param("lastId") Long lastId, Pageable pageable);
+
+    long countByNumeroConvocatoriaIsNotNull();
 }
 

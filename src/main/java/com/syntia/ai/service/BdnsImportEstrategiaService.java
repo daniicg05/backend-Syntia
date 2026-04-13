@@ -116,6 +116,11 @@ public class BdnsImportEstrategiaService {
                     break;
                 }
 
+                // Enriquecer cada convocatoria con datos del endpoint de detalle
+                for (com.syntia.ai.model.dto.ConvocatoriaDTO dto : pagina.items()) {
+                    bdnsClientService.enriquecerConDetalle(dto);
+                }
+
                 ResultadoPersistencia resultado = convocatoriaService.persistirNuevas(pagina.items());
                 nuevosTotal += resultado.nuevas();
 

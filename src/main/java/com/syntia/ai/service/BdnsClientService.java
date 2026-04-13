@@ -14,11 +14,10 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import javax.net.ssl.*;
 import java.net.HttpURLConnection;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.time.Instant;
@@ -53,6 +52,9 @@ public class BdnsClientService {
 
     private static final String BDNS_BUSQUEDA =
             "https://www.infosubvenciones.es/bdnstrans/api/convocatorias/busqueda";
+
+    private static final String BDNS_DETALLE =
+            "https://www.infosubvenciones.es/bdnstrans/api/convocatorias";
 
     /** TTL del caché de detalles BDNS: 1 hora. Reduce latencia en guías enriquecidas. */
     private static final long TTL_DETALLE_MS = 3_600_000L;
@@ -97,8 +99,7 @@ public class BdnsClientService {
 
         @SuppressWarnings("unchecked")
         Map<String, Object> respuesta = restClient.get()
-                .uri(BDNS_BUSQUEDA + "?vpn=GE&vln=es&numPag={pag}&tamPag={tam}",
-                        pagina, Math.min(tamano, 50))
+                .uri(buildBusquedaUrl(null, null, null, null, false, pagina, tamano))
                 .retrieve()
                 .body(Map.class);
 
@@ -144,22 +145,12 @@ public class BdnsClientService {
         backoff = @Backoff(delayExpression = "${bdns.client.reintento-delay-ms:1500}", multiplier = 2.0)
     )
     public PaginaBdns importarPorEje(String nivel1, String nivel2, int pagina, int tamano) {
-        StringBuilder url = new StringBuilder(BDNS_BUSQUEDA)
-                .append("?vpn=GE&vln=es&page=").append(pagina)
-                .append("&size=").append(Math.min(tamano, 50));
-
-        if (nivel1 != null && !nivel1.isBlank()) {
-            url.append("&nivel1=").append(nivel1);
-        }
-        if (nivel2 != null && !nivel2.isBlank()) {
-            url.append("&nivel2=").append(URLEncoder.encode(nivel2, StandardCharsets.UTF_8));
-        }
-
-        log.debug("BDNS importarPorEje: nivel1={} nivel2={} pag={}", nivel1, nivel2, pagina);
+        String url = buildBusquedaUrl(null, null, null, null, false, pagina, tamano);
+        log.debug("BDNS importarPorEje: pag={}", pagina);
 
         @SuppressWarnings("unchecked")
         Map<String, Object> respuesta = restClient.get()
-                .uri(url.toString())
+                .uri(url)
                 .retrieve()
                 .body(Map.class);
 
@@ -186,9 +177,7 @@ public class BdnsClientService {
         // vigente=true → solo convocatorias con plazo abierto
         @SuppressWarnings("unchecked")
         Map<String, Object> respuesta = restClient.get()
-                .uri(BDNS_BUSQUEDA + "?vpn=GE&vln=es&numPag={pag}&tamPag={tam}" +
-                                "&descripcion={desc}&descripcionTipoBusqueda=1&vigente=true",
-                        pagina, Math.min(tamano, 50), keywords)
+                .uri(buildBusquedaUrl(keywords, null, null, null, true, pagina, tamano))
                 .retrieve()
                 .body(Map.class);
 
@@ -202,58 +191,36 @@ public class BdnsClientService {
         return mapearRespuesta(respuesta);
     }
 
-    // @inferido — nivel1/nivel2 son parámetros observados en el portal Angular de BDNS, no documentados oficialmente
-    public List<ConvocatoriaDTO> buscarPorTextoFiltrado(String keyword, String ccaa) {
-        if (ccaa == null) {
+    public List<ConvocatoriaDTO> buscarPorTextoFiltrado(String keyword, Integer regionId) {
+        if (regionId == null) {
             return buscarPorTexto(keyword, 0, 15);
         }
 
-        log.info("BDNS búsqueda filtrada: keyword='{}' ccaa='{}'", keyword, ccaa);
+        log.info("BDNS búsqueda filtrada: keyword='{}' regionId={}", keyword, regionId);
 
         List<ConvocatoriaDTO> combinadas = new CopyOnWriteArrayList<>();
-        String ccaaEncoded = URLEncoder.encode(ccaa, StandardCharsets.UTF_8);
-
         @SuppressWarnings("resource")
         ExecutorService executor = Executors.newCachedThreadPool();
         try {
-            // Llamada A: convocatorias estatales (siempre relevantes independientemente de la CCAA)
             CompletableFuture<Void> futuroEstatal = CompletableFuture.runAsync(() -> {
                 try {
+                    String url = buildBusquedaUrl(keyword, "C", null, null, true, 0, 10);
                     @SuppressWarnings("unchecked")
-                    Map<String, Object> respuesta = restClient.get()
-                            .uri(BDNS_BUSQUEDA + "?vpn=GE&vln=es&numPag=0&tamPag=10" +
-                                            "&descripcion={desc}&descripcionTipoBusqueda=1&vigente=true" +
-                                            "&nivel1=ESTADO",
-                                    keyword)
-                            .retrieve()
-                            .body(Map.class);
-                    if (respuesta != null) {
-                        combinadas.addAll(mapearRespuesta(respuesta));
-                    }
-                    log.debug("BDNS filtrada ESTADO '{}': {} resultados", keyword, respuesta != null ? respuesta.get("totalElements") : 0);
+                    Map<String, Object> respuesta = restClient.get().uri(url).retrieve().body(Map.class);
+                    if (respuesta != null) combinadas.addAll(mapearRespuesta(respuesta));
                 } catch (Exception e) {
-                    log.warn("Error en búsqueda BDNS ESTADO keyword='{}': {}", keyword, e.getMessage());
+                    log.warn("BDNS filtrada ESTADO keyword='{}': {}", keyword, e.getMessage());
                 }
             }, executor);
 
-            // Llamada B: convocatorias autonómicas de la CCAA del usuario
             CompletableFuture<Void> futuroAutonomica = CompletableFuture.runAsync(() -> {
                 try {
+                    String url = buildBusquedaUrl(keyword, "A", regionId, null, true, 0, 10);
                     @SuppressWarnings("unchecked")
-                    Map<String, Object> respuesta = restClient.get()
-                            .uri(BDNS_BUSQUEDA + "?vpn=GE&vln=es&numPag=0&tamPag=10" +
-                                            "&descripcion={desc}&descripcionTipoBusqueda=1&vigente=true" +
-                                            "&nivel1=AUTONOMICA&nivel2=" + ccaaEncoded,
-                                    keyword)
-                            .retrieve()
-                            .body(Map.class);
-                    if (respuesta != null) {
-                        combinadas.addAll(mapearRespuesta(respuesta));
-                    }
-                    log.debug("BDNS filtrada AUTONOMICA '{}' ccaa='{}': {} resultados",
-                            keyword, ccaa, respuesta != null ? respuesta.get("totalElements") : 0);
+                    Map<String, Object> respuesta = restClient.get().uri(url).retrieve().body(Map.class);
+                    if (respuesta != null) combinadas.addAll(mapearRespuesta(respuesta));
                 } catch (Exception e) {
-                    log.warn("Error en búsqueda BDNS AUTONOMICA keyword='{}' ccaa='{}': {}", keyword, ccaa, e.getMessage());
+                    log.warn("BDNS filtrada AUTONOMICA keyword='{}' regionId={}: {}", keyword, regionId, e.getMessage());
                 }
             }, executor);
 
@@ -262,19 +229,7 @@ public class BdnsClientService {
             executor.shutdown();
         }
 
-        // Deduplicar por idBdns
-        Set<String> idsBdnsVistos = new HashSet<>();
-        List<ConvocatoriaDTO> resultado = new ArrayList<>();
-        for (ConvocatoriaDTO dto : combinadas) {
-            if (dto.getIdBdns() != null && !dto.getIdBdns().isBlank()) {
-                if (idsBdnsVistos.contains(dto.getIdBdns())) continue;
-                idsBdnsVistos.add(dto.getIdBdns());
-            }
-            resultado.add(dto);
-        }
-
-        log.info("BDNS filtrada '{}' ccaa='{}': {} combinadas, {} tras dedup", keyword, ccaa, combinadas.size(), resultado.size());
-        return resultado;
+        return deduplicarPorIdBdns(combinadas);
     }
 
     // ── Recover (agotados los reintentos) ────────────────────────────────────
@@ -310,8 +265,8 @@ public class BdnsClientService {
             return buscarPorTexto("subvencion pyme", 0, 20);
         }
 
-        log.info("BDNS buscarPorFiltros: descripcion='{}' ccaa='{}'",
-                filtros.descripcion(), filtros.nivel2());
+        log.info("BDNS buscarPorFiltros: descripcion='{}' regionId={}",
+                filtros.descripcion(), filtros.regionId());
 
         // Búsqueda principal
         List<ConvocatoriaDTO> resultados = ejecutarBusquedaFiltrada(filtros);
@@ -320,15 +275,15 @@ public class BdnsClientService {
         // Fallback progresivo si pocos resultados
         if (resultados.size() < MIN_RESULTADOS_FALLBACK) {
             // Nivel 1 de fallback: quitar descripción, mantener territorio
-            if (filtros.descripcion() != null && filtros.nivel2() != null) {
-                log.info("BDNS fallback nivel 1: relajando descripción (manteniendo CCAA='{}')", filtros.nivel2());
+            if (filtros.descripcion() != null && filtros.regionId() != null) {
+                log.info("BDNS fallback nivel 1: relajando descripción (manteniendo regionId={})", filtros.regionId());
                 List<ConvocatoriaDTO> fallback1 = ejecutarBusquedaFiltrada(filtros.sinDescripcion());
                 resultados = combinarYDeduplicar(resultados, fallback1);
                 log.info("BDNS tras fallback 1: {} resultados", resultados.size());
             }
 
             // Nivel 2 de fallback: quitar territorio, solo descripción
-            if (resultados.size() < MIN_RESULTADOS_FALLBACK && filtros.nivel2() != null) {
+            if (resultados.size() < MIN_RESULTADOS_FALLBACK && filtros.regionId() != null) {
                 log.info("BDNS fallback nivel 2: relajando territorio (solo descripcion='{}')", filtros.descripcion());
                 List<ConvocatoriaDTO> fallback2 = ejecutarBusquedaFiltrada(filtros.sinTerritorio());
                 resultados = combinarYDeduplicar(resultados, fallback2);
@@ -357,33 +312,26 @@ public class BdnsClientService {
      * alto de candidatas coherente con las ~615K convocatorias de la BDNS.
      */
     private List<ConvocatoriaDTO> ejecutarBusquedaFiltrada(FiltrosBdns filtros) {
-        String ccaa = filtros.nivel2();
+        Integer regionId = filtros.regionId();
+        Integer finalidadId = filtros.finalidadId();
         String desc = filtros.descripcion();
 
-        // Si hay CCAA → doble búsqueda paralela multipágina
-        if (ccaa != null) {
+        if (regionId != null) {
             List<ConvocatoriaDTO> combinadas = new CopyOnWriteArrayList<>();
-            String ccaaEncoded = URLEncoder.encode(ccaa, StandardCharsets.UTF_8);
-
             @SuppressWarnings("resource")
             ExecutorService executor = Executors.newCachedThreadPool();
             try {
-                // Llamada A: convocatorias estatales (hasta MAX_PAGINAS páginas)
                 CompletableFuture<Void> futuroEstatal = CompletableFuture.runAsync(() -> {
                     for (int pag = 0; pag < MAX_PAGINAS; pag++) {
                         try {
-                            String url = BDNS_BUSQUEDA + "?vpn=GE&vln=es&numPag=" + pag + "&tamPag=" + TAM_PAG_BDNS + "&nivel1=ESTADO";
-                            if (desc != null) url += "&descripcion=" + URLEncoder.encode(desc, StandardCharsets.UTF_8) + "&descripcionTipoBusqueda=1";
+                            String url = buildBusquedaUrl(desc, "C", null, finalidadId, true, pag, TAM_PAG_BDNS);
                             @SuppressWarnings("unchecked")
                             Map<String, Object> respuesta = restClient.get().uri(url).retrieve().body(Map.class);
                             if (respuesta != null) {
                                 List<ConvocatoriaDTO> pagina = mapearRespuesta(respuesta);
                                 combinadas.addAll(pagina);
-                                // Si esta página devolvió menos de TAM_PAG_BDNS, no hay más páginas
                                 if (pagina.size() < TAM_PAG_BDNS) break;
-                            } else {
-                                break;
-                            }
+                            } else break;
                         } catch (Exception e) {
                             log.warn("BDNS filtros ESTADO pag={}: {}", pag, e.getMessage());
                             break;
@@ -391,23 +339,19 @@ public class BdnsClientService {
                     }
                 }, executor);
 
-                // Llamada B: convocatorias autonómicas de la CCAA (hasta MAX_PAGINAS páginas)
                 CompletableFuture<Void> futuroAutonomica = CompletableFuture.runAsync(() -> {
                     for (int pag = 0; pag < MAX_PAGINAS; pag++) {
                         try {
-                            String url = BDNS_BUSQUEDA + "?vpn=GE&vln=es&numPag=" + pag + "&tamPag=" + TAM_PAG_BDNS + "&nivel1=AUTONOMICA&nivel2=" + ccaaEncoded;
-                            if (desc != null) url += "&descripcion=" + URLEncoder.encode(desc, StandardCharsets.UTF_8) + "&descripcionTipoBusqueda=1";
+                            String url = buildBusquedaUrl(desc, "A", regionId, finalidadId, true, pag, TAM_PAG_BDNS);
                             @SuppressWarnings("unchecked")
                             Map<String, Object> respuesta = restClient.get().uri(url).retrieve().body(Map.class);
                             if (respuesta != null) {
                                 List<ConvocatoriaDTO> pagina = mapearRespuesta(respuesta);
                                 combinadas.addAll(pagina);
                                 if (pagina.size() < TAM_PAG_BDNS) break;
-                            } else {
-                                break;
-                            }
+                            } else break;
                         } catch (Exception e) {
-                            log.warn("BDNS filtros AUTONOMICA ccaa='{}' pag={}: {}", ccaa, pag, e.getMessage());
+                            log.warn("BDNS filtros AUTONOMICA regionId={} pag={}: {}", regionId, pag, e.getMessage());
                             break;
                         }
                     }
@@ -417,16 +361,13 @@ public class BdnsClientService {
             } finally {
                 executor.shutdown();
             }
-
             return deduplicarPorIdBdns(combinadas);
         }
 
-        // Sin CCAA → búsqueda multipágina con descripción
         if (desc != null) {
             return buscarMultipagina(desc);
         }
 
-        // Ni CCAA ni descripción → genérico
         return buscarMultipagina("subvencion pyme");
     }
 
@@ -469,55 +410,217 @@ public class BdnsClientService {
     }
 
     /**
-     * Obtiene el texto enriquecido de una convocatoria BDNS a partir de su ID interno.
+     * Obtiene el texto enriquecido de una convocatoria BDNS a partir de su numeroConvocatoria.
      * Llama al endpoint de detalle de la API BDNS y extrae todos los campos de texto
-     * relevantes (objeto, beneficiarios, bases reguladoras, requisitos, dotación...).
+     * relevantes (objeto, finalidad, sectores, beneficiarios, dotación, plazos...).
      * Este texto se pasa a OpenAI para que la guía sea precisa y específica.
      *
-     * @param idBdns ID interno de la convocatoria en BDNS (campo "id" del JSON)
+     * @param numeroConvocatoria código de convocatoria BDNS (ej: "406718")
      * @return texto concatenado con todos los campos relevantes, o null si no disponible
      */
-    public String obtenerDetalleTexto(String idBdns) {
-        if (idBdns == null || idBdns.isBlank()) return null;
+    public String obtenerDetalleTexto(String numeroConvocatoria) {
+        if (numeroConvocatoria == null || numeroConvocatoria.isBlank()) return null;
 
-        // Comprobar caché (TTL 1 hora)
-        CachedDetalle cached = cacheDetalle.get(idBdns);
+        // Check cache (TTL 1 hour)
+        CachedDetalle cached = cacheDetalle.get(numeroConvocatoria);
         if (cached != null && Duration.between(cached.savedAt(), Instant.now()).toMillis() < TTL_DETALLE_MS) {
-            log.debug("BDNS detalle id={}: recuperado de caché", idBdns);
+            log.debug("BDNS detalle numConv={}: recuperado de caché", numeroConvocatoria);
             return cached.texto();
         }
 
         try {
+            String url = UriComponentsBuilder.fromHttpUrl(BDNS_DETALLE)
+                    .queryParam("vpd", "GE")
+                    .queryParam("numConv", numeroConvocatoria)
+                    .toUriString();
+
             @SuppressWarnings("unchecked")
             Map<String, Object> detalle = restClient.get()
-                    .uri("https://www.infosubvenciones.es/bdnstrans/api/convocatorias/" + idBdns)
+                    .uri(url)
                     .retrieve()
                     .body(Map.class);
 
             if (detalle == null) return null;
 
             StringBuilder texto = new StringBuilder();
-            // Campos de texto enriquecido que devuelve la API de detalle BDNS
-            appendCampo(texto, "Objeto",          detalle, "objeto", "descripcionObjeto", "finalidad");
-            appendCampo(texto, "Beneficiarios",   detalle, "beneficiarios", "tiposBeneficiarios");
-            appendCampo(texto, "Requisitos",      detalle, "requisitos", "condicionesAcceso", "requisitosParticipacion");
-            appendCampo(texto, "Dotación",        detalle, "dotacion", "presupuestoTotal", "importeTotal");
-            appendCampo(texto, "Bases reguladoras", detalle, "basesReguladoras", "normativa");
-            appendCampo(texto, "Plazo solicitud", detalle, "plazoSolicitudes", "plazoPresentacion");
-            appendCampo(texto, "Procedimiento",   detalle, "procedimiento", "formaPresentacion");
-            appendCampo(texto, "Documentación",   detalle, "documentacion", "documentosRequeridos");
+
+            // Título/descripción
+            appendCampo(texto, "Objeto", detalle, "descripcion");
+
+            // Finalidad
+            appendCampo(texto, "Finalidad", detalle, "descripcionFinalidad");
+
+            // Sectores (array de objetos con descripcion)
+            Object sectoresObj = detalle.get("sectores");
+            if (sectoresObj instanceof List<?> sectList && !sectList.isEmpty()) {
+                StringBuilder secSb = new StringBuilder();
+                for (Object s : sectList) {
+                    if (s instanceof Map<?,?> sm) {
+                        Object d = sm.get("descripcion");
+                        if (d != null) secSb.append(d).append("; ");
+                    }
+                }
+                if (!secSb.isEmpty()) texto.append("Sectores: ").append(secSb.toString().trim()).append("\n");
+            }
+
+            // Tipos de beneficiarios
+            Object bensObj = detalle.get("tiposBeneficiarios");
+            if (bensObj instanceof List<?> benList && !benList.isEmpty()) {
+                StringBuilder benSb = new StringBuilder();
+                for (Object b : benList) {
+                    if (b instanceof Map<?,?> bm) {
+                        Object d = bm.get("descripcion");
+                        if (d != null) benSb.append(d).append("; ");
+                    }
+                }
+                if (!benSb.isEmpty()) texto.append("Beneficiarios: ").append(benSb.toString().trim()).append("\n");
+            }
+
+            // Instrumentos
+            Object instrObj = detalle.get("instrumentos");
+            if (instrObj instanceof List<?> instrList && !instrList.isEmpty()) {
+                StringBuilder instrSb = new StringBuilder();
+                for (Object i : instrList) {
+                    if (i instanceof Map<?,?> im) {
+                        Object d = im.get("descripcion");
+                        if (d != null) instrSb.append(d).append("; ");
+                    }
+                }
+                if (!instrSb.isEmpty()) texto.append("Instrumentos: ").append(instrSb.toString().trim()).append("\n");
+            }
+
+            // Presupuesto
+            Object presObj = detalle.get("presupuestoTotal");
+            if (presObj instanceof Number n) texto.append("Dotación: ").append(n).append(" €\n");
+
+            // Bases reguladoras
+            appendCampo(texto, "Bases reguladoras", detalle, "descripcionBasesReguladoras");
+
+            // Plazos
+            appendCampo(texto, "Inicio solicitud", detalle, "fechaInicioSolicitud");
+            appendCampo(texto, "Fin solicitud", detalle, "fechaFinSolicitud");
+
+            // Fondos UE
+            Object fondosObj = detalle.get("fondos");
+            if (fondosObj instanceof List<?> fondList && !fondList.isEmpty()) {
+                StringBuilder fondSb = new StringBuilder();
+                for (Object f : fondList) {
+                    if (f instanceof Map<?,?> fm) {
+                        Object d = fm.get("descripcion");
+                        if (d != null) fondSb.append(d).append("; ");
+                    }
+                }
+                if (!fondSb.isEmpty()) texto.append("Fondos UE: ").append(fondSb.toString().trim()).append("\n");
+            }
+
+            // Texto completo del anuncio (HTML)
+            Object anunciosObj = detalle.get("anuncios");
+            if (anunciosObj instanceof List<?> anList && !anList.isEmpty()) {
+                Object first = anList.get(0);
+                if (first instanceof Map<?,?> am) {
+                    Object textoAnuncio = am.get("texto");
+                    if (textoAnuncio instanceof String s && !s.isBlank()) {
+                        // Strip basic HTML tags for readability
+                        String stripped = s.replaceAll("<[^>]+>", " ").replaceAll("\\s+", " ").trim();
+                        texto.append("Texto convocatoria: ").append(stripped).append("\n");
+                    }
+                }
+            }
 
             String resultado = texto.toString().trim();
-            log.debug("BDNS detalle id={}: {} chars extraídos", idBdns, resultado.length());
+            log.debug("BDNS detalle numConv={}: {} chars extraídos", numeroConvocatoria, resultado.length());
             String valor = resultado.isEmpty() ? null : resultado;
 
-            // Guardar en caché (incluso null para evitar re-intentos innecesarios)
-            cacheDetalle.put(idBdns, new CachedDetalle(valor, Instant.now()));
+            cacheDetalle.put(numeroConvocatoria, new CachedDetalle(valor, Instant.now()));
             return valor;
 
         } catch (Exception e) {
-            log.debug("BDNS detalle no disponible para id={}: {}", idBdns, e.getMessage());
+            log.debug("BDNS detalle no disponible para numConv={}: {}", numeroConvocatoria, e.getMessage());
             return null;
+        }
+    }
+
+    /**
+     * Enriquece un ConvocatoriaDTO con datos del endpoint de detalle BDNS.
+     * Popula: sector real (desde sectores NACE), presupuesto, fechaInicio, fechaCierre, abierto, finalidad.
+     * Solo llamar para búsquedas de usuario (no ETL masivo).
+     *
+     * @param dto DTO a enriquecer, debe tener numeroConvocatoria relleno
+     */
+    public void enriquecerConDetalle(ConvocatoriaDTO dto) {
+        String numConv = dto.getNumeroConvocatoria();
+        if (numConv == null || numConv.isBlank()) return;
+
+        try {
+            String url = UriComponentsBuilder.fromHttpUrl(BDNS_DETALLE)
+                    .queryParam("vpd", "GE")
+                    .queryParam("numConv", numConv)
+                    .toUriString();
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> detalle = restClient.get()
+                    .uri(url)
+                    .retrieve()
+                    .body(Map.class);
+
+            if (detalle == null) return;
+
+            // Sector real desde sectores NACE (primer sector disponible)
+            Object sectoresObj = detalle.get("sectores");
+            if (sectoresObj instanceof List<?> sectList && !sectList.isEmpty()) {
+                Object first = sectList.get(0);
+                if (first instanceof Map<?,?> sm) {
+                    Object d = sm.get("descripcion");
+                    if (d instanceof String s && !s.isBlank()) {
+                        dto.setSector(toTitleCase(s));
+                    }
+                }
+            }
+
+            // Finalidad (política de gasto)
+            Object finalidadObj = detalle.get("descripcionFinalidad");
+            if (finalidadObj instanceof String s && !s.isBlank()) {
+                dto.setFinalidad(toTitleCase(s));
+                // Si no hay sector del NACE, usar finalidad como sector
+                if (dto.getSector() == null) dto.setSector(toTitleCase(s));
+            }
+
+            // Presupuesto
+            Object presObj = detalle.get("presupuestoTotal");
+            if (presObj instanceof Number n) dto.setPresupuesto(n.doubleValue());
+
+            // Abierto (solicitud indefinida)
+            Object abiertoObj = detalle.get("abierto");
+            dto.setAbierto(Boolean.TRUE.equals(abiertoObj));
+
+            // Fechas de solicitud
+            String fechaInicio = getString(detalle, "fechaInicioSolicitud", null);
+            if (fechaInicio != null) {
+                try { dto.setFechaInicio(LocalDate.parse(fechaInicio.substring(0, 10))); } catch (Exception ignored) {}
+            }
+            String fechaFin = getString(detalle, "fechaFinSolicitud", null);
+            if (fechaFin != null) {
+                try { dto.setFechaCierre(LocalDate.parse(fechaFin.substring(0, 10))); } catch (Exception ignored) {}
+            }
+
+            // Texto completo del anuncio (HTML stripped)
+            Object anunciosObj = detalle.get("anuncios");
+            if (anunciosObj instanceof List<?> anList && !anList.isEmpty()) {
+                Object first = anList.get(0);
+                if (first instanceof Map<?,?> am) {
+                    Object textoAnuncio = am.get("texto");
+                    if (textoAnuncio instanceof String s && !s.isBlank()) {
+                        String stripped = s.replaceAll("<[^>]+>", " ").replaceAll("\\s+", " ").trim();
+                        if (!stripped.isBlank()) dto.setTextoCompleto(stripped);
+                    }
+                }
+            }
+
+            log.debug("BDNS enriquecer numConv={}: sector='{}' presupuesto={} abierto={} finalidad='{}'",
+                    numConv, dto.getSector(), dto.getPresupuesto(), dto.getAbierto(), dto.getFinalidad());
+
+        } catch (Exception e) {
+            log.debug("BDNS enriquecer no disponible para numConv={}: {}", numConv, e.getMessage());
         }
     }
 
@@ -608,11 +711,14 @@ public class BdnsClientService {
         String nivel1 = getString(c, "nivel1", "");
         dto.setTipo(mapearTipo(nivel1));
 
-        // Sector: la API BDNS no devuelve sector directamente
-        dto.setSector(null);
+        // Sector: inferido por palabras clave de la descripción
+        dto.setSector(inferirSector(getString(c, "descripcion", null)));
 
         // Ubicación: nivel2 contiene la comunidad/organismo
         dto.setUbicacion(mapearUbicacion(nivel1, getString(c, "nivel2", null)));
+        // MRR: financiación NextGenerationEU / Plan de Recuperación
+        Object mrrObj = c.get("mrr");
+        dto.setMrr(Boolean.TRUE.equals(mrrObj));
 
         // Organismo y fuente
         String organismo = getString(c, "nivel3",
@@ -674,7 +780,7 @@ public class BdnsClientService {
 
     private String mapearUbicacion(String nivel1, String nivel2) {
         if ("ESTADO".equalsIgnoreCase(nivel1)) return "Nacional";
-        if (nivel2 != null && !nivel2.isBlank()) return nivel2;
+        if (nivel2 != null && !nivel2.isBlank()) return toTitleCase(nivel2);
         return "Nacional";
     }
 
@@ -693,6 +799,71 @@ public class BdnsClientService {
         if (val == null) return defaultVal;
         String s = val.toString().trim();
         return s.isBlank() ? defaultVal : s;
+    }
+
+    /**
+     * Construye la URL de búsqueda BDNS moderna usando UriComponentsBuilder.
+     * Usa {@code vpd=GE} y los parámetros oficiales {@code page}/{@code pageSize}.
+     */
+    private String buildBusquedaUrl(String descripcion, String tipoAdministracion,
+                                     Integer regionId, Integer finalidadId,
+                                     boolean vigente, int pagina, int tamano) {
+        UriComponentsBuilder b = UriComponentsBuilder
+                .fromHttpUrl(BDNS_BUSQUEDA)
+                .queryParam("vpd", "GE")
+                .queryParam("page", pagina)
+                .queryParam("pageSize", Math.min(tamano, 50));
+
+        if (descripcion != null && !descripcion.isBlank())
+            b.queryParam("descripcion", descripcion);
+        if (tipoAdministracion != null && !tipoAdministracion.isBlank())
+            b.queryParam("tipoAdministracion", tipoAdministracion);
+        if (regionId != null)
+            b.queryParam("regiones", regionId);
+        if (finalidadId != null)
+            b.queryParam("finalidad", finalidadId);
+        if (vigente)
+            b.queryParam("vigente", "true");
+
+        return b.toUriString();
+    }
+
+    /** Convierte un string a Title Case ("ILLES BALEARS" → "Illes Balears"). */
+    private String toTitleCase(String input) {
+        if (input == null || input.isBlank()) return input;
+        String[] words = input.toLowerCase().split("\\s+");
+        StringBuilder sb = new StringBuilder();
+        for (String word : words) {
+            if (!word.isEmpty()) {
+                if (!sb.isEmpty()) sb.append(' ');
+                sb.append(Character.toUpperCase(word.charAt(0))).append(word.substring(1));
+            }
+        }
+        return sb.toString();
+    }
+
+    /** Infiere el sector de una convocatoria a partir de palabras clave en la descripción. */
+    private String inferirSector(String descripcion) {
+        if (descripcion == null) return null;
+        String d = descripcion.toLowerCase();
+        if (containsAny(d, "innov", "tecnolog", "digital", "software", "startup", "i+d", "inteligencia artificial")) return "Tecnología";
+        if (containsAny(d, "empleo", "contrataci", "desempleo", "inserci laboral"))  return "Empleo";
+        if (containsAny(d, "educaci", "formaci", "beca", "universitari"))            return "Educación";
+        if (containsAny(d, "energí", "energia", "renovable", "fotovolt", "sostenib")) return "Medioambiente";
+        if (containsAny(d, "agri", "ganad", "pesca", "alimentaci", "forestal"))      return "Agricultura";
+        if (containsAny(d, "sanidad", "salud", "hospital", "médic", "farmac"))       return "Sanidad";
+        if (containsAny(d, "cultur", "patrimoni", "música", "musica", "teatro", "arte")) return "Cultura";
+        if (containsAny(d, "deport", "fútbol", "futbol", "atletism", "nataci"))      return "Deporte";
+        if (containsAny(d, "social", "familia", "discapacidad", "mayores", "infanc")) return "Social";
+        if (containsAny(d, "pyme", "empresa", "comercio", "emprendedor", "autónom")) return "Empresa";
+        return null;
+    }
+
+    private boolean containsAny(String text, String... keywords) {
+        for (String kw : keywords) {
+            if (text.contains(kw)) return true;
+        }
+        return false;
     }
 
     // ── SSL permisivo para el certificado del gobierno ───────────────────────
