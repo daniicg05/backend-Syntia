@@ -8,6 +8,9 @@ import lombok.Setter;
 @Getter
 @Setter
 public class PerfilDTO {
+    @Size(max = 100, message = "El nombre no puede superar los 100 caracteres")
+    private String nombre;
+
     @NotBlank(message = "El sector es obligatorio")
     private String sector;
 

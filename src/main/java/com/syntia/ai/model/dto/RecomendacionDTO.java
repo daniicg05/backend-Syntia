@@ -23,6 +23,9 @@ public class RecomendacionDTO {
     private String urlOficial;
     private String fuente;
     private LocalDate fechaCierre;
+    private String organismo;
+    private Double presupuesto;
+    private LocalDate fechaPublicacion;
 
     private boolean vigente;
 }

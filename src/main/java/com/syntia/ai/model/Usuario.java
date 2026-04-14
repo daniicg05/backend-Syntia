@@ -1,5 +1,6 @@
 package com.syntia.ai.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -58,6 +59,7 @@ public class Usuario {
      *
      * <p>Se persiste en la columna `password_hash` y es un dato obligatorio.</p>
      */
+    @JsonIgnore
     @NotBlank(message = "La contraseña es obligatoria")
     @Column(name = "password_hash", nullable = false)
     private String password;

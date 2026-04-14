@@ -5,6 +5,8 @@ import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
+
 @Getter
 @Setter
 public class ProyectoDTO {
@@ -20,4 +22,6 @@ public class ProyectoDTO {
 
     @Size(max = 2000, message = "La descripción no puede superar los 2000 caracteres.")
     private String descripcion;
+
+    private LocalDateTime creadoEn;
 }

@@ -123,10 +123,23 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
             "   (c.descripcion IS NOT NULL AND LOWER(c.descripcion) LIKE LOWER(CONCAT('%', :q, '%'))) OR " +
             "   (c.sector IS NOT NULL AND LOWER(c.sector) LIKE LOWER(CONCAT('%', :q, '%')))) AND " +
             "(:sector IS NULL OR :sector = '' OR " +
-            "   (c.sector IS NOT NULL AND LOWER(c.sector) LIKE LOWER(CONCAT('%', :sector, '%'))))")
+            "   (c.sector IS NOT NULL AND LOWER(c.sector) LIKE LOWER(CONCAT('%', :sector, '%')))) AND " +
+            "(:incluirCerradas = true OR c.abierto = true)")
     Page<Convocatoria> buscarPublico(@Param("q") String q,
                                      @Param("sector") String sector,
+                                     @Param("incluirCerradas") boolean incluirCerradas,
                                      Pageable pageable);
+
+    /** Búsqueda paginada para el panel de admin: filtra por keyword en título y sector. */
+    @Query("SELECT c FROM Convocatoria c WHERE " +
+            "(:q IS NULL OR :q = '' OR LOWER(c.titulo) LIKE LOWER(CONCAT('%', :q, '%'))) AND " +
+            "(:sector IS NULL OR :sector = '' OR " +
+            "   (c.sector IS NOT NULL AND LOWER(c.sector) LIKE LOWER(CONCAT('%', :sector, '%'))))")
+    Page<Convocatoria> buscarAdmin(@Param("q") String q,
+                                   @Param("sector") String sector,
+                                   Pageable pageable);
+
+    long countByAbiertoTrue();
 
     /** Últimas convocatorias para la sección destacadas del Home. */
     List<Convocatoria> findTop16ByOrderByIdDesc();

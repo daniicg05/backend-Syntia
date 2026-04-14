@@ -11,6 +11,8 @@ import com.syntia.ai.model.dto.AdminUsuarioDetalleDTO;
 import com.syntia.ai.model.dto.ConvocatoriaDTO;
 import com.syntia.ai.model.dto.HistorialCorreoDTO;
 import com.syntia.ai.model.dto.ImportacionBdnsEstadoDTO;
+import com.syntia.ai.repository.ConvocatoriaRepository;
+import com.syntia.ai.repository.PerfilRepository;
 import com.syntia.ai.repository.ProyectoRepository;
 import com.syntia.ai.repository.RecomendacionRepository;
 import com.syntia.ai.service.BdnsEnrichmentService;
@@ -58,6 +60,8 @@ public class AdminController {
     private final BdnsEtlPanelService bdnsEtlPanelService;
     private final SyncStateRepository syncStateRepository;
     private final BdnsEnrichmentService bdnsEnrichmentService;
+    private final ConvocatoriaRepository convocatoriaRepository;
+    private final PerfilRepository perfilRepository;
 
     public AdminController(UsuarioService usuarioService,
                            PerfilService perfilService,
@@ -69,7 +73,9 @@ public class AdminController {
                            BdnsImportJobService bdnsImportJobService,
                            BdnsEtlPanelService bdnsEtlPanelService,
                            SyncStateRepository syncStateRepository,
-                           BdnsEnrichmentService bdnsEnrichmentService) {
+                           BdnsEnrichmentService bdnsEnrichmentService,
+                           ConvocatoriaRepository convocatoriaRepository,
+                           PerfilRepository perfilRepository) {
         this.usuarioService = usuarioService;
         this.perfilService = perfilService;
         this.convocatoriaService = convocatoriaService;
@@ -81,6 +87,8 @@ public class AdminController {
         this.bdnsEtlPanelService = bdnsEtlPanelService;
         this.syncStateRepository = syncStateRepository;
         this.bdnsEnrichmentService = bdnsEnrichmentService;
+        this.convocatoriaRepository = convocatoriaRepository;
+        this.perfilRepository = perfilRepository;
     }
 
     // ─────────────────────────────────────────────
@@ -88,13 +96,21 @@ public class AdminController {
     // ─────────────────────────────────────────────
     @GetMapping("/dashboard")
     public ResponseEntity<?> dashboard(Authentication authentication) {
-        Map<String, Object> data = Map.of(
-                "adminEmail", authentication.getName(),
-                "totalUsuarios", usuarioService.obtenerTodos().size(),
-                "totalConvocatorias", convocatoriaService.contarTodas(),
-                "totalProyectos", proyectoRepository.countAll(),
-                "totalRecomendaciones", recomendacionRepository.countAll()
-        );
+        long totalUsuarios = usuarioService.obtenerTodos().size();
+        long totalConvocatorias = convocatoriaService.contarTodas();
+        long totalProyectos = proyectoRepository.countAll();
+        long totalRecomendaciones = recomendacionRepository.countAll();
+        long convocatoriasAbiertas = convocatoriaRepository.countByAbiertoTrue();
+        long usuariosConPerfil = perfilRepository.count();
+
+        Map<String, Object> data = new java.util.LinkedHashMap<>();
+        data.put("adminEmail", authentication.getName());
+        data.put("totalUsuarios", totalUsuarios);
+        data.put("totalConvocatorias", totalConvocatorias);
+        data.put("totalProyectos", totalProyectos);
+        data.put("totalRecomendaciones", totalRecomendaciones);
+        data.put("convocatoriasAbiertas", convocatoriasAbiertas);
+        data.put("usuariosConPerfil", usuariosConPerfil);
         return ResponseEntity.ok(data);
     }
 
@@ -194,8 +210,11 @@ public class AdminController {
     // ─────────────────────────────────────────────
 
     @GetMapping("/convocatorias")
-    public ResponseEntity<?> listarConvocatorias(@RequestParam(defaultValue = "0") int page) {
-        Page<?> convocatoriasPage = convocatoriaService.obtenerPagina(page, CONVOCATORIAS_POR_PAGINA);
+    public ResponseEntity<?> listarConvocatorias(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(required = false, defaultValue = "") String q,
+            @RequestParam(required = false, defaultValue = "") String sector) {
+        Page<?> convocatoriasPage = convocatoriaService.obtenerPaginaFiltrada(page, CONVOCATORIAS_POR_PAGINA, q, sector);
         return ResponseEntity.ok(Map.of(
                 "convocatorias", convocatoriasPage.getContent(),
                 "page", convocatoriasPage.getNumber(),
