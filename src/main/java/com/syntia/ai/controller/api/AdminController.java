@@ -400,6 +400,7 @@ public class AdminController {
         ));
     }
 
+
     @DeleteMapping("/bdns/enriquecer")
     public ResponseEntity<?> cancelarEnriquecimiento() {
         boolean cancelado = bdnsEnrichmentService.cancelar();
