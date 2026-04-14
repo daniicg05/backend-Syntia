@@ -117,6 +117,7 @@ public class MatchService {
         return ConvocatoriaPublicaDTO.builder()
                 .id(c.getId())
                 .titulo(c.getTitulo())
+                .tipo(c.getTipo())
                 .sector(c.getSector())
                 .organismo(c.getOrganismo())
                 .ubicacion(c.getUbicacion())
@@ -128,6 +129,7 @@ public class MatchService {
                 .numeroConvocatoria(c.getNumeroConvocatoria())
                 .matchScore(resultado.score())
                 .matchRazon(resultado.razon())
+                .presupuesto(c.getPresupuesto())
                 .build();
     }
 

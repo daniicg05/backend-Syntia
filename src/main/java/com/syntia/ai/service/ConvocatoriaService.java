@@ -59,6 +59,19 @@ public class ConvocatoriaService {
         return convocatoriaRepository.findAll(pageRequest);
     }
 
+    /** Búsqueda paginada para admin con filtros de texto y sector. */
+    public Page<Convocatoria> obtenerPaginaFiltrada(int page, int size, String q, String sector) {
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.max(size, 1);
+        PageRequest pageRequest = PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id"));
+        String qParam = (q == null || q.isBlank()) ? null : q.trim();
+        String sectorParam = (sector == null || sector.isBlank()) ? null : sector.trim();
+        if (qParam == null && sectorParam == null) {
+            return convocatoriaRepository.findAll(pageRequest);
+        }
+        return convocatoriaRepository.buscarAdmin(qParam, sectorParam, pageRequest);
+    }
+
     /** Cuenta total de convocatorias sin cargar entidades en memoria. */
     public long contarTodas() {
         return convocatoriaRepository.count();

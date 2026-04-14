@@ -143,6 +143,7 @@ public class ProyectoService {
         dto.setSector(proyecto.getSector());
         dto.setUbicacion(proyecto.getUbicacion());
         dto.setDescripcion(proyecto.getDescripcion());
+        dto.setCreadoEn(proyecto.getCreadoEn());
         return dto;
     }
 

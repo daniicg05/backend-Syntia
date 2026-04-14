@@ -11,6 +11,7 @@ import java.time.LocalDate;
 public class ConvocatoriaPublicaDTO {
     private Long id;
     private String titulo;
+    private String tipo;
     private String sector;
     private String organismo;
     private String ubicacion;
@@ -24,4 +25,5 @@ public class ConvocatoriaPublicaDTO {
     private Integer matchScore;
     /** Razón breve del match. Null en endpoints públicos. */
     private String matchRazon;
+    private Double presupuesto;
 }

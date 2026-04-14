@@ -69,7 +69,7 @@ public class ConvocatoriaPersonalizadaController {
      * ?page=0&size=16
      */
     @GetMapping("/recomendadas")
-    public ResponseEntity<List<ConvocatoriaPublicaDTO>> recomendadas(
+    public ResponseEntity<?> recomendadas(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "16") int size,
             Authentication authentication) {
@@ -85,14 +85,26 @@ public class ConvocatoriaPersonalizadaController {
         int safePage = Math.max(page, 0);
         int from = safePage * safeSize;
 
-        List<ConvocatoriaPublicaDTO> ordenadas = pool.stream()
+        List<ConvocatoriaPublicaDTO> todas = pool.stream()
                 .map(c -> matchService.toMatchDTO(c, perfil, proyectos))
                 .sorted(Comparator.comparingInt(ConvocatoriaPublicaDTO::getMatchScore).reversed())
+                .toList();
+
+        List<ConvocatoriaPublicaDTO> pagina = todas.stream()
                 .skip(from)
                 .limit(safeSize)
                 .toList();
 
-        return ResponseEntity.ok(ordenadas);
+        long total = todas.size();
+        int totalPages = safeSize > 0 ? (int) Math.ceil((double) total / safeSize) : 0;
+
+        return ResponseEntity.ok(Map.of(
+                "content", pagina,
+                "totalElements", total,
+                "totalPages", totalPages,
+                "page", safePage,
+                "size", safeSize
+        ));
     }
 
     /**
@@ -103,6 +115,7 @@ public class ConvocatoriaPersonalizadaController {
     public ResponseEntity<?> buscar(
             @RequestParam(required = false, defaultValue = "") String q,
             @RequestParam(required = false, defaultValue = "") String sector,
+            @RequestParam(required = false) Boolean abierto,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             Authentication authentication) {
@@ -120,6 +133,7 @@ public class ConvocatoriaPersonalizadaController {
         var candidatos = convocatoriaRepository.buscarPublico(
                 q.isBlank() ? null : q,
                 sector.isBlank() ? null : sector,
+                abierto == null || !abierto,   // incluirCerradas: true cuando abierto=null o false
                 pageRequest
         );
 

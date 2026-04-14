@@ -8,6 +8,63 @@ Formato de cada entrada:
 
 ---
 
+## [4.7.0] – 2026-04-14
+
+### UI/UX Redesign Stitch + Backend Phase 2/3 + Framer Motion (Fase 15)
+
+#### Backend – archivos modificados
+
+- `model/Usuario.java` — `@JsonIgnore` en campo `password` (evita fuga de hash bcrypt en `GET /admin/usuarios`)
+- `model/Proyecto.java` — campo `creadoEn LocalDateTime` + `@PrePersist`; columna `TIMESTAMP DEFAULT CURRENT_TIMESTAMP` (retrocompatible)
+- `model/dto/ProyectoDTO.java` — campo `creadoEn` añadido
+- `service/ProyectoService.java` — `toDTO()` mapea `creadoEn`
+- `model/dto/ConvocatoriaPublicaDTO.java` — campo `tipo` añadido
+- `controller/api/ConvocatoriaPublicaController.java` — `.tipo(c.getTipo())` en builder; parámetro `abierto` (`Boolean`) en `GET /buscar` — filtra a convocatorias abiertas cuando `abierto=true`
+- `service/MatchService.java` — `.tipo(c.getTipo())` en `toMatchDTO()`
+- `model/dto/RecomendacionDTO.java` — campos `organismo`, `presupuesto`, `fechaPublicacion`
+- `service/RecomendacionService.java` — `toDTO()` mapea los tres campos nuevos
+- `model/Perfil.java` — campo `nombre` nullable (`@Column(length=100)`) antes de `sector`
+- `model/dto/PerfilDTO.java` — campo `nombre` con `@Size(max=100)`
+- `service/PerfilService.java` — `crearPerfil()`, `actualizarPerfil()`, `toDTO()` incluyen `nombre`
+- `controller/api/PerfilController.java` — `GET /api/usuario/perfil/completo` (mapa fusionado perfil+usuario); `convertirADTO()` mapea `nombre`
+- `controller/api/ConvocatoriaPersonalizadaController.java` — `recomendadas()` devuelve paginación `{content, totalElements, totalPages, page, size}`; `buscar()` acepta `abierto` (`Boolean`)
+- `repository/ConvocatoriaRepository.java` — query `buscarPublico` añade `:abierto IS NULL OR c.abierto = :abierto`; nueva query `buscarAdmin(q, sector)`; `countByAbiertoTrue()`
+- `service/ConvocatoriaService.java` — método `obtenerPaginaFiltrada(page, size, q, sector)`: usa `buscarAdmin` cuando hay filtros activos
+- `controller/api/AdminController.java` — `GET /admin/convocatorias` acepta `q` y `sector`; `GET /admin/dashboard` añade `convocatoriasAbiertas` y `usuariosConPerfil`; inyecta `ConvocatoriaRepository` y `PerfilRepository`
+
+#### Frontend – archivos modificados
+
+- `src/app/globals.css` — Sistema completo de variables CSS: paleta teal `:root`, modo oscuro `.dark`, mapeo Tailwind v4 `@theme inline`; todos los verdes hardcoded eliminados
+- `src/app/layout.tsx` — Fuente `Fraunces` → `Manrope` (400/600/700/800); `themeColor: "#f7f9fb"`
+- `src/app/template.tsx` — `AnimatePresence mode="wait"` + `motion.div pageTransition` keyed por pathname
+- `src/styles/tokens.ts` — Tokens JS completos: colores HSL, sombras, radios, tipografía, espaciado, duraciones, easings
+- `src/lib/motion.ts` — 15 variantes Framer Motion nombradas: `fadeIn`, `slideUp`, `slideIn`, `slideInRight`, `springScale`, `staggerChildren`, `staggerItem`, `pageTransition`, `cardHover`, `buttonHover`, `buttonTap`, `inputFocus`, `skeletonShimmer`, `glassPanelSlide`, `streamLogItem` + `reduceMotionVariants()`
+- `src/hooks/useMotionVariants.ts` — Integración `useReducedMotion()`
+- `src/lib/types/` (9 archivos) — Tipos TypeScript canónicos para todos los contratos de API
+- `src/components/ui/Button.tsx` — `motion.button`, `whileTap scale:0.97`, `whileHover scale:1.02` (primary)
+- `src/components/ui/Badge.tsx` — Variantes success/error/warning/plan/score
+- `src/components/ui/Skeleton.tsx` — Shimmer con `motion.div`; `SkeletonKPIGrid` + `SkeletonTable`
+- `src/components/ui/Modal.tsx` — **Nuevo**: modal animado con focus trap y Escape
+- `src/components/ui/ErrorState.tsx` — **Nuevo**: estado de error animado con retry
+- `src/components/ConvocatoriaCard.tsx` — MatchBadge y badges sector → tokens success
+- `src/components/ui/Toast.tsx` — Verde hardcoded → tokens success
+- `src/app/home/page.tsx` — Tarjeta Sector Agrícola → tokens success
+- `src/app/dashboard/page.tsx` — **Fix B1**: tipo `topRecomendaciones` corregido; animaciones stagger stats, recs, roadmap
+- `src/app/proyectos/page.tsx` — Stagger grid + `AnimatePresence` delete + `cardHover`
+- `src/app/perfil/page.tsx` — `motion.form staggerChildren` secciones; `AnimatePresence` modales con spring
+- `src/app/admin/bdns/page.tsx` — `motion.div` progress bar; `AnimatePresence` job card + modal confirmación
+- `src/app/admin/usuarios/page.tsx` — `motion.tr` + `AnimatePresence mode="sync"` filas; exit slide derecha
+- `src/app/admin/dashboard/page.tsx` — 6 métricas (2 nuevas: abiertas, usuarios con perfil); porcentajes; stagger animation
+- `src/app/admin/convocatorias/page.tsx` — Barra de búsqueda por título + selector sector; caché keyed por `page:q:sector`
+- `src/app/buscar/BuscarContent.tsx` — Toggle "Solo convocatorias abiertas"; URL param `abierto=true`; `buildParams()` helper unificado
+- `src/lib/api.ts` — `buscar` acepta `abierto?: boolean`; admin `list` acepta `q?` y `sector?`
+
+#### Nuevo — branches
+- `feat/redesign-frontend` — todos los cambios de frontend
+- `feat/redesign-backend` — todos los cambios de backend
+
+---
+
 ## [4.6.0] – 2026-04-10
 
 ### ETL BDNS Masivo + Plan GRATUITO/PREMIUM + Mejoras admin y frontend (Fase 14)

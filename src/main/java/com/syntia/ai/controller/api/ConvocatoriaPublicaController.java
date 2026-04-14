@@ -34,6 +34,7 @@ public class ConvocatoriaPublicaController {
     public ResponseEntity<?> buscar(
             @RequestParam(required = false, defaultValue = "") String q,
             @RequestParam(required = false, defaultValue = "") String sector,
+            @RequestParam(required = false) Boolean abierto,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
@@ -44,6 +45,7 @@ public class ConvocatoriaPublicaController {
         Page<Convocatoria> resultado = convocatoriaRepository.buscarPublico(
                 q.isBlank() ? null : q,
                 sector.isBlank() ? null : sector,
+                abierto == null || !abierto,   // incluirCerradas: true cuando abierto=null o false
                 pageRequest
         );
 
@@ -63,7 +65,7 @@ public class ConvocatoriaPublicaController {
      */
     @GetMapping("/destacadas")
     public ResponseEntity<List<ConvocatoriaPublicaDTO>> destacadas() {
-        List<Convocatoria> recientes = convocatoriaRepository.findTop16ByOrderByIdDesc();
+        List<Convocatoria> recientes = convocatoriaRepository.findTop16ByAbiertoTrueOrderByIdDesc();
         List<ConvocatoriaPublicaDTO> dtos = recientes.stream().map(this::toPublicDTO).toList();
         return ResponseEntity.ok(dtos);
     }
@@ -73,6 +75,7 @@ public class ConvocatoriaPublicaController {
         return ConvocatoriaPublicaDTO.builder()
                 .id(c.getId())
                 .titulo(c.getTitulo())
+                .tipo(c.getTipo())
                 .sector(c.getSector())
                 .organismo(c.getOrganismo())
                 .ubicacion(c.getUbicacion())
@@ -82,6 +85,7 @@ public class ConvocatoriaPublicaController {
                 .urlOficial(url)
                 .idBdns(c.getIdBdns())
                 .numeroConvocatoria(c.getNumeroConvocatoria())
+                .presupuesto(c.getPresupuesto())
                 .build();
     }
 

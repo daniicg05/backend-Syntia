@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RestController
@@ -58,6 +59,32 @@ public class PerfilController {
     @GetMapping("/ver")
     public ResponseEntity<?> verPerfil(Authentication authentication, HttpServletRequest request) {
         return obtenerPerfil(authentication, request);
+    }
+
+    @GetMapping("/completo")
+    public ResponseEntity<?> obtenerPerfilCompleto(Authentication authentication) {
+        Usuario usuario = resolverUsuario(authentication);
+
+        Map<String, Object> resultado = new LinkedHashMap<>();
+        resultado.put("email", usuario.getEmail());
+        resultado.put("rol", usuario.getRol().name());
+        resultado.put("plan", usuario.getPlan().name());
+        resultado.put("creadoEn", usuario.getCreadoEn());
+
+        perfilService.obtenerPerfil(usuario.getId()).ifPresent(perfil -> {
+            resultado.put("nombre", perfil.getNombre());
+            resultado.put("sector", perfil.getSector());
+            resultado.put("ubicacion", perfil.getUbicacion());
+            resultado.put("empresa", perfil.getEmpresa());
+            resultado.put("provincia", perfil.getProvincia());
+            resultado.put("telefono", perfil.getTelefono());
+            resultado.put("tipoEntidad", perfil.getTipoEntidad());
+            resultado.put("objetivos", perfil.getObjetivos());
+            resultado.put("necesidadesFinanciacion", perfil.getNecesidadesFinanciacion());
+            resultado.put("descripcionLibre", perfil.getDescripcionLibre());
+        });
+
+        return ResponseEntity.ok(resultado);
     }
 
     @GetMapping("/estado")
@@ -163,6 +190,7 @@ public class PerfilController {
     private PerfilDTO convertirADTO(Perfil perfil) {
         PerfilDTO dto = new PerfilDTO();
         BeanUtils.copyProperties(perfil, dto, "usuario");
+        dto.setNombre(perfil.getNombre());
         return dto;
     }
 }
