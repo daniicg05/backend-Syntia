@@ -65,7 +65,7 @@ public class ConvocatoriaPublicaController {
      */
     @GetMapping("/destacadas")
     public ResponseEntity<List<ConvocatoriaPublicaDTO>> destacadas() {
-        List<Convocatoria> recientes = convocatoriaRepository.findTop16ByOrderByIdDesc();
+        List<Convocatoria> recientes = convocatoriaRepository.findTop16ByAbiertoTrueOrderByIdDesc();
         List<ConvocatoriaPublicaDTO> dtos = recientes.stream().map(this::toPublicDTO).toList();
         return ResponseEntity.ok(dtos);
     }

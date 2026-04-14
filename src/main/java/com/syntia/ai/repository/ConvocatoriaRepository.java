@@ -141,7 +141,10 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
 
     long countByAbiertoTrue();
 
-    /** Últimas convocatorias para la sección destacadas del Home. */
+    /** Últimas convocatorias abiertas para la sección destacadas del Home. */
+    List<Convocatoria> findTop16ByAbiertoTrueOrderByIdDesc();
+
+    /** Sin filtro de estado, usado internamente (pool de candidatos). */
     List<Convocatoria> findTop16ByOrderByIdDesc();
 
     /**
