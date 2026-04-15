@@ -1,29 +1,36 @@
 package com.syntia.ai.controller.api;
 
 import com.syntia.ai.model.Convocatoria;
+import com.syntia.ai.model.dto.ConvocatoriaDetalleDTO;
 import com.syntia.ai.model.dto.ConvocatoriaPublicaDTO;
 import com.syntia.ai.repository.ConvocatoriaRepository;
+import com.syntia.ai.service.BdnsClientService;
+import jakarta.persistence.EntityNotFoundException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Endpoints públicos de convocatorias: búsqueda y destacadas para el Home.
- * No requieren autenticación; el detalle completo sí la requiere (gestionado en front).
+ * No requieren autenticación, incluido el detalle para la ficha interna del frontend.
  */
 @RestController
 @RequestMapping("/api/convocatorias/publicas")
 public class ConvocatoriaPublicaController {
 
     private final ConvocatoriaRepository convocatoriaRepository;
+    private final BdnsClientService bdnsClientService;
 
-    public ConvocatoriaPublicaController(ConvocatoriaRepository convocatoriaRepository) {
+    public ConvocatoriaPublicaController(ConvocatoriaRepository convocatoriaRepository,
+                                         BdnsClientService bdnsClientService) {
         this.convocatoriaRepository = convocatoriaRepository;
+        this.bdnsClientService = bdnsClientService;
     }
 
     /**
@@ -88,6 +95,52 @@ public class ConvocatoriaPublicaController {
         List<Convocatoria> recientes = convocatoriaRepository.findTop16ByAbiertoTrueOrderByIdDesc();
         List<ConvocatoriaPublicaDTO> dtos = recientes.stream().map(this::toPublicDTO).toList();
         return ResponseEntity.ok(dtos);
+    }
+
+    /**
+     * Detalle público para la vista interna de convocatoria en frontend.
+     * Devuelve datos de BD local y completa con BDNS cuando hay numeroConvocatoria.
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<ConvocatoriaDetalleDTO> detalle(@PathVariable Long id) {
+        Convocatoria c = convocatoriaRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Convocatoria no encontrada: " + id));
+
+        String codigoBdns = c.getNumeroConvocatoria();
+        if (codigoBdns == null || codigoBdns.isBlank()) {
+            codigoBdns = c.getIdBdns();
+        }
+
+        String sector = c.getSector();
+        String descripcion = c.getDescripcion();
+        List<String> tiposBeneficiario = new ArrayList<>();
+
+        if (c.getNumeroConvocatoria() != null && !c.getNumeroConvocatoria().isBlank()) {
+            BdnsClientService.DetalleConvocatoriaBdns detalleBdns =
+                    bdnsClientService.obtenerDetalleConvocatoria(c.getNumeroConvocatoria());
+            if (detalleBdns != null) {
+                if ((sector == null || sector.isBlank()) && detalleBdns.sector() != null && !detalleBdns.sector().isBlank()) {
+                    sector = detalleBdns.sector();
+                }
+                if ((descripcion == null || descripcion.isBlank())
+                        && detalleBdns.descripcion() != null
+                        && !detalleBdns.descripcion().isBlank()) {
+                    descripcion = detalleBdns.descripcion();
+                }
+                if (detalleBdns.tiposBeneficiario() != null && !detalleBdns.tiposBeneficiario().isEmpty()) {
+                    tiposBeneficiario = detalleBdns.tiposBeneficiario();
+                }
+            }
+        }
+
+        ConvocatoriaDetalleDTO dto = ConvocatoriaDetalleDTO.builder()
+                .id(c.getId())
+                .codigoBdns(codigoBdns)
+                .sector(sector)
+                .descripcion(descripcion)
+                .tiposBeneficiario(tiposBeneficiario)
+                .build();
+        return ResponseEntity.ok(dto);
     }
 
     private ConvocatoriaPublicaDTO toPublicDTO(Convocatoria c) {
