@@ -115,6 +115,7 @@ public class ConvocatoriaPersonalizadaController {
     public ResponseEntity<?> buscar(
             @RequestParam(required = false, defaultValue = "") String q,
             @RequestParam(required = false, defaultValue = "") String sector,
+            @RequestParam(required = false, defaultValue = "") String tipo,
             @RequestParam(required = false) Boolean abierto,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -133,6 +134,7 @@ public class ConvocatoriaPersonalizadaController {
         var candidatos = convocatoriaRepository.buscarPublico(
                 q.isBlank() ? null : q,
                 sector.isBlank() ? null : sector,
+                tipo.isBlank() ? null : tipo,
                 abierto == null || !abierto,   // incluirCerradas: true cuando abierto=null o false
                 pageRequest
         );

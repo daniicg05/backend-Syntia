@@ -34,6 +34,7 @@ public class ConvocatoriaPublicaController {
     public ResponseEntity<?> buscar(
             @RequestParam(required = false, defaultValue = "") String q,
             @RequestParam(required = false, defaultValue = "") String sector,
+            @RequestParam(required = false, defaultValue = "") String tipo,
             @RequestParam(required = false) Boolean abierto,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
@@ -45,6 +46,7 @@ public class ConvocatoriaPublicaController {
         Page<Convocatoria> resultado = convocatoriaRepository.buscarPublico(
                 q.isBlank() ? null : q,
                 sector.isBlank() ? null : sector,
+                tipo.isBlank() ? null : tipo,
                 abierto == null || !abierto,   // incluirCerradas: true cuando abierto=null o false
                 pageRequest
         );
@@ -57,6 +59,24 @@ public class ConvocatoriaPublicaController {
                 "page", dtos.getNumber(),
                 "size", dtos.getSize()
         ));
+    }
+
+    /**
+     * Devuelve los valores distintos de finalidad presentes en la BD, ordenados alfabéticamente.
+     * Usado para poblar dinámicamente el selector de sector en el frontend.
+     */
+    @GetMapping("/finalidades")
+    public ResponseEntity<List<String>> finalidades() {
+        return ResponseEntity.ok(convocatoriaRepository.findFinalidadesDistintas());
+    }
+
+    /**
+     * Devuelve los valores distintos de tipo presentes en la BD, ordenados alfabéticamente.
+     * Usado para poblar dinámicamente el selector de nivel en el frontend.
+     */
+    @GetMapping("/tipos")
+    public ResponseEntity<List<String>> tipos() {
+        return ResponseEntity.ok(convocatoriaRepository.findTiposDistintos());
     }
 
     /**
