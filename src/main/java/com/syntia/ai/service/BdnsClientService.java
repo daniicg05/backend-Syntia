@@ -23,7 +23,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -60,6 +62,8 @@ public class BdnsClientService {
     private static final long TTL_DETALLE_MS = 3_600_000L;
 
     private record CachedDetalle(String texto, Instant savedAt) {}
+    public record DetalleConvocatoriaBdns(String descripcion, String sector, List<String> tiposBeneficiario) {}
+
     private final ConcurrentHashMap<String, CachedDetalle> cacheDetalle = new ConcurrentHashMap<>();
 
     @Value("${bdns.client.connect-timeout-ms:10000}")
@@ -541,6 +545,55 @@ public class BdnsClientService {
     }
 
     /**
+     * Obtiene detalle estructurado de BDNS para una convocatoria.
+     * Devuelve null si la API no responde o no hay datos utiles.
+     */
+    public DetalleConvocatoriaBdns obtenerDetalleConvocatoria(String numeroConvocatoria) {
+        if (numeroConvocatoria == null || numeroConvocatoria.isBlank()) return null;
+
+        try {
+            String url = UriComponentsBuilder.fromHttpUrl(BDNS_DETALLE)
+                    .queryParam("vpd", "GE")
+                    .queryParam("numConv", numeroConvocatoria)
+                    .toUriString();
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> detalle = restClient.get()
+                    .uri(url)
+                    .retrieve()
+                    .body(Map.class);
+
+            if (detalle == null) return null;
+
+            String descripcion = getString(detalle, "descripcion",
+                    getString(detalle, "descripcionLeng", null));
+            String sector = null;
+            Object sectoresObj = detalle.get("sectores");
+            if (sectoresObj instanceof List<?> sectores && !sectores.isEmpty()) {
+                Object first = sectores.get(0);
+                if (first instanceof Map<?, ?> sm) {
+                    Object d = sm.get("descripcion");
+                    if (d instanceof String s && !s.isBlank()) {
+                        sector = toTitleCase(s);
+                    }
+                }
+            }
+
+            List<String> tiposBeneficiario = extraerDescripcionesLista(detalle.get("tiposBeneficiarios"));
+            if ((descripcion == null || descripcion.isBlank())
+                    && (sector == null || sector.isBlank())
+                    && tiposBeneficiario.isEmpty()) {
+                return null;
+            }
+
+            return new DetalleConvocatoriaBdns(descripcion, sector, tiposBeneficiario);
+        } catch (Exception e) {
+            log.debug("BDNS detalle estructurado no disponible para numConv={}: {}", numeroConvocatoria, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
      * Enriquece un ConvocatoriaDTO con datos del endpoint de detalle BDNS.
      * Popula: sector real (desde sectores NACE), presupuesto, fechaInicio, fechaCierre, abierto, finalidad.
      * Solo llamar para búsquedas de usuario (no ETL masivo).
@@ -799,6 +852,29 @@ public class BdnsClientService {
         if (val == null) return defaultVal;
         String s = val.toString().trim();
         return s.isBlank() ? defaultVal : s;
+    }
+
+    private List<String> extraerDescripcionesLista(Object raw) {
+        if (!(raw instanceof List<?> list) || list.isEmpty()) {
+            return List.of();
+        }
+
+        Set<String> valores = new LinkedHashSet<>();
+        for (Object item : list) {
+            if (item instanceof Map<?, ?> map) {
+                Object descripcion = map.get("descripcion");
+                if (descripcion != null) {
+                    String texto = descripcion.toString().trim();
+                    if (!texto.isBlank()) {
+                        valores.add(toTitleCase(texto));
+                    }
+                }
+            }
+        }
+        if (valores.isEmpty()) {
+            return List.of();
+        }
+        return Collections.unmodifiableList(new ArrayList<>(valores));
     }
 
     /**
