@@ -130,6 +130,7 @@ public class MatchService {
                 .matchScore(resultado.score())
                 .matchRazon(resultado.razon())
                 .presupuesto(c.getPresupuesto())
+                .regionId(c.getRegionId())
                 .build();
     }
 

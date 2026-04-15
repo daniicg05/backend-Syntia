@@ -36,15 +36,18 @@ public class BdnsImportEstrategiaService {
     private final ConvocatoriaService convocatoriaService;
     private final SyncStateRepository syncStateRepo;
     private final SyncLogRepository syncLogRepo;
+    private final RegionService regionService;
 
     public BdnsImportEstrategiaService(BdnsClientService bdnsClientService,
                                        ConvocatoriaService convocatoriaService,
                                        SyncStateRepository syncStateRepo,
-                                       SyncLogRepository syncLogRepo) {
+                                       SyncLogRepository syncLogRepo,
+                                       RegionService regionService) {
         this.bdnsClientService = bdnsClientService;
         this.convocatoriaService = convocatoriaService;
         this.syncStateRepo = syncStateRepo;
         this.syncLogRepo = syncLogRepo;
+        this.regionService = regionService;
     }
 
     /**
@@ -61,6 +64,18 @@ public class BdnsImportEstrategiaService {
         long efectiveDelayMs = delayMsOverride >= 0 ? delayMsOverride : this.delayMs;
         String ejecucionId = UUID.randomUUID().toString();
         log.info("BDNS import global: ejecucionId={} modo={} delayMs={}", ejecucionId, modo, efectiveDelayMs);
+
+        // Sincronizar catálogo de regiones si la tabla está vacía
+        if (regionService.count() == 0) {
+            log.info("BDNS import: tabla regiones vacía — sincronizando catálogo...");
+            try {
+                int totalRegiones = regionService.sincronizarRegiones();
+                log.info("BDNS import: catálogo de regiones cargado ({} nodos)", totalRegiones);
+            } catch (Exception e) {
+                log.warn("BDNS import: no se pudo sincronizar el catálogo de regiones: {}", e.getMessage());
+                // No abortar el ETL si falla la carga de regiones
+            }
+        }
 
         SyncState syncState = syncStateRepo.findByEje(EJE_GLOBAL)
                 .orElse(SyncState.builder().eje(EJE_GLOBAL).build());

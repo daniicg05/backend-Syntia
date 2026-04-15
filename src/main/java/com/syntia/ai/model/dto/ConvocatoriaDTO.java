@@ -47,6 +47,8 @@ public class ConvocatoriaDTO {
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDate fechaInicio;
 
+    private Integer regionId;
+
     public ConvocatoriaDTO() {
     }
 
@@ -192,5 +194,13 @@ public class ConvocatoriaDTO {
 
     public void setFechaInicio(LocalDate fechaInicio) {
         this.fechaInicio = fechaInicio;
+    }
+
+    public Integer getRegionId() {
+        return regionId;
+    }
+
+    public void setRegionId(Integer regionId) {
+        this.regionId = regionId;
     }
 }

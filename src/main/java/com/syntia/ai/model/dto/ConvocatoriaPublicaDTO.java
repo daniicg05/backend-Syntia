@@ -26,4 +26,6 @@ public class ConvocatoriaPublicaDTO {
     /** Razón breve del match. Null en endpoints públicos. */
     private String matchRazon;
     private Double presupuesto;
+    /** ID de región del catálogo BDNS (nullable si aún no tiene datos de región). */
+    private Integer regionId;
 }

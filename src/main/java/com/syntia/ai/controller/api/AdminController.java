@@ -62,6 +62,7 @@ public class AdminController {
     private final BdnsEnrichmentService bdnsEnrichmentService;
     private final ConvocatoriaRepository convocatoriaRepository;
     private final PerfilRepository perfilRepository;
+    private final com.syntia.ai.service.RegionService regionService;
 
     public AdminController(UsuarioService usuarioService,
                            PerfilService perfilService,
@@ -75,7 +76,8 @@ public class AdminController {
                            SyncStateRepository syncStateRepository,
                            BdnsEnrichmentService bdnsEnrichmentService,
                            ConvocatoriaRepository convocatoriaRepository,
-                           PerfilRepository perfilRepository) {
+                           PerfilRepository perfilRepository,
+                           com.syntia.ai.service.RegionService regionService) {
         this.usuarioService = usuarioService;
         this.perfilService = perfilService;
         this.convocatoriaService = convocatoriaService;
@@ -89,6 +91,7 @@ public class AdminController {
         this.bdnsEnrichmentService = bdnsEnrichmentService;
         this.convocatoriaRepository = convocatoriaRepository;
         this.perfilRepository = perfilRepository;
+        this.regionService = regionService;
     }
 
     // ─────────────────────────────────────────────
@@ -422,6 +425,23 @@ public class AdminController {
                 "registrosImportados", job.registrosImportados(),
                 "finalizadoEn", job.finalizadoEn() != null ? job.finalizadoEn().toString() : "en curso"
         ));
+    }
+
+    // ─────────────────────────────────────────────
+    // REGIONES BDNS
+    // ─────────────────────────────────────────────
+
+    /** Sincroniza el catálogo de regiones desde la API BDNS. */
+    @PostMapping("/regiones/sync")
+    public ResponseEntity<?> sincronizarRegiones() {
+        int total = regionService.sincronizarRegiones();
+        return ResponseEntity.ok(Map.of("mensaje", "Regiones sincronizadas", "total", total));
+    }
+
+    /** Devuelve el número de regiones en BD. */
+    @GetMapping("/regiones/count")
+    public ResponseEntity<?> contarRegiones() {
+        return ResponseEntity.ok(Map.of("total", regionService.count()));
     }
 
     // ─────────────────────────────────────────────

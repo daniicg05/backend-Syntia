@@ -68,4 +68,8 @@ public class Convocatoria {
 
     @Column(name = "fecha_inicio")
     private LocalDate fechaInicio;
+
+    /** ID numérico de región del catálogo BDNS (FK lógica a tabla regiones). */
+    @Column(name = "region_id")
+    private Integer regionId;
 }

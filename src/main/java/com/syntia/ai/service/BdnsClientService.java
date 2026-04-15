@@ -56,6 +56,9 @@ public class BdnsClientService {
     private static final String BDNS_DETALLE =
             "https://www.infosubvenciones.es/bdnstrans/api/convocatorias";
 
+    private static final String BDNS_REGIONES =
+            "https://www.infosubvenciones.es/bdnstrans/api/regiones";
+
     /** TTL del caché de detalles BDNS: 1 hora. Reduce latencia en guías enriquecidas. */
     private static final long TTL_DETALLE_MS = 3_600_000L;
 
@@ -230,6 +233,64 @@ public class BdnsClientService {
         }
 
         return deduplicarPorIdBdns(combinadas);
+    }
+
+    // ── Catálogo de regiones ─────────────────────────────────────────────────
+
+    /**
+     * Descarga el árbol jerárquico completo de regiones del catálogo BDNS.
+     * Devuelve la lista aplanada: cada entrada tiene id, descripcion y parentId (null para raíces).
+     */
+    public List<RegionItem> fetchRegiones() {
+        log.info("Descargando catálogo de regiones desde BDNS...");
+        try {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> raices = restClient.get()
+                    .uri(BDNS_REGIONES)
+                    .retrieve()
+                    .body(List.class);
+
+            if (raices == null || raices.isEmpty()) {
+                log.warn("BDNS /regiones devolvió lista vacía");
+                return List.of();
+            }
+
+            List<RegionItem> resultado = new ArrayList<>();
+            for (Object r : raices) {
+                if (r instanceof Map<?,?> nodo) {
+                    //noinspection unchecked
+                    aplanarNodo((Map<String, Object>) nodo, null, resultado);
+                }
+            }
+            log.info("BDNS regiones: {} nodos cargados", resultado.size());
+            return resultado;
+        } catch (Exception e) {
+            log.error("Error descargando regiones BDNS: {}", e.getMessage());
+            throw new BdnsException("No se pudo obtener el catálogo de regiones BDNS", e);
+        }
+    }
+
+    /** Nodo aplanado del árbol de regiones BDNS. */
+    public record RegionItem(Long id, String descripcion, Long parentId) {}
+
+    @SuppressWarnings("unchecked")
+    private void aplanarNodo(Map<String, Object> nodo, Long parentId, List<RegionItem> acumulador) {
+        Object idObj = nodo.get("id");
+        Object descObj = nodo.get("descripcion");
+        if (idObj == null || descObj == null) return;
+
+        Long id = ((Number) idObj).longValue();
+        String descripcion = descObj.toString();
+        acumulador.add(new RegionItem(id, descripcion, parentId));
+
+        Object childrenObj = nodo.get("children");
+        if (childrenObj instanceof List<?> children) {
+            for (Object child : children) {
+                if (child instanceof Map<?,?> childNodo) {
+                    aplanarNodo((Map<String, Object>) childNodo, id, acumulador);
+                }
+            }
+        }
     }
 
     // ── Recover (agotados los reintentos) ────────────────────────────────────
@@ -703,6 +764,10 @@ public class BdnsClientService {
     private ConvocatoriaDTO mapearConvocatoria(Map<String, Object> c) {
         ConvocatoriaDTO dto = new ConvocatoriaDTO();
 
+        // DEBUG temporal — muestra todas las claves del primer item para verificar nombres de campos
+        log.debug("BDNS raw keys: {}", c.keySet());
+        log.debug("BDNS raw nivel1={} nivel2={} nivel3={}", c.get("nivel1"), c.get("nivel2"), c.get("nivel3"));
+
         // Título: usar descripcion (campo principal de la BDNS)
         dto.setTitulo(getString(c, "descripcion",
                 getString(c, "descripcionLeng", "Sin título")));
@@ -716,6 +781,18 @@ public class BdnsClientService {
 
         // Ubicación: nivel2 contiene la comunidad/organismo
         dto.setUbicacion(mapearUbicacion(nivel1, getString(c, "nivel2", null)));
+
+        // Region ID numérico del catálogo BDNS (campo "regiones": lista de objetos {id, descripcion})
+        Object regionesObj = c.get("regiones");
+        if (regionesObj instanceof List<?> regionesList && !regionesList.isEmpty()) {
+            Object first = regionesList.get(0);
+            if (first instanceof Map<?,?> rm) {
+                Object rId = rm.get("id");
+                if (rId instanceof Number n) dto.setRegionId(n.intValue());
+            } else if (first instanceof Number n) {
+                dto.setRegionId(n.intValue());
+            }
+        }
         // MRR: financiación NextGenerationEU / Plan de Recuperación
         Object mrrObj = c.get("mrr");
         dto.setMrr(Boolean.TRUE.equals(mrrObj));
@@ -797,6 +874,15 @@ public class BdnsClientService {
     private String getString(Map<String, Object> map, String key, String defaultVal) {
         Object val = map.get(key);
         if (val == null) return defaultVal;
+        // Si es un objeto anidado (ej: nivel2 = {"id":26,"descripcion":"MADRID"})
+        // intentar extraer el campo "descripcion" o "nombre"
+        if (val instanceof Map<?,?> nested) {
+            Object desc = nested.get("descripcion");
+            if (desc instanceof String s && !s.isBlank()) return s.trim();
+            Object nombre = nested.get("nombre");
+            if (nombre instanceof String s && !s.isBlank()) return s.trim();
+            return defaultVal;
+        }
         String s = val.toString().trim();
         return s.isBlank() ? defaultVal : s;
     }
