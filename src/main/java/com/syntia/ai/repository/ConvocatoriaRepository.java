@@ -83,6 +83,15 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
     List<Convocatoria> buscarParaModoGratuito(@Param("keyword") String keyword,
                                               @Param("ubicacion") String ubicacion);
 
+    @Query("SELECT c FROM Convocatoria c WHERE " +
+            "(:keyword IS NULL OR LOWER(c.titulo) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+            "   OR LOWER(c.sector) LIKE LOWER(CONCAT('%', :keyword, '%'))) AND " +
+            "(:filtrarRegion = false OR (c.regionId IN :regionIds OR c.provinciaId IN :regionIds) OR LOWER(c.ubicacion) = 'nacional' OR LOWER(c.ubicacion) LIKE LOWER(CONCAT('%', :ubicacionTexto, '%')))")
+    List<Convocatoria> buscarParaModoGratuitoConRegion(@Param("keyword") String keyword,
+                                                       @Param("filtrarRegion") boolean filtrarRegion,
+                                                       @Param("regionIds") Collection<Integer> regionIds,
+                                                       @Param("ubicacionTexto") String ubicacionTexto);
+
     // ── Queries de cobertura de campos ──────────────────────────────────────
 
     long countByOrganismoIsNotNull();
@@ -124,7 +133,7 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
             "   (c.descripcion IS NOT NULL AND LOWER(c.descripcion) LIKE LOWER(CONCAT('%', :q, '%'))) OR " +
             "   (c.finalidad IS NOT NULL AND LOWER(c.finalidad) LIKE LOWER(CONCAT('%', :q, '%')))) AND " +
             "(:sector IS NULL OR :sector = '' OR " +
-            "   (c.finalidad IS NOT NULL AND LOWER(c.finalidad) = LOWER(:sector))) AND " +
+            "   (c.sector IS NOT NULL AND LOWER(c.sector) = LOWER(:sector))) AND " +
             "(:tipo IS NULL OR :tipo = '' OR " +
             "   (c.tipo IS NOT NULL AND LOWER(c.tipo) = LOWER(:tipo))) AND " +
             "(:incluirCerradas = true OR c.abierto = true)")
@@ -145,11 +154,11 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
             "   (c.descripcion IS NOT NULL AND LOWER(c.descripcion) LIKE LOWER(CONCAT('%', :q, '%'))) OR " +
             "   (c.finalidad IS NOT NULL AND LOWER(c.finalidad) LIKE LOWER(CONCAT('%', :q, '%')))) AND " +
             "(:sector IS NULL OR :sector = '' OR " +
-            "   (c.finalidad IS NOT NULL AND LOWER(c.finalidad) = LOWER(:sector))) AND " +
+            "   (c.sector IS NOT NULL AND LOWER(c.sector) = LOWER(:sector))) AND " +
             "(:tipo IS NULL OR :tipo = '' OR " +
             "   (c.tipo IS NOT NULL AND LOWER(c.tipo) = LOWER(:tipo))) AND " +
             "(:incluirCerradas = true OR c.abierto = true) AND " +
-            "(:filtrarRegion = false OR c.regionId IN :regionIds)")
+            "(:filtrarRegion = false OR (c.regionId IN :regionIds OR c.provinciaId IN :regionIds OR LOWER(c.ubicacion) = 'nacional'))")
     Page<Convocatoria> buscarPublicoConRegion(@Param("q") String q,
                                               @Param("sector") String sector,
                                               @Param("tipo") String tipo,

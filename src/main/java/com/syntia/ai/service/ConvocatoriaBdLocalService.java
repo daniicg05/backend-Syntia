@@ -9,9 +9,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Set;
 
 /**
- * Servicio de búsqueda de convocatorias en la base de datos local.
+ * Servicio de bsqueda de convocatorias en la base de datos local.
  * Usado en modo gratuito como alternativa a la API live de BDNS.
  */
 @Slf4j
@@ -20,11 +21,14 @@ public class ConvocatoriaBdLocalService {
 
     private final ConvocatoriaRepository convocatoriaRepository;
     private final ConvocatoriaService convocatoriaService;
+    private final RegionService regionService;
 
     public ConvocatoriaBdLocalService(ConvocatoriaRepository convocatoriaRepository,
-                                      ConvocatoriaService convocatoriaService) {
+                                      ConvocatoriaService convocatoriaService,
+                                      RegionService regionService) {
         this.convocatoriaRepository = convocatoriaRepository;
         this.convocatoriaService = convocatoriaService;
+        this.regionService = regionService;
     }
 
     /**
@@ -33,13 +37,23 @@ public class ConvocatoriaBdLocalService {
      */
     public List<ConvocatoriaDTO> buscar(Proyecto proyecto, Perfil perfil) {
         String keyword = resolverKeyword(proyecto, perfil);
-        String ubicacion = resolverUbicacion(proyecto, perfil);
+        String ubicacionRaw = resolverUbicacion(proyecto, perfil);
+        
+        Integer regionIdMapped = UbicacionNormalizador.normalizarARegionId(ubicacionRaw);
+        boolean filtrarRegion = regionIdMapped != null;
+        Set<Integer> regionIds = filtrarRegion ? regionService.obtenerDescendientesIds(regionIdMapped.longValue()) : Set.of();
 
-        log.info("Búsqueda local (modo gratuito): keyword='{}' ubicacion='{}'", keyword, ubicacion);
+        log.info("Bsqueda local (modo gratuito): keyword='{}' ubicacionRaw='{}' regionId={}, filtrarRegion={}", 
+                keyword, ubicacionRaw, regionIdMapped, filtrarRegion);
 
-        List<Convocatoria> resultados = convocatoriaRepository.buscarParaModoGratuito(keyword, ubicacion);
+        List<Convocatoria> resultados = convocatoriaRepository.buscarParaModoGratuitoConRegion(
+                keyword, 
+                filtrarRegion, 
+                regionIds, 
+                ubicacionRaw != null ? ubicacionRaw : ""
+        );
 
-        log.info("Búsqueda local: {} convocatorias encontradas en BD", resultados.size());
+        log.info("Bsqueda local: {} convocatorias encontradas en BD", resultados.size());
 
         return resultados.stream()
                 .map(convocatoriaService::toDTO)

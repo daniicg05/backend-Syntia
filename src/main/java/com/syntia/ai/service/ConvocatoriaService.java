@@ -114,6 +114,7 @@ public class ConvocatoriaService {
         c.setFinalidad(dto.getFinalidad());
         c.setFechaInicio(dto.getFechaInicio());
         c.setRegionId(dto.getRegionId());
+        c.setProvinciaId(dto.getProvinciaId());
         return convocatoriaRepository.save(c);
     }
 
@@ -236,6 +237,9 @@ public class ConvocatoriaService {
             if (c.getRegionId() == null && dto.getRegionId() != null) {
                 c.setRegionId(dto.getRegionId()); cambios = true;
             }
+            if (c.getProvinciaId() == null && dto.getProvinciaId() != null) {
+                c.setProvinciaId(dto.getProvinciaId()); cambios = true;
+            }
             if (cambios) convocatoriaRepository.save(c);
             return cambios;
         }).orElse(false);
@@ -268,6 +272,7 @@ public class ConvocatoriaService {
         }
         dto.setUrlOficial(url);
         dto.setRegionId(c.getRegionId());
+        dto.setProvinciaId(c.getProvinciaId());
         return dto;
     }
 }

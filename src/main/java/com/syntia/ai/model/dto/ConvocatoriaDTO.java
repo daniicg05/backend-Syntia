@@ -49,6 +49,8 @@ public class ConvocatoriaDTO {
 
     private Integer regionId;
 
+    private Integer provinciaId;
+
     public ConvocatoriaDTO() {
     }
 
@@ -202,5 +204,13 @@ public class ConvocatoriaDTO {
 
     public void setRegionId(Integer regionId) {
         this.regionId = regionId;
+    }
+
+    public Integer getProvinciaId() {
+        return provinciaId;
+    }
+
+    public void setProvinciaId(Integer provinciaId) {
+        this.provinciaId = provinciaId;
     }
 }

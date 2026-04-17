@@ -14,7 +14,7 @@ import java.util.Map;
  * Devuelve {@code null} cuando la ubicación es nacional, no reconocida, vacía o null,
  * lo que indica al llamador que NO debe filtrar por CCAA en la búsqueda BDNS.
  *
- * @see BdnsClientService#buscarPorTextoFiltrado(String, String)
+ * @see BdnsClientService#buscarPorTextoFiltrado(String, Integer)
  */
 public final class UbicacionNormalizador {
 
@@ -33,13 +33,6 @@ public final class UbicacionNormalizador {
     private static final Map<String, String> VARIANTES = new HashMap<>();
 
     static {
-        /**
-         * Carga estática de equivalencias de entrada \-\> salida oficial.
-         *
-         * <p>Se incluyen variantes frecuentes de:
-         * topónimos, exónimos, formas cooficiales, abreviaturas y provincias.
-         * Este enfoque privilegia precisión por coincidencia exacta.
-         */
         /** ── Comunidad Valenciana ── */
         reg("valencia", "Comunidad Valenciana");
         reg("comunidad valenciana", "Comunidad Valenciana");
@@ -49,6 +42,9 @@ public final class UbicacionNormalizador {
         reg("castellon", "Comunidad Valenciana");
         reg("castellón", "Comunidad Valenciana");
         reg("valència", "Comunidad Valenciana");
+        reg("valencia / valència", "Comunidad Valenciana");
+        reg("castellón / castelló", "Comunidad Valenciana");
+        reg("alicante / alacant", "Comunidad Valenciana");
 
         /** ── País Vasco ── */
         reg("euskadi", "País Vasco");
@@ -130,7 +126,7 @@ public final class UbicacionNormalizador {
     }
 
     /**
-     * Conjunto de términos que se interpretan como ámbito estatal.
+     * Conjunto de t´erminos que se interpretan como ´ambito estatal.
      *
      * <p>Si la entrada pertenece a este conjunto, el resultado es `null` para indicar
      * "sin filtro geográfico" al consumidor de esta utilidad.
@@ -217,4 +213,3 @@ public final class UbicacionNormalizador {
         return CCAA_A_REGION_ID.get(ccaa.toLowerCase());
     }
 }
-

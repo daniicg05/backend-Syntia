@@ -10,6 +10,7 @@ import com.syntia.ai.service.MatchService;
 import com.syntia.ai.service.PerfilService;
 import com.syntia.ai.service.ProyectoService;
 import com.syntia.ai.service.RegionService;
+import com.syntia.ai.service.UbicacionNormalizador;
 import com.syntia.ai.service.UsuarioService;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
@@ -123,6 +124,7 @@ public class ConvocatoriaPersonalizadaController {
             @RequestParam(required = false, defaultValue = "") String tipo,
             @RequestParam(required = false) Boolean abierto,
             @RequestParam(required = false) Long regionId,
+            @RequestParam(required = false) String ubicacion,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             Authentication authentication) {
@@ -134,6 +136,14 @@ public class ConvocatoriaPersonalizadaController {
 
         int safeSize = Math.min(Math.max(size, 1), 50);
         int safePage = Math.max(page, 0);
+
+        // Fallback temporal para compatibilidad con el front estándar que aún envía ubicación en texto
+        if (regionId == null && ubicacion != null && !ubicacion.isBlank()) {
+            Integer mappedId = UbicacionNormalizador.normalizarARegionId(ubicacion);
+            if (mappedId != null) {
+                regionId = mappedId.longValue();
+            }
+        }
 
         boolean filtrarRegion = regionId != null;
         Set<Integer> regionIds = filtrarRegion

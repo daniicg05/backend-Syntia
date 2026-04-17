@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -64,6 +65,19 @@ public interface RecomendacionRepository extends JpaRepository<Recomendacion, In
                                 @Param("tipo")       String tipo,
                                 @Param("sector")     String sector,
                                 @Param("ubicacion")  String ubicacion);
+
+    @Query("SELECT r FROM Recomendacion r JOIN FETCH r.convocatoria c " +
+            "WHERE r.proyecto.id = :proyectoId " +
+            "AND (:tipo      IS NULL OR c.tipo      = :tipo) " +
+            "AND (:sector    IS NULL OR c.sector    = :sector) " +
+            "AND (:filtrarRegion = false OR (c.regionId IN :regionIds OR c.provinciaId IN :regionIds) OR LOWER(c.ubicacion) = 'nacional' OR LOWER(c.ubicacion) LIKE LOWER(CONCAT('%', :ubicacionTexto, '%'))) " +
+            "ORDER BY r.puntuacion DESC")
+    List<Recomendacion> filtrarConRegion(@Param("proyectoId") Long proyectoId,
+                                         @Param("tipo")       String tipo,
+                                         @Param("sector")     String sector,
+                                         @Param("filtrarRegion") boolean filtrarRegion,
+                                         @Param("regionIds") Collection<Integer> regionIds,
+                                         @Param("ubicacionTexto") String ubicacionTexto);
 
     /**
      * Obtiene los tipos de convocatoria distintos para las recomendaciones de un proyecto.

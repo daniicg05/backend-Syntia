@@ -28,4 +28,6 @@ public class ConvocatoriaPublicaDTO {
     private Double presupuesto;
     /** ID de región del catálogo BDNS (nullable si aún no tiene datos de región). */
     private Integer regionId;
+    /** ID de provincia del catálogo BDNS (nivel NUTS 3, hijo de region_id). */
+    private Integer provinciaId;
 }
