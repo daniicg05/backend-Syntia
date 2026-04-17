@@ -1,19 +1,19 @@
 package com.syntia.ai.controller.api;
 
 import com.syntia.ai.model.Convocatoria;
+import com.syntia.ai.model.dto.ConvocatoriaDetalleDTO;
 import com.syntia.ai.model.dto.ConvocatoriaPublicaDTO;
 import com.syntia.ai.model.dto.RegionNodoDTO;
 import com.syntia.ai.repository.ConvocatoriaRepository;
-import com.syntia.ai.service.BdnsClientService;
 import com.syntia.ai.service.RegionService;
 import com.syntia.ai.service.UbicacionNormalizador;
-import jakarta.persistence.EntityNotFoundException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -28,14 +28,11 @@ public class ConvocatoriaPublicaController {
 
     private final ConvocatoriaRepository convocatoriaRepository;
     private final RegionService regionService;
-    private final BdnsClientService bdnsClientService;
 
     public ConvocatoriaPublicaController(ConvocatoriaRepository convocatoriaRepository,
-                                         RegionService regionService,
-                                         BdnsClientService bdnsClientService) {
+                                         RegionService regionService) {
         this.convocatoriaRepository = convocatoriaRepository;
         this.regionService = regionService;
-        this.bdnsClientService = bdnsClientService;
     }
 
     /**
@@ -118,6 +115,26 @@ public class ConvocatoriaPublicaController {
     @GetMapping("/tipos")
     public ResponseEntity<List<String>> tipos() {
         return ResponseEntity.ok(convocatoriaRepository.findTiposDistintos());
+    }
+
+    /**
+     * Detalle público de una convocatoria por ID.
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<ConvocatoriaDetalleDTO> detalle(@PathVariable Long id) {
+        return convocatoriaRepository.findById(id)
+                .map(c -> {
+                    String codigoBdns = c.getNumeroConvocatoria() != null && !c.getNumeroConvocatoria().isBlank()
+                            ? c.getNumeroConvocatoria() : c.getIdBdns();
+                    return ResponseEntity.ok(ConvocatoriaDetalleDTO.builder()
+                            .id(c.getId())
+                            .codigoBdns(codigoBdns)
+                            .sector(c.getSector())
+                            .descripcion(c.getDescripcion())
+                            .tiposBeneficiario(Collections.emptyList())
+                            .build());
+                })
+                .orElse(ResponseEntity.notFound().build());
     }
 
     /**
