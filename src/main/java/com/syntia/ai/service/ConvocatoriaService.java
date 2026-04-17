@@ -113,6 +113,8 @@ public class ConvocatoriaService {
         c.setAbierto(dto.getAbierto());
         c.setFinalidad(dto.getFinalidad());
         c.setFechaInicio(dto.getFechaInicio());
+        c.setRegionId(dto.getRegionId());
+        c.setProvinciaId(dto.getProvinciaId());
         return convocatoriaRepository.save(c);
     }
 
@@ -232,6 +234,12 @@ public class ConvocatoriaService {
             if (c.getFechaInicio() == null && dto.getFechaInicio() != null) {
                 c.setFechaInicio(dto.getFechaInicio()); cambios = true;
             }
+            if (c.getRegionId() == null && dto.getRegionId() != null) {
+                c.setRegionId(dto.getRegionId()); cambios = true;
+            }
+            if (c.getProvinciaId() == null && dto.getProvinciaId() != null) {
+                c.setProvinciaId(dto.getProvinciaId()); cambios = true;
+            }
             if (cambios) convocatoriaRepository.save(c);
             return cambios;
         }).orElse(false);
@@ -263,6 +271,8 @@ public class ConvocatoriaService {
             if (url != null) url = url.replace("/bdnstrans/GE/es/convocatoria/", "/bdnstrans/GE/es/convocatorias/");
         }
         dto.setUrlOficial(url);
+        dto.setRegionId(c.getRegionId());
+        dto.setProvinciaId(c.getProvinciaId());
         return dto;
     }
 }

@@ -58,6 +58,9 @@ public class BdnsClientService {
     private static final String BDNS_DETALLE =
             "https://www.infosubvenciones.es/bdnstrans/api/convocatorias";
 
+    private static final String BDNS_REGIONES =
+            "https://www.infosubvenciones.es/bdnstrans/api/regiones";
+
     /** TTL del caché de detalles BDNS: 1 hora. Reduce latencia en guías enriquecidas. */
     private static final long TTL_DETALLE_MS = 3_600_000L;
 
@@ -73,6 +76,9 @@ public class BdnsClientService {
     private int readTimeoutMs;
 
     private RestClient restClient;
+    
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.syntia.ai.service.BdnsRegionMapper bdnsRegionMapper;
 
     @PostConstruct
     void init() {
@@ -236,6 +242,64 @@ public class BdnsClientService {
         return deduplicarPorIdBdns(combinadas);
     }
 
+    // ── Catálogo de regiones ─────────────────────────────────────────────────
+
+    /**
+     * Descarga el árbol jerárquico completo de regiones del catálogo BDNS.
+     * Devuelve la lista aplanada: cada entrada tiene id, descripcion y parentId (null para raíces).
+     */
+    public List<RegionItem> fetchRegiones() {
+        log.info("Descargando catálogo de regiones desde BDNS...");
+        try {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> raices = restClient.get()
+                    .uri(BDNS_REGIONES)
+                    .retrieve()
+                    .body(List.class);
+
+            if (raices == null || raices.isEmpty()) {
+                log.warn("BDNS /regiones devolvió lista vacía");
+                return List.of();
+            }
+
+            List<RegionItem> resultado = new ArrayList<>();
+            for (Object r : raices) {
+                if (r instanceof Map<?,?> nodo) {
+                    //noinspection unchecked
+                    aplanarNodo((Map<String, Object>) nodo, null, resultado);
+                }
+            }
+            log.info("BDNS regiones: {} nodos cargados", resultado.size());
+            return resultado;
+        } catch (Exception e) {
+            log.error("Error descargando regiones BDNS: {}", e.getMessage());
+            throw new BdnsException("No se pudo obtener el catálogo de regiones BDNS", e);
+        }
+    }
+
+    /** Nodo aplanado del árbol de regiones BDNS. */
+    public record RegionItem(Long id, String descripcion, Long parentId) {}
+
+    @SuppressWarnings("unchecked")
+    private void aplanarNodo(Map<String, Object> nodo, Long parentId, List<RegionItem> acumulador) {
+        Object idObj = nodo.get("id");
+        Object descObj = nodo.get("descripcion");
+        if (idObj == null || descObj == null) return;
+
+        Long id = ((Number) idObj).longValue();
+        String descripcion = descObj.toString();
+        acumulador.add(new RegionItem(id, descripcion, parentId));
+
+        Object childrenObj = nodo.get("children");
+        if (childrenObj instanceof List<?> children) {
+            for (Object child : children) {
+                if (child instanceof Map<?,?> childNodo) {
+                    aplanarNodo((Map<String, Object>) childNodo, id, acumulador);
+                }
+            }
+        }
+    }
+
     // ── Recover (agotados los reintentos) ────────────────────────────────────
 
     @Recover
@@ -286,10 +350,22 @@ public class BdnsClientService {
                 log.info("BDNS tras fallback 1: {} resultados", resultados.size());
             }
 
-            // Nivel 2 de fallback: quitar territorio, solo descripción
+            // Nivel 2 de fallback: si la región tiene pocos resultados, mostrar subvenciones del ESTADO
             if (resultados.size() < MIN_RESULTADOS_FALLBACK && filtros.regionId() != null) {
-                log.info("BDNS fallback nivel 2: relajando territorio (solo descripcion='{}')", filtros.descripcion());
-                List<ConvocatoriaDTO> fallback2 = ejecutarBusquedaFiltrada(filtros.sinTerritorio());
+                log.info("BDNS fallback nivel 2: buscando convocatorias Nacionales para descripcion='{}'", filtros.descripcion());
+                List<ConvocatoriaDTO> fallback2 = new ArrayList<>();
+                for (int pag = 0; pag < MAX_PAGINAS; pag++) {
+                    try {
+                        String url = buildBusquedaUrl(filtros.descripcion(), "C", null, filtros.finalidadId(), true, pag, TAM_PAG_BDNS);
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> resp = restClient.get().uri(url).retrieve().body(Map.class);
+                        if (resp != null) {
+                            List<ConvocatoriaDTO> pagina = mapearRespuesta(resp);
+                            fallback2.addAll(pagina);
+                            if (pagina.size() < TAM_PAG_BDNS) break;
+                        } else break;
+                    } catch (Exception e) { break; }
+                }
                 resultados = combinarYDeduplicar(resultados, fallback2);
                 log.info("BDNS tras fallback 2: {} resultados", resultados.size());
             }
@@ -656,6 +732,16 @@ public class BdnsClientService {
                 try { dto.setFechaCierre(LocalDate.parse(fechaFin.substring(0, 10))); } catch (Exception ignored) {}
             }
 
+            // Region ID desde el detalle usando el mapper robusto
+            if (dto.getRegionId() == null) {
+                dto.setRegionId(bdnsRegionMapper.extraerRegionId(detalle));
+            }
+
+            // Provincia ID desde el detalle usando el mapper robusto
+            if (dto.getProvinciaId() == null) {
+                dto.setProvinciaId(bdnsRegionMapper.extraerProvinciaId(detalle));
+            }
+
             // Texto completo del anuncio (HTML stripped)
             Object anunciosObj = detalle.get("anuncios");
             if (anunciosObj instanceof List<?> anList && !anList.isEmpty()) {
@@ -669,8 +755,8 @@ public class BdnsClientService {
                 }
             }
 
-            log.debug("BDNS enriquecer numConv={}: sector='{}' presupuesto={} abierto={} finalidad='{}'",
-                    numConv, dto.getSector(), dto.getPresupuesto(), dto.getAbierto(), dto.getFinalidad());
+            log.debug("BDNS enriquecer numConv={}: sector='{}' presupuesto={} abierto={} finalidad='{}' regionId={}",
+                    numConv, dto.getSector(), dto.getPresupuesto(), dto.getAbierto(), dto.getFinalidad(), dto.getRegionId());
 
         } catch (Exception e) {
             log.debug("BDNS enriquecer no disponible para numConv={}: {}", numConv, e.getMessage());
@@ -756,6 +842,10 @@ public class BdnsClientService {
     private ConvocatoriaDTO mapearConvocatoria(Map<String, Object> c) {
         ConvocatoriaDTO dto = new ConvocatoriaDTO();
 
+        // DEBUG temporal — muestra todas las claves del primer item para verificar nombres de campos
+        log.debug("BDNS raw keys: {}", c.keySet());
+        log.debug("BDNS raw nivel1={} nivel2={} nivel3={}", c.get("nivel1"), c.get("nivel2"), c.get("nivel3"));
+
         // Título: usar descripcion (campo principal de la BDNS)
         dto.setTitulo(getString(c, "descripcion",
                 getString(c, "descripcionLeng", "Sin título")));
@@ -769,6 +859,13 @@ public class BdnsClientService {
 
         // Ubicación: nivel2 contiene la comunidad/organismo
         dto.setUbicacion(mapearUbicacion(nivel1, getString(c, "nivel2", null)));
+
+        // Usamos el BdnsRegionMapper optimizado para extraer y mapear el region ID
+        dto.setRegionId(bdnsRegionMapper.extraerRegionId(c));
+
+        // Usamos el BdnsRegionMapper optimizado para extraer la provincia ID
+        dto.setProvinciaId(bdnsRegionMapper.extraerProvinciaId(c));
+
         // MRR: financiación NextGenerationEU / Plan de Recuperación
         Object mrrObj = c.get("mrr");
         dto.setMrr(Boolean.TRUE.equals(mrrObj));
@@ -850,6 +947,15 @@ public class BdnsClientService {
     private String getString(Map<String, Object> map, String key, String defaultVal) {
         Object val = map.get(key);
         if (val == null) return defaultVal;
+        // Si es un objeto anidado (ej: nivel2 = {"id":26,"descripcion":"MADRID"})
+        // intentar extraer el campo "descripcion" o "nombre"
+        if (val instanceof Map<?,?> nested) {
+            Object desc = nested.get("descripcion");
+            if (desc instanceof String s && !s.isBlank()) return s.trim();
+            Object nombre = nested.get("nombre");
+            if (nombre instanceof String s && !s.isBlank()) return s.trim();
+            return defaultVal;
+        }
         String s = val.toString().trim();
         return s.isBlank() ? defaultVal : s;
     }

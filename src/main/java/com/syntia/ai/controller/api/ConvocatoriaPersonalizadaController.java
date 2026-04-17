@@ -9,6 +9,8 @@ import com.syntia.ai.repository.ConvocatoriaRepository;
 import com.syntia.ai.service.MatchService;
 import com.syntia.ai.service.PerfilService;
 import com.syntia.ai.service.ProyectoService;
+import com.syntia.ai.service.RegionService;
+import com.syntia.ai.service.UbicacionNormalizador;
 import com.syntia.ai.service.UsuarioService;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +24,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Endpoints autenticados de búsqueda y recomendaciones personalizadas.
@@ -50,17 +53,20 @@ public class ConvocatoriaPersonalizadaController {
     private final ProyectoService proyectoService;
     private final ConvocatoriaRepository convocatoriaRepository;
     private final MatchService matchService;
+    private final RegionService regionService;
 
     public ConvocatoriaPersonalizadaController(UsuarioService usuarioService,
                                                PerfilService perfilService,
                                                ProyectoService proyectoService,
                                                ConvocatoriaRepository convocatoriaRepository,
-                                               MatchService matchService) {
+                                               MatchService matchService,
+                                               RegionService regionService) {
         this.usuarioService = usuarioService;
         this.perfilService = perfilService;
         this.proyectoService = proyectoService;
         this.convocatoriaRepository = convocatoriaRepository;
         this.matchService = matchService;
+        this.regionService = regionService;
     }
 
     /**
@@ -117,6 +123,8 @@ public class ConvocatoriaPersonalizadaController {
             @RequestParam(required = false, defaultValue = "") String sector,
             @RequestParam(required = false, defaultValue = "") String tipo,
             @RequestParam(required = false) Boolean abierto,
+            @RequestParam(required = false) Long regionId,
+            @RequestParam(required = false) String ubicacion,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             Authentication authentication) {
@@ -129,13 +137,28 @@ public class ConvocatoriaPersonalizadaController {
         int safeSize = Math.min(Math.max(size, 1), 50);
         int safePage = Math.max(page, 0);
 
-        // Búsqueda full-text de candidatos
-        PageRequest pageRequest = PageRequest.of(0, 200); // pool grande para re-ordenar
-        var candidatos = convocatoriaRepository.buscarPublico(
+        // Fallback temporal para compatibilidad con el front estándar que aún envía ubicación en texto
+        if (regionId == null && ubicacion != null && !ubicacion.isBlank()) {
+            Integer mappedId = UbicacionNormalizador.normalizarARegionId(ubicacion);
+            if (mappedId != null) {
+                regionId = mappedId.longValue();
+            }
+        }
+
+        boolean filtrarRegion = regionId != null;
+        Set<Integer> regionIds = filtrarRegion
+                ? regionService.obtenerDescendientesIds(regionId)
+                : Set.of();
+
+        // Pool grande para re-ordenar por score
+        PageRequest pageRequest = PageRequest.of(0, 200);
+        var candidatos = convocatoriaRepository.buscarPublicoConRegion(
                 q.isBlank() ? null : q,
                 sector.isBlank() ? null : sector,
                 tipo.isBlank() ? null : tipo,
-                abierto == null || !abierto,   // incluirCerradas: true cuando abierto=null o false
+                abierto == null || !abierto,
+                filtrarRegion,
+                regionIds,
                 pageRequest
         );
 

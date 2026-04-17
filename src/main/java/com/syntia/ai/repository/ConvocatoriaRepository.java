@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -82,6 +83,15 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
     List<Convocatoria> buscarParaModoGratuito(@Param("keyword") String keyword,
                                               @Param("ubicacion") String ubicacion);
 
+    @Query("SELECT c FROM Convocatoria c WHERE " +
+            "(:keyword IS NULL OR LOWER(c.titulo) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+            "   OR LOWER(c.sector) LIKE LOWER(CONCAT('%', :keyword, '%'))) AND " +
+            "(:filtrarRegion = false OR (c.regionId IN :regionIds OR c.provinciaId IN :regionIds) OR LOWER(c.ubicacion) = 'nacional' OR LOWER(c.ubicacion) LIKE LOWER(CONCAT('%', :ubicacionTexto, '%')))")
+    List<Convocatoria> buscarParaModoGratuitoConRegion(@Param("keyword") String keyword,
+                                                       @Param("filtrarRegion") boolean filtrarRegion,
+                                                       @Param("regionIds") Collection<Integer> regionIds,
+                                                       @Param("ubicacionTexto") String ubicacionTexto);
+
     // ── Queries de cobertura de campos ──────────────────────────────────────
 
     long countByOrganismoIsNotNull();
@@ -123,7 +133,7 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
             "   (c.descripcion IS NOT NULL AND LOWER(c.descripcion) LIKE LOWER(CONCAT('%', :q, '%'))) OR " +
             "   (c.finalidad IS NOT NULL AND LOWER(c.finalidad) LIKE LOWER(CONCAT('%', :q, '%')))) AND " +
             "(:sector IS NULL OR :sector = '' OR " +
-            "   (c.finalidad IS NOT NULL AND LOWER(c.finalidad) = LOWER(:sector))) AND " +
+            "   (c.sector IS NOT NULL AND LOWER(c.sector) = LOWER(:sector))) AND " +
             "(:tipo IS NULL OR :tipo = '' OR " +
             "   (c.tipo IS NOT NULL AND LOWER(c.tipo) = LOWER(:tipo))) AND " +
             "(:incluirCerradas = true OR c.abierto = true)")
@@ -132,6 +142,30 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
                                      @Param("tipo") String tipo,
                                      @Param("incluirCerradas") boolean incluirCerradas,
                                      Pageable pageable);
+
+    /**
+     * Búsqueda pública con filtro de región jerárquico.
+     * regionIds debe contener el ID seleccionado y todos sus descendientes.
+     * Si la colección está vacía se ignora el filtro de región.
+     */
+    @Query("SELECT c FROM Convocatoria c WHERE " +
+            "(:q IS NULL OR :q = '' OR " +
+            "   LOWER(c.titulo) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
+            "   (c.descripcion IS NOT NULL AND LOWER(c.descripcion) LIKE LOWER(CONCAT('%', :q, '%'))) OR " +
+            "   (c.finalidad IS NOT NULL AND LOWER(c.finalidad) LIKE LOWER(CONCAT('%', :q, '%')))) AND " +
+            "(:sector IS NULL OR :sector = '' OR " +
+            "   (c.sector IS NOT NULL AND LOWER(c.sector) = LOWER(:sector))) AND " +
+            "(:tipo IS NULL OR :tipo = '' OR " +
+            "   (c.tipo IS NOT NULL AND LOWER(c.tipo) = LOWER(:tipo))) AND " +
+            "(:incluirCerradas = true OR c.abierto = true) AND " +
+            "(:filtrarRegion = false OR (c.regionId IN :regionIds OR c.provinciaId IN :regionIds OR LOWER(c.ubicacion) = 'nacional'))")
+    Page<Convocatoria> buscarPublicoConRegion(@Param("q") String q,
+                                              @Param("sector") String sector,
+                                              @Param("tipo") String tipo,
+                                              @Param("incluirCerradas") boolean incluirCerradas,
+                                              @Param("filtrarRegion") boolean filtrarRegion,
+                                              @Param("regionIds") Collection<Integer> regionIds,
+                                              Pageable pageable);
 
     /** Devuelve los valores distintos de finalidad no nulos, ordenados alfabéticamente. */
     @Query("SELECT DISTINCT c.finalidad FROM Convocatoria c WHERE c.finalidad IS NOT NULL AND c.finalidad <> '' ORDER BY c.finalidad ASC")
