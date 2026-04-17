@@ -5,8 +5,10 @@ import com.syntia.ai.model.dto.ConvocatoriaDetalleDTO;
 import com.syntia.ai.model.dto.ConvocatoriaPublicaDTO;
 import com.syntia.ai.model.dto.RegionNodoDTO;
 import com.syntia.ai.repository.ConvocatoriaRepository;
+import com.syntia.ai.service.BdnsClientService;
 import com.syntia.ai.service.RegionService;
 import com.syntia.ai.service.UbicacionNormalizador;
+import jakarta.persistence.EntityNotFoundException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -28,11 +30,14 @@ public class ConvocatoriaPublicaController {
 
     private final ConvocatoriaRepository convocatoriaRepository;
     private final RegionService regionService;
+    private final BdnsClientService bdnsClientService;
 
     public ConvocatoriaPublicaController(ConvocatoriaRepository convocatoriaRepository,
-                                         RegionService regionService) {
+                                         RegionService regionService,
+                                         BdnsClientService bdnsClientService) {
         this.convocatoriaRepository = convocatoriaRepository;
         this.regionService = regionService;
+        this.bdnsClientService = bdnsClientService;
     }
 
     /**
