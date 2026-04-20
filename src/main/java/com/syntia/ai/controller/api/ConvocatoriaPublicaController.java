@@ -13,6 +13,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.syntia.ai.util.JsonListParser;
+import com.fasterxml.jackson.core.type.TypeReference;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -123,18 +126,91 @@ public class ConvocatoriaPublicaController {
     @GetMapping("/{numeroConvocatoria}")
     public ResponseEntity<ConvocatoriaDetalleDTO> detalle(@PathVariable String numeroConvocatoria) {
         return convocatoriaRepository.findByNumeroConvocatoria(numeroConvocatoria)
-                .map(c -> {
-                    String codigoBdns = c.getNumeroConvocatoria() != null && !c.getNumeroConvocatoria().isBlank()
-                            ? c.getNumeroConvocatoria() : c.getIdBdns();
-                    return ResponseEntity.ok(ConvocatoriaDetalleDTO.builder()
-                            .id(c.getId())
-                            .codigoBdns(codigoBdns)
-                            .sector(c.getSector())
-                            .descripcion(c.getDescripcion())
-                            .tiposBeneficiario(Collections.emptyList())
-                            .build());
-                })
+                .map(c -> ResponseEntity.ok(toDetalleDTO(c)))
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    private ConvocatoriaDetalleDTO toDetalleDTO(Convocatoria c) {
+        String codigoBdns = c.getNumeroConvocatoria() != null && !c.getNumeroConvocatoria().isBlank()
+                ? c.getNumeroConvocatoria() : c.getIdBdns();
+
+        List<ConvocatoriaDetalleDTO.TipoBeneficiarioDTO> tiposBenef =
+                JsonListParser.parse(c.getTiposBeneficiarios(),
+                        new TypeReference<List<ConvocatoriaDetalleDTO.TipoBeneficiarioDTO>>() {});
+
+        List<String> tiposBenefLegacy = tiposBenef.stream()
+                .map(ConvocatoriaDetalleDTO.TipoBeneficiarioDTO::getDescripcion)
+                .filter(d -> d != null && !d.isBlank())
+                .toList();
+
+        return ConvocatoriaDetalleDTO.builder()
+                // Legacy
+                .id(c.getId())
+                .codigoBdns(codigoBdns)
+                .descripcion(c.getDescripcion())
+                .tiposBeneficiario(tiposBenefLegacy)
+
+                // Identificación
+                .idBdns(c.getIdBdns())
+                .numeroConvocatoria(c.getNumeroConvocatoria())
+                .titulo(c.getTitulo())
+
+                // Clasificación
+                .tipo(c.getTipo())
+                .ubicacion(c.getUbicacion())
+                .sector(c.getSector())
+                .finalidad(c.getFinalidad())
+
+                // Organismo
+                .nivel1(c.getOrganoNivel1())
+                .nivel2(c.getOrganoNivel2())
+                .nivel3(c.getOrganoNivel3())
+                .fuente(c.getFuente())
+
+                // Financiero
+                .presupuestoTotal(c.getPresupuesto())
+                .ayudaEstado(c.getAyudaEstado())
+                .urlAyudaEstado(c.getUrlAyudaEstado())
+                .mrr(c.getMrr())
+
+                // Plazos
+                .fechaRecepcion(c.getFechaRecepcion())
+                .fechaInicioSolicitud(c.getFechaInicioSolicitud())
+                .fechaFinSolicitud(c.getFechaFinSolicitud())
+                .fechaCierre(c.getFechaCierre())
+                .textInicio(c.getTextInicio())
+                .textFin(c.getTextFin())
+
+                // Procedimiento / Bases
+                .basesReguladoras(c.getDescripcionBasesReguladoras())
+                .descripcionBasesReguladoras(c.getDescripcionBasesReguladoras())
+                .urlBasesReguladoras(c.getUrlBasesReguladoras())
+                .sePublicaDiarioOficial(c.getSePublicaDiarioOficial())
+                .sedeElectronica(c.getSedeElectronica())
+                .tipoConvocatoria(c.getTipoConvocatoria())
+                .urlOficial(construirUrl(c))
+
+                // Reglamento UE
+                .reglamentoDescripcion(c.getReglamentoDescripcion())
+                .reglamentoAutorizacion(c.getReglamentoAutorizacion())
+                .advertencia(c.getAdvertencia())
+
+                // Arrays BDNS
+                .instrumentos(JsonListParser.parseStringList(c.getInstrumentos()))
+                .tiposBeneficiarios(tiposBenef)
+                .sectores(JsonListParser.parse(c.getSectores(),
+                        new TypeReference<List<ConvocatoriaDetalleDTO.SectorDTO>>() {}))
+                .sectoresProductos(JsonListParser.parse(c.getSectoresProductos(),
+                        new TypeReference<List<ConvocatoriaDetalleDTO.SectorDTO>>() {}))
+                .regiones(JsonListParser.parseStringList(c.getRegiones()))
+                .fondos(JsonListParser.parseStringList(c.getFondos()))
+                .objetivos(JsonListParser.parseStringList(c.getObjetivos()))
+                .anuncios(JsonListParser.parse(c.getAnuncios(),
+                        new TypeReference<List<ConvocatoriaDetalleDTO.AnuncioDTO>>() {}))
+                .documentos(JsonListParser.parse(c.getDocumentos(),
+                        new TypeReference<List<ConvocatoriaDetalleDTO.DocumentoDTO>>() {}))
+
+                .build();
     }
 
     /**

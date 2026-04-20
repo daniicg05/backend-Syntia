@@ -67,4 +67,75 @@ public class ConvocatoriaDetalleDTO {
     private String explicacion;
     private String guia;
     private LocalDateTime fechaAnalisis;
+
+
+    // ── Campos ampliados catálogo BDNS ────────────────────────────────────
+    private String sedeElectronica;
+    private String tipoConvocatoria;
+    private Double presupuestoTotal;
+    private String descripcionBasesReguladoras;
+    private String urlBasesReguladoras;
+    private Boolean sePublicaDiarioOficial;
+    private LocalDate fechaInicioSolicitud;
+    private String textInicio;
+    private String textFin;
+    private String urlAyudaEstado;
+    private String reglamentoDescripcion;
+    private Integer reglamentoAutorizacion;
+    private String advertencia;
+
+    private List<String> instrumentos;
+    private List<TipoBeneficiarioDTO> tiposBeneficiarios;
+    private List<SectorDTO> sectores;
+    private List<SectorDTO> sectoresProductos;
+    private List<String> regiones;
+    private List<String> fondos;
+    private List<String> objetivos;
+    private List<AnuncioDTO> anuncios;
+    private List<DocumentoDTO> documentos;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TipoBeneficiarioDTO {
+        private String codigo;
+        private String descripcion;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SectorDTO {
+        private String codigo;
+        private String descripcion;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class AnuncioDTO {
+        private Integer numAnuncio;
+        private String titulo;
+        private String texto;
+        private String url;
+        private String cve;
+        private String desDiarioOficial;
+        private LocalDate datPublicacion;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class DocumentoDTO {
+        private Integer id;
+        private String nombreFic;
+        private String descripcion;
+        private Integer longitud;
+        private LocalDate datMod;
+        private LocalDate datPublicacion;
+    }
 }

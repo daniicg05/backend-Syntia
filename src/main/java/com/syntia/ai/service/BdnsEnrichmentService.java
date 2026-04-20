@@ -44,8 +44,8 @@ public class BdnsEnrichmentService {
     private long delayMs;
 
     public BdnsEnrichmentService(BdnsClientService bdnsClientService,
-                                  ConvocatoriaRepository convocatoriaRepository,
-                                  BdnsEnrichmentExecutor enrichmentExecutor) {
+                                 ConvocatoriaRepository convocatoriaRepository,
+                                 BdnsEnrichmentExecutor enrichmentExecutor) {
         this.bdnsClientService = bdnsClientService;
         this.convocatoriaRepository = convocatoriaRepository;
         this.enrichmentExecutor = enrichmentExecutor;
@@ -88,6 +88,7 @@ public class BdnsEnrichmentService {
                     if (cancelado.get()) break;
                     lastId = c.getId();
                     try {
+                        // Enriquecimiento legacy (sector, presupuesto, fechas, finalidad, texto)
                         ConvocatoriaDTO dto = new ConvocatoriaDTO();
                         dto.setNumeroConvocatoria(c.getNumeroConvocatoria());
                         bdnsClientService.enriquecerConDetalle(dto);
@@ -115,6 +116,15 @@ public class BdnsEnrichmentService {
                         if (dto.getSector() != null) {
                             c.setSector(dto.getSector()); cambios = true;
                         }
+
+                        // Enriquecimiento ampliado con catálogo BDNS completo
+                        // (organo nivel1/2/3, sedeElectronica, tipoConvocatoria, fechaRecepcion,
+                        //  sePublicaDiarioOficial, ayudaEstado, urlAyudaEstado, textInicio, textFin,
+                        //  bases reguladoras, reglamento UE, advertencia, y arrays JSON:
+                        //  instrumentos, tiposBeneficiarios, sectores, sectoresProductos,
+                        //  regiones, fondos, objetivos, anuncios, documentos)
+                        boolean cambiosAmpliados = bdnsClientService.enriquecerEntidad(c);
+                        if (cambiosAmpliados) cambios = true;
 
                         if (cambios) {
                             convocatoriaRepository.save(c);

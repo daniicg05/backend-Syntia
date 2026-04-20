@@ -85,7 +85,7 @@ public class BdnsClientService {
     private RestClient restClient;
     
     @org.springframework.beans.factory.annotation.Autowired
-    private com.syntia.ai.service.BdnsRegionMapper bdnsRegionMapper;
+    private BdnsRegionMapper bdnsRegionMapper;
 
     @PostConstruct
     void init() {
@@ -1130,8 +1130,8 @@ public class BdnsClientService {
             Map<String, Object> raw = new ObjectMapper().readValue(json, new TypeReference<>() {});
 
             @SuppressWarnings("unchecked")
-            java.util.List<Map<String, Object>> contentList =
-                    (java.util.List<Map<String, Object>>) raw.get("content");
+            List<Map<String, Object>> contentList =
+                    (List<Map<String, Object>>) raw.get("content");
             if (contentList == null || contentList.isEmpty()) {
                 throw new RuntimeException("Convocatoria " + idBdns + " no encontrada en BDNS");
             }
@@ -1223,4 +1223,208 @@ public class BdnsClientService {
     private String coalesce(String a, String b) {
         return (a != null && !a.isBlank()) ? a : b;
     }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // ENRIQUECIMIENTO AMPLIADO — Catálogo BDNS completo para detalle público
+    // ════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Enriquece la entidad {@link com.syntia.ai.model.Convocatoria} directamente con
+     * TODOS los campos del catálogo BDNS (incluyendo arrays serializados como JSON).
+     *
+     * Campos simples: organo (nivel1/2/3), sedeElectronica, tipoConvocatoria,
+     *   fechaRecepcion, sePublicaDiarioOficial, presupuestoTotal, descripcionBasesReguladoras,
+     *   urlBasesReguladoras, ayudaEstado, urlAyudaEstado, textInicio, textFin,
+     *   reglamento (descripcion/autorizacion), advertencia, fechaInicioSolicitud,
+     *   fechaFinSolicitud, abierto, descripcionFinalidad.
+     *
+     * Campos array (persistidos como JSON en columna TEXT):
+     *   instrumentos, tiposBeneficiarios, sectores, sectoresProductos,
+     *   regiones, fondos, objetivos, anuncios, documentos.
+     *
+     * @return true si se obtuvieron datos y la entidad fue modificada
+     */
+    public boolean enriquecerEntidad(com.syntia.ai.model.Convocatoria c) {
+        String numConv = c.getNumeroConvocatoria();
+        if (numConv == null || numConv.isBlank()) return false;
+
+        try {
+            String url = UriComponentsBuilder.fromHttpUrl(BDNS_DETALLE)
+                    .queryParam("vpd", "GE")
+                    .queryParam("numConv", numConv)
+                    .toUriString();
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> d = restClient.get()
+                    .uri(url)
+                    .retrieve()
+                    .body(Map.class);
+
+            if (d == null) return false;
+
+            ObjectMapper mapper = new ObjectMapper();
+            boolean cambios = false;
+
+            // ── Campos simples ───────────────────────────────────────────────
+            Object organoObj = d.get("organo");
+            if (organoObj instanceof Map<?, ?> om) {
+                Object n1 = om.get("nivel1");
+                Object n2 = om.get("nivel2");
+                Object n3 = om.get("nivel3");
+                if (n1 instanceof String s && !s.isBlank()) { c.setOrganoNivel1(s); cambios = true; }
+                if (n2 instanceof String s && !s.isBlank()) { c.setOrganoNivel2(s); cambios = true; }
+                if (n3 instanceof String s && !s.isBlank()) { c.setOrganoNivel3(s); cambios = true; }
+            }
+
+            String sede = getString(d, "sedeElectronica", null);
+            if (sede != null) { c.setSedeElectronica(sede); cambios = true; }
+
+            String tipoConv = getString(d, "tipoConvocatoria", null);
+            if (tipoConv != null) { c.setTipoConvocatoria(tipoConv); cambios = true; }
+
+            String fechaRec = getString(d, "fechaRecepcion", null);
+            if (fechaRec != null) {
+                try { c.setFechaRecepcion(LocalDate.parse(fechaRec.substring(0, 10))); cambios = true; }
+                catch (Exception ignored) {}
+            }
+
+            Object publicaObj = d.get("sePublicaDiarioOficial");
+            if (publicaObj instanceof Boolean b) { c.setSePublicaDiarioOficial(b); cambios = true; }
+
+            Object presObj = d.get("presupuestoTotal");
+            if (presObj instanceof Number n && c.getPresupuesto() == null) {
+                c.setPresupuesto(n.doubleValue()); cambios = true;
+            }
+
+            String descBases = getString(d, "descripcionBasesReguladoras", null);
+            if (descBases != null) { c.setDescripcionBasesReguladoras(descBases); cambios = true; }
+
+            String urlBases = getString(d, "urlBasesReguladoras", null);
+            if (urlBases != null) { c.setUrlBasesReguladoras(urlBases); cambios = true; }
+
+            String ayudaSA = getString(d, "ayudaEstado", null);
+            if (ayudaSA != null) { c.setAyudaEstado(ayudaSA); cambios = true; }
+
+            String urlAyudaSA = getString(d, "urlAyudaEstado", null);
+            if (urlAyudaSA != null) { c.setUrlAyudaEstado(urlAyudaSA); cambios = true; }
+
+            String textIni = getString(d, "textInicio", null);
+            if (textIni != null) { c.setTextInicio(textIni); cambios = true; }
+
+            String textFin = getString(d, "textFin", null);
+            if (textFin != null) { c.setTextFin(textFin); cambios = true; }
+
+            String adv = getString(d, "advertencia", null);
+            if (adv != null) { c.setAdvertencia(adv); cambios = true; }
+
+            Object regObj = d.get("reglamento");
+            if (regObj instanceof Map<?, ?> rm) {
+                Object rd = rm.get("descripcion");
+                Object ra = rm.get("autorizacion");
+                if (rd instanceof String s && !s.isBlank()) { c.setReglamentoDescripcion(s); cambios = true; }
+                if (ra instanceof Number n) { c.setReglamentoAutorizacion(n.intValue()); cambios = true; }
+            }
+
+            String fIni = getString(d, "fechaInicioSolicitud", null);
+            if (fIni != null) {
+                try { c.setFechaInicioSolicitud(LocalDate.parse(fIni.substring(0, 10))); cambios = true; }
+                catch (Exception ignored) {}
+            }
+
+            String fFin = getString(d, "fechaFinSolicitud", null);
+            if (fFin != null) {
+                try {
+                    LocalDate fin = LocalDate.parse(fFin.substring(0, 10));
+                    c.setFechaFinSolicitud(fin); cambios = true;
+                    if (c.getFechaCierre() == null) { c.setFechaCierre(fin); }
+                } catch (Exception ignored) {}
+            }
+
+            Object abObj = d.get("abierto");
+            if (abObj instanceof Boolean b && c.getAbierto() == null) { c.setAbierto(b); cambios = true; }
+
+            String finalidad = getString(d, "descripcionFinalidad", null);
+            if (finalidad != null && c.getFinalidad() == null) {
+                c.setFinalidad(toTitleCase(finalidad)); cambios = true;
+            }
+
+            // ── Arrays serializados como JSON ─────────────────────────────────
+            String instrumentosJson = serializarDescripciones(d.get("instrumentos"), mapper);
+            if (instrumentosJson != null) { c.setInstrumentos(instrumentosJson); cambios = true; }
+
+            String tiposBenefJson = serializarCodigoDescripcion(d.get("tiposBeneficiarios"), mapper);
+            if (tiposBenefJson != null) { c.setTiposBeneficiarios(tiposBenefJson); cambios = true; }
+
+            String sectoresJson = serializarCodigoDescripcion(d.get("sectores"), mapper);
+            if (sectoresJson != null) { c.setSectores(sectoresJson); cambios = true; }
+
+            String sectProdJson = serializarCodigoDescripcion(d.get("sectoresProductos"), mapper);
+            if (sectProdJson != null) { c.setSectoresProductos(sectProdJson); cambios = true; }
+
+            String regionesJson = serializarDescripciones(d.get("regiones"), mapper);
+            if (regionesJson != null) { c.setRegiones(regionesJson); cambios = true; }
+
+            String fondosJson = serializarDescripciones(d.get("fondos"), mapper);
+            if (fondosJson != null) { c.setFondos(fondosJson); cambios = true; }
+
+            String objetivosJson = serializarDescripciones(d.get("objetivos"), mapper);
+            if (objetivosJson != null) { c.setObjetivos(objetivosJson); cambios = true; }
+
+            String anunciosJson = serializarJsonRaw(d.get("anuncios"), mapper);
+            if (anunciosJson != null) { c.setAnuncios(anunciosJson); cambios = true; }
+
+            String documentosJson = serializarJsonRaw(d.get("documentos"), mapper);
+            if (documentosJson != null) { c.setDocumentos(documentosJson); cambios = true; }
+
+            return cambios;
+
+        } catch (Exception e) {
+            log.debug("BDNS enriquecerEntidad falló para numConv={}: {}", numConv, e.getMessage());
+            return false;
+        }
+    }
+
+    /** Serializa un array de objetos {descripcion:...} como JSON array de strings. */
+    private String serializarDescripciones(Object source, ObjectMapper mapper) {
+        if (!(source instanceof List<?> list) || list.isEmpty()) return null;
+        List<String> out = new ArrayList<>();
+        for (Object el : list) {
+            if (el instanceof Map<?, ?> m) {
+                Object desc = m.get("descripcion");
+                if (desc instanceof String s && !s.isBlank()) out.add(s);
+            } else if (el instanceof String s && !s.isBlank()) {
+                out.add(s);
+            }
+        }
+        if (out.isEmpty()) return null;
+        try { return mapper.writeValueAsString(out); }
+        catch (Exception e) { return null; }
+    }
+
+    /** Serializa un array de objetos {codigo, descripcion} preservando ambos campos. */
+    private String serializarCodigoDescripcion(Object source, ObjectMapper mapper) {
+        if (!(source instanceof List<?> list) || list.isEmpty()) return null;
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Object el : list) {
+            if (el instanceof Map<?, ?> m) {
+                Map<String, Object> item = new java.util.HashMap<>();
+                Object codigo = m.get("codigo");
+                Object desc = m.get("descripcion");
+                if (codigo != null) item.put("codigo", codigo.toString());
+                if (desc != null) item.put("descripcion", desc.toString());
+                if (!item.isEmpty()) out.add(item);
+            }
+        }
+        if (out.isEmpty()) return null;
+        try { return mapper.writeValueAsString(out); }
+        catch (Exception e) { return null; }
+    }
+
+    /** Serializa el array tal cual lo entrega BDNS (para anuncios, documentos). */
+    private String serializarJsonRaw(Object source, ObjectMapper mapper) {
+        if (!(source instanceof List<?> list) || list.isEmpty()) return null;
+        try { return mapper.writeValueAsString(list); }
+        catch (Exception e) { return null; }
+    }
+
 }
