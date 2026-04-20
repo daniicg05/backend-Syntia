@@ -1,12 +1,19 @@
 package com.syntia.ai.model;
 
 import jakarta.persistence.*;
+import jakarta.persistence.Index;
 import lombok.*;
 
 import java.time.LocalDate;
 
 @Entity
-@Table(name = "convocatorias")
+@Table(
+        name = "convocatorias",
+        indexes = {
+                @Index(name = "idx_convocatorias_id_bdns", columnList = "id_bdns", unique = true),
+                @Index(name = "idx_convocatorias_numero_convocatoria", columnList = "numero_convocatoria")
+        }
+)
 @Getter
 @Setter
 @NoArgsConstructor

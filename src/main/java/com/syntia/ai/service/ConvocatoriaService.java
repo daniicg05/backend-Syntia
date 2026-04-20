@@ -11,6 +11,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.Optional;
+
 
 import java.util.List;
 
@@ -274,6 +276,26 @@ public class ConvocatoriaService {
         dto.setRegionId(c.getRegionId());
         dto.setProvinciaId(c.getProvinciaId());
         return dto;
+    }
+
+    /**
+     * Búsqueda por idBdns (identificador BDNS canónico).
+     * Usado por el endpoint público de detalle.
+     */
+    @Transactional(readOnly = true)
+    public Optional<ConvocatoriaDTO> obtenerPorIdBdns(String idBdns) {
+        return convocatoriaRepository.findByIdBdns(idBdns)
+                .map(this::toDTO);
+    }
+
+    /**
+     * (Opcional, si creas el listado público)
+     */
+    @Transactional(readOnly = true)
+    public List<ConvocatoriaDTO> obtenerTodasDTO() {
+        return convocatoriaRepository.findAll().stream()
+                .map(this::toDTO)
+                .toList();
     }
 }
 
