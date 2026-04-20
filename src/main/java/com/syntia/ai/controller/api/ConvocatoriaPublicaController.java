@@ -118,11 +118,11 @@ public class ConvocatoriaPublicaController {
     }
 
     /**
-     * Detalle público de una convocatoria por ID.
+     * Detalle público de una convocatoria por número de convocatoria.
      */
-    @GetMapping("/{id}")
-    public ResponseEntity<ConvocatoriaDetalleDTO> detalle(@PathVariable Long id) {
-        return convocatoriaRepository.findById(id)
+    @GetMapping("/{numeroConvocatoria}")
+    public ResponseEntity<ConvocatoriaDetalleDTO> detalle(@PathVariable String numeroConvocatoria) {
+        return convocatoriaRepository.findByNumeroConvocatoria(numeroConvocatoria)
                 .map(c -> {
                     String codigoBdns = c.getNumeroConvocatoria() != null && !c.getNumeroConvocatoria().isBlank()
                             ? c.getNumeroConvocatoria() : c.getIdBdns();
