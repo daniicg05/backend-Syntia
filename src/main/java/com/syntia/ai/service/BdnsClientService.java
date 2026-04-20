@@ -1,10 +1,14 @@
 package com.syntia.ai.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.syntia.ai.model.dto.ConvocatoriaDTO;
+import com.syntia.ai.model.dto.ConvocatoriaDetalleDTO;
 import com.syntia.ai.model.dto.FiltrosBdns;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Recover;
@@ -51,6 +55,9 @@ import java.util.concurrent.Executors;
 @Slf4j
 @Service
 public class BdnsClientService {
+
+    private static final String BDNS_BASE_URL =
+            "https://www.infosubvenciones.es/bdnstrans/api";
 
     private static final String BDNS_BUSQUEDA =
             "https://www.infosubvenciones.es/bdnstrans/api/convocatorias/busqueda";
@@ -243,6 +250,25 @@ public class BdnsClientService {
     }
 
     // ── Catálogo de regiones ─────────────────────────────────────────────────
+
+    /**
+     * Obtiene una lista JSON cruda desde un endpoint BDNS de catálogo.
+     */
+    public List<Map<String, Object>> getRawList(String url) {
+        try {
+            String json = restClient.get()
+                    .uri(url)
+                    .retrieve()
+                    .body(String.class);
+            if (json == null || json.isBlank()) {
+                return List.of();
+            }
+            return new ObjectMapper().readValue(json, new TypeReference<>() {});
+        } catch (Exception e) {
+            log.warn("[BDNS] getRawList error url={}: {}", url, e.getMessage());
+            return List.of();
+        }
+    }
 
     /**
      * Descarga el árbol jerárquico completo de regiones del catálogo BDNS.
@@ -1091,5 +1117,110 @@ public class BdnsClientService {
     public static class BdnsException extends RuntimeException {
         public BdnsException(String message) { super(message); }
         public BdnsException(String message, Throwable cause) { super(message, cause); }
+    }
+
+    /**
+     * Obtiene el detalle completo de una convocatoria BDNS por id interno.
+     */
+    @Cacheable(value = "bdns-detalle", key = "#idBdns")
+    public ConvocatoriaDetalleDTO obtenerDetalleCompleto(String idBdns) {
+        String url = BDNS_BASE_URL + "/convocatorias/busqueda?numeroConvocatoria=" + idBdns + "&page=0&pageSize=1";
+        try {
+            String json = restClient.get().uri(url).retrieve().body(String.class);
+            Map<String, Object> raw = new ObjectMapper().readValue(json, new TypeReference<>() {});
+
+            @SuppressWarnings("unchecked")
+            java.util.List<Map<String, Object>> contentList =
+                    (java.util.List<Map<String, Object>>) raw.get("content");
+            if (contentList == null || contentList.isEmpty()) {
+                throw new RuntimeException("Convocatoria " + idBdns + " no encontrada en BDNS");
+            }
+            raw = contentList.get(0);
+
+            String numConv = getString(raw, "numeroConvocatoria");
+            String nivel1 = getString(raw, "nivel1");
+            String nivel2 = getString(raw, "nivel2");
+            String nivel3 = getString(raw, "nivel3");
+
+            return ConvocatoriaDetalleDTO.builder()
+                    .idBdns(idBdns)
+                    .numeroConvocatoria(numConv)
+                    .titulo(coalesce(getString(raw, "descripcion"), getString(raw, "descripcionLeng")))
+                    .tituloAlternativo(getString(raw, "descripcionLeng"))
+                    .nivel1(nivel1)
+                    .nivel2(nivel2)
+                    .nivel3(nivel3)
+                    .tipo(normalizarNivel1(nivel1))
+                    .ubicacion("ESTADO".equalsIgnoreCase(nivel1) ? "Nacional" : nivel2)
+                    .fuente("BDNS - " + coalesce(nivel3, nivel2))
+                    .objeto(coalesce(getString(raw, "objeto"),
+                            coalesce(getString(raw, "descripcionObjeto"), getString(raw, "finalidad"))))
+                    .beneficiarios(coalesce(getString(raw, "beneficiarios"), getString(raw, "tiposBeneficiarios")))
+                    .requisitos(coalesce(getString(raw, "requisitos"),
+                            coalesce(getString(raw, "condicionesAcceso"), getString(raw, "requisitosParticipacion"))))
+                    .documentacion(coalesce(getString(raw, "documentacion"), getString(raw, "documentosRequeridos")))
+                    .dotacion(coalesce(getString(raw, "dotacion"),
+                            coalesce(getString(raw, "presupuestoTotal"), getString(raw, "importeTotal"))))
+                    .ayudaEstado(getString(raw, "ayudaEstado"))
+                    .mrr(getBoolean(raw, "mrr"))
+                    .contribucion(getBoolean(raw, "contribucion"))
+                    .fechaRecepcion(parseDate(getString(raw, "fechaRecepcion")))
+                    .fechaFinSolicitud(parseDate(coalesce(
+                            getString(raw, "fechaFinSolicitud"), getString(raw, "fechaCierre"))))
+                    .fechaCierre(parseDate(getString(raw, "fechaCierre")))
+                    .plazoSolicitudes(coalesce(getString(raw, "plazoSolicitudes"), getString(raw, "plazoPresentacion")))
+                    .procedimiento(coalesce(getString(raw, "procedimiento"), getString(raw, "formaPresentacion")))
+                    .basesReguladoras(coalesce(getString(raw, "basesReguladoras"), getString(raw, "normativa")))
+                    .urlOficial(numConv != null && !numConv.isBlank()
+                            ? "https://www.infosubvenciones.es/bdnstrans/GE/es/convocatoria/" + numConv
+                            : null)
+                    .build();
+        } catch (Exception e) {
+            log.warn("[BDNS] Error detalle idBdns={}: {}", idBdns, e.getMessage());
+            throw new BdnsException("No se pudo obtener el detalle: " + idBdns);
+        }
+    }
+
+    private String getString(Map<String, Object> m, String k) {
+        Object v = m.get(k);
+        return v != null ? v.toString() : null;
+    }
+
+    private Boolean getBoolean(Map<String, Object> m, String k) {
+        Object v = m.get(k);
+        if (v instanceof Boolean b) {
+            return b;
+        }
+        if (v instanceof String s) {
+            return Boolean.parseBoolean(s);
+        }
+        return null;
+    }
+
+    private LocalDate parseDate(String s) {
+        if (s == null || s.isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(s.substring(0, 10));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private String normalizarNivel1(String n) {
+        if (n == null) {
+            return "Desconocido";
+        }
+        return switch (n.toUpperCase()) {
+            case "ESTADO" -> "Estatal";
+            case "AUTONOMICA" -> "Autonomica";
+            case "LOCAL" -> "Local";
+            default -> n;
+        };
+    }
+
+    private String coalesce(String a, String b) {
+        return (a != null && !a.isBlank()) ? a : b;
     }
 }
