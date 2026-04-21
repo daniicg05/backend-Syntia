@@ -248,6 +248,7 @@ public class ConvocatoriaService {
     /** Convierte una entidad a DTO para precargar formularios de edición. */
     public ConvocatoriaDTO toDTO(Convocatoria c) {
         ConvocatoriaDTO dto = new ConvocatoriaDTO();
+        dto.setId(c.getId());
         dto.setTitulo(c.getTitulo());
         dto.setTipo(c.getTipo());
         dto.setSector(c.getSector());

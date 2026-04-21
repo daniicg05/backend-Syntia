@@ -1,6 +1,7 @@
 package com.syntia.ai.controller.api;
 
 import com.syntia.ai.model.Convocatoria;
+import com.syntia.ai.model.dto.ConvocatoriaDTO;
 import com.syntia.ai.model.dto.ConvocatoriaDetalleDTO;
 import com.syntia.ai.model.dto.ConvocatoriaPublicaDTO;
 import com.syntia.ai.model.dto.RegionNodoDTO;
@@ -121,7 +122,14 @@ public class ConvocatoriaPublicaController {
      * Detalle público de una convocatoria por ID.
      */
     @GetMapping("/{id}")
-    public ResponseEntity<ConvocatoriaDetalleDTO> detalle(@PathVariable Long id) {
+    public ResponseEntity<ConvocatoriaDTO> detalle(@PathVariable Long id) {
+        return convocatoriaRepository.findById(id)
+                .map(c -> ResponseEntity.ok(toConvocatoriaDTO(c)))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/simple/{id}")
+    public ResponseEntity<ConvocatoriaDetalleDTO> detalleSimple(@PathVariable Long id) {
         return convocatoriaRepository.findById(id)
                 .map(c -> {
                     String codigoBdns = c.getNumeroConvocatoria() != null && !c.getNumeroConvocatoria().isBlank()
@@ -181,5 +189,31 @@ public class ConvocatoriaPublicaController {
             url = url.replace("/bdnstrans/GE/es/convocatoria/", "/bdnstrans/GE/es/convocatorias/");
         }
         return url;
+    }
+
+    private ConvocatoriaDTO toConvocatoriaDTO(Convocatoria c) {
+        ConvocatoriaDTO dto = new ConvocatoriaDTO();
+        dto.setId(c.getId());
+        dto.setTitulo(c.getTitulo());
+        dto.setTipo(c.getTipo());
+        dto.setSector(c.getSector());
+        dto.setUbicacion(c.getUbicacion());
+        dto.setUrlOficial(construirUrl(c));
+        dto.setFuente(c.getFuente());
+        dto.setIdBdns(c.getIdBdns());
+        dto.setNumeroConvocatoria(c.getNumeroConvocatoria());
+        dto.setFechaCierre(c.getFechaCierre());
+        dto.setOrganismo(c.getOrganismo());
+        dto.setFechaPublicacion(c.getFechaPublicacion());
+        dto.setDescripcion(c.getDescripcion());
+        dto.setTextoCompleto(c.getTextoCompleto());
+        dto.setMrr(c.getMrr());
+        dto.setPresupuesto(c.getPresupuesto());
+        dto.setAbierto(c.getAbierto());
+        dto.setFinalidad(c.getFinalidad());
+        dto.setFechaInicio(c.getFechaInicio());
+        dto.setRegionId(c.getRegionId());
+        dto.setProvinciaId(c.getProvinciaId());
+        return dto;
     }
 }
