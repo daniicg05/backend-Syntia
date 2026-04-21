@@ -1,7 +1,7 @@
 package com.syntia.ai.service;
 
-import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.context.event.EventListener;
@@ -11,6 +11,7 @@ import java.text.Normalizer;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 
 /**
@@ -34,16 +35,36 @@ public class BdnsRegionMapper {
     // Estructura interna para conocer tipo de región y sus padres
     private record RegionInfo(int id, String nutsCode, Integer parentId) {}
 
+    private final AtomicBoolean cacheInicializada = new AtomicBoolean(false);
+
+    @Value("${bdns.regiones.preload-on-startup:false}")
+    private boolean preloadOnStartup;
+
     public BdnsRegionMapper(@Lazy BdnsClientService bdnsClientService) {
         this.bdnsClientService = bdnsClientService;
     }
 
     @EventListener(ApplicationReadyEvent.class)
     public void initCache() {
-        log.info("Inicializando BdnsRegionMapper: Cargando catálogo de regiones desde BDNS...");
-        try {
-            List<BdnsClientService.RegionItem> regiones = bdnsClientService.fetchRegiones();
-            
+        if (!preloadOnStartup) {
+            return;
+        }
+        ensureCacheInicializada();
+    }
+
+    private void ensureCacheInicializada() {
+        if (cacheInicializada.get()) {
+            return;
+        }
+        synchronized (cacheInicializada) {
+            if (cacheInicializada.get()) {
+                return;
+            }
+
+            log.info("Inicializando BdnsRegionMapper: Cargando catálogo de regiones desde BDNS...");
+            try {
+                List<BdnsClientService.RegionItem> regiones = bdnsClientService.fetchRegiones();
+
             if (regiones != null && !regiones.isEmpty()) {
                 int cacheados = 0;
                 for (BdnsClientService.RegionItem r : regiones) {
@@ -69,8 +90,11 @@ public class BdnsRegionMapper {
             } else {
                 log.warn("BdnsRegionMapper: La API de regiones devolvió una lista vacía. La caché está vacía.");
             }
-        } catch (Exception e) {
-            log.error("BdnsRegionMapper: Error al poblar la caché de regiones: {}", e.getMessage());
+            } catch (Exception e) {
+                log.error("BdnsRegionMapper: Error al poblar la caché de regiones: {}", e.getMessage());
+            } finally {
+                cacheInicializada.set(true);
+            }
         }
     }
 
@@ -101,6 +125,7 @@ public class BdnsRegionMapper {
      */
     public Integer extraerRegionId(Map<String, Object> json) {
         if (json == null) return null;
+        ensureCacheInicializada();
 
         Integer n2Id = extraerDesdeRegiones(json, true);
         if (n2Id != null) return n2Id;
@@ -130,6 +155,7 @@ public class BdnsRegionMapper {
      */
     public Integer extraerProvinciaId(Map<String, Object> json) {
         if (json == null) return null;
+        ensureCacheInicializada();
 
         Integer n3Id = extraerDesdeRegiones(json, false);
         if (n3Id != null) return n3Id;
