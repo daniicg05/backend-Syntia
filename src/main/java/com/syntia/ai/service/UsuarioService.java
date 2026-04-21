@@ -157,7 +157,8 @@ public class UsuarioService {
 
         validarNoEsSuperAdminProtegido(usuario);
 
-        // Orden importante para respetar FKs: recomendaciones -> proyectos -> perfil/historial -> usuario.
+        // La tabla de favoritas cuelga por FK ON DELETE CASCADE desde usuarios.
+        // Orden manual restante para relaciones legacy sin cascada DB.
         recomendacionRepository.deleteByProyectoUsuarioId(id);
         proyectoRepository.deleteByUsuarioId(id);
         perfilRepository.deleteByUsuarioId(id);
