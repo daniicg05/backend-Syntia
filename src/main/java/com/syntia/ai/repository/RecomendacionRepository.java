@@ -111,6 +111,17 @@ public interface RecomendacionRepository extends JpaRepository<Recomendacion, In
     void actualizarGuiaEnriquecida(@Param("id") Long id, @Param("guiaJson") String guiaJson);
 
     /**
+     * Persistencia del resultado IA sin merge de entidad completa.
+     * Evita SELECT adicionales al no rehidratar asociaciones LAZY.
+     */
+    @Modifying
+    @Query("UPDATE Recomendacion r SET r.puntuacion = :puntuacion, r.explicacion = :explicacion, r.guia = :guia, r.usadaIa = true WHERE r.id = :id")
+    int actualizarResultadoIa(@Param("id") Long id,
+                             @Param("puntuacion") int puntuacion,
+                             @Param("explicacion") String explicacion,
+                             @Param("guia") String guia);
+
+    /**
      * Invalida todas las guías enriquecidas cacheadas.
      * Usado al actualizar el formato/prompt de generación de guías para forzar regeneración.
      */

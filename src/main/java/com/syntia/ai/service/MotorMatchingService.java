@@ -98,14 +98,12 @@ public class MotorMatchingService {
                     // Enriquecer sector si la IA lo infirió
                     if (resultado.sector() != null && (temporal.getSector() == null || temporal.getSector().isBlank())) {
                         temporal.setSector(resultado.sector());
-                        convocatoriaRepository.save(temporal);
                     }
                     // Actualizar la recomendación existente con los resultados IA
                     recExistente.setPuntuacion(resultado.puntuacion());
                     recExistente.setExplicacion(resultado.explicacion());
                     recExistente.setGuia(resultado.guia());
                     recExistente.setUsadaIa(true);
-                    recomendacionRepository.save(recExistente);
                     recomendaciones.add(recExistente);
                     log.info("Recomendación actualizada: puntuacion={} titulo='{}'",
                             resultado.puntuacion(), dto.getTitulo());
@@ -311,15 +309,18 @@ public class MotorMatchingService {
                         final int puntuacion = resultado.puntuacion();
                         final String sectorIA = resultado.sector();
                         Recomendacion rec = transactionTemplate.execute(status -> {
-                            if (sectorIA != null && (recExistente.getConvocatoria().getSector() == null || recExistente.getConvocatoria().getSector().isBlank())) {
-                                recExistente.getConvocatoria().setSector(sectorIA);
-                                convocatoriaRepository.save(recExistente.getConvocatoria());
+                            if (sectorIA != null) {
+                                convocatoriaRepository.actualizarSectorSiVacioPorId(recExistente.getConvocatoria().getId(), sectorIA);
                             }
+                            recomendacionRepository.actualizarResultadoIa(recExistente.getId(), puntuacion, explicacion, guia);
                             recExistente.setPuntuacion(puntuacion);
                             recExistente.setExplicacion(explicacion);
                             recExistente.setGuia(guia);
                             recExistente.setUsadaIa(true);
-                            return recomendacionRepository.save(recExistente);
+                            if (sectorIA != null && (recExistente.getConvocatoria().getSector() == null || recExistente.getConvocatoria().getSector().isBlank())) {
+                                recExistente.getConvocatoria().setSector(sectorIA);
+                            }
+                            return recExistente;
                         });
                         recomendaciones.add(rec);
 
