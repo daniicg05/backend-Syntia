@@ -15,9 +15,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Endpoints públicos de convocatorias: búsqueda y destacadas para el Home.
@@ -27,8 +29,13 @@ import java.util.Set;
 @RequestMapping("/api/convocatorias/publicas")
 public class ConvocatoriaPublicaController {
 
+    private static final long DETALLE_CACHE_TTL_MS = 300_000L;
+
     private final ConvocatoriaRepository convocatoriaRepository;
     private final RegionService regionService;
+    private final Map<Long, CachedDetalle> cacheDetallePublico = new ConcurrentHashMap<>();
+
+    private record CachedDetalle(ConvocatoriaDetalleDTO dto, long ts) {}
 
     public ConvocatoriaPublicaController(ConvocatoriaRepository convocatoriaRepository,
                                          RegionService regionService) {
@@ -122,27 +129,76 @@ public class ConvocatoriaPublicaController {
      * Detalle público de una convocatoria por ID.
      */
     @GetMapping("/{id}")
-    public ResponseEntity<ConvocatoriaDTO> detalle(@PathVariable Long id) {
+    public ResponseEntity<ConvocatoriaDTO> detalleCompleto(@PathVariable Long id) {
         return convocatoriaRepository.findById(id)
                 .map(c -> ResponseEntity.ok(toConvocatoriaDTO(c)))
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/simple/{id}")
-    public ResponseEntity<ConvocatoriaDetalleDTO> detalleSimple(@PathVariable Long id) {
+    public ResponseEntity<ConvocatoriaDetalleDTO> detalle(@PathVariable Long id) {
+        long now = System.currentTimeMillis();
+        CachedDetalle cached = cacheDetallePublico.get(id);
+        if (cached != null && (now - cached.ts()) < DETALLE_CACHE_TTL_MS) {
+            return ResponseEntity.ok(cached.dto());
+        }
+
         return convocatoriaRepository.findById(id)
                 .map(c -> {
                     String codigoBdns = c.getNumeroConvocatoria() != null && !c.getNumeroConvocatoria().isBlank()
                             ? c.getNumeroConvocatoria() : c.getIdBdns();
-                    return ResponseEntity.ok(ConvocatoriaDetalleDTO.builder()
+                    ConvocatoriaDetalleDTO dto = ConvocatoriaDetalleDTO.builder()
                             .id(c.getId())
                             .codigoBdns(codigoBdns)
                             .sector(c.getSector())
                             .descripcion(c.getDescripcion())
                             .tiposBeneficiario(Collections.emptyList())
-                            .build());
+                            .build();
+                    cacheDetallePublico.put(id, new CachedDetalle(dto, now));
+                    return ResponseEntity.ok(dto);
                 })
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Detalle por lote para evitar N peticiones consecutivas al endpoint /{id}.
+     * Devuelve un mapa id -> detalle para los IDs existentes.
+     */
+    @GetMapping("/detalles")
+    public ResponseEntity<Map<Long, ConvocatoriaDetalleDTO>> detalles(@RequestParam List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return ResponseEntity.ok(Map.of());
+        }
+
+        long now = System.currentTimeMillis();
+        Map<Long, ConvocatoriaDetalleDTO> resultado = new HashMap<>();
+        List<Long> pendientes = ids.stream().distinct().filter(id -> {
+            CachedDetalle cached = cacheDetallePublico.get(id);
+            if (cached != null && (now - cached.ts()) < DETALLE_CACHE_TTL_MS) {
+                resultado.put(id, cached.dto());
+                return false;
+            }
+            return true;
+        }).toList();
+
+        if (!pendientes.isEmpty()) {
+            List<Convocatoria> convocatorias = convocatoriaRepository.findAllById(pendientes);
+            for (Convocatoria c : convocatorias) {
+                String codigoBdns = c.getNumeroConvocatoria() != null && !c.getNumeroConvocatoria().isBlank()
+                        ? c.getNumeroConvocatoria() : c.getIdBdns();
+                ConvocatoriaDetalleDTO dto = ConvocatoriaDetalleDTO.builder()
+                        .id(c.getId())
+                        .codigoBdns(codigoBdns)
+                        .sector(c.getSector())
+                        .descripcion(c.getDescripcion())
+                        .tiposBeneficiario(Collections.emptyList())
+                        .build();
+                resultado.put(c.getId(), dto);
+                cacheDetallePublico.put(c.getId(), new CachedDetalle(dto, now));
+            }
+        }
+
+        return ResponseEntity.ok(resultado);
     }
 
     /**

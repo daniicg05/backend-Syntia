@@ -2,10 +2,12 @@ package com.syntia.ai.controller.api;
 
 import com.syntia.ai.config.SecurityConfig;
 import com.syntia.ai.model.Convocatoria;
+import com.syntia.ai.model.dto.ConvocatoriaDTO;
 import com.syntia.ai.repository.ConvocatoriaRepository;
 import com.syntia.ai.security.JwtAuthenticationFilter;
-import com.syntia.ai.service.BdnsClientService;
+import com.syntia.ai.service.ConvocatoriaService;
 import com.syntia.ai.service.CustomUserDetailService;
+import com.syntia.ai.service.RegionService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -17,7 +19,6 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.util.List;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -37,7 +38,9 @@ class ConvocatoriaPublicaControllerTest {
     @MockBean
     private ConvocatoriaRepository convocatoriaRepository;
     @MockBean
-    private BdnsClientService bdnsClientService;
+    private ConvocatoriaService convocatoriaService;
+    @MockBean
+    private RegionService regionService;
     @MockBean
     private CustomUserDetailService customUserDetailService;
     @MockBean
@@ -47,50 +50,58 @@ class ConvocatoriaPublicaControllerTest {
     void detalle_publico_devuelveCamposEnriquecidos() throws Exception {
         Convocatoria convocatoria = Convocatoria.builder()
                 .id(10L)
-                .numeroConvocatoria("123456")
-                .idBdns("9988")
+                .titulo("Ayudas para modernizacion empresarial")
+                .tipo("Subvencion")
                 .sector(null)
                 .descripcion(null)
                 .build();
 
+        ConvocatoriaDTO dto = new ConvocatoriaDTO();
+        dto.setId(10L);
+        dto.setTitulo("Ayudas para modernizacion empresarial");
+        dto.setTipo("Subvencion");
+        dto.setSector("Empresa");
+        dto.setDescripcion("Descripcion completa");
+
         when(convocatoriaRepository.findById(10L)).thenReturn(Optional.of(convocatoria));
-        when(bdnsClientService.obtenerDetalleConvocatoria("123456"))
-                .thenReturn(new BdnsClientService.DetalleConvocatoriaBdns(
-                        "Ayudas para modernizacion empresarial",
-                        "Empresa",
-                        List.of("Pymes", "Autonomos")
-                ));
+        when(convocatoriaService.toDTO(convocatoria)).thenReturn(dto);
 
         mockMvc.perform(get("/api/convocatorias/publicas/10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(10))
-                .andExpect(jsonPath("$.codigoBdns").value("123456"))
+                .andExpect(jsonPath("$.titulo").value("Ayudas para modernizacion empresarial"))
+                .andExpect(jsonPath("$.tipo").value("Subvencion"))
                 .andExpect(jsonPath("$.sector").value("Empresa"))
-                .andExpect(jsonPath("$.descripcion").value("Ayudas para modernizacion empresarial"))
-                .andExpect(jsonPath("$.tiposBeneficiario[0]").value("Pymes"))
-                .andExpect(jsonPath("$.tiposBeneficiario[1]").value("Autonomos"));
+                .andExpect(jsonPath("$.descripcion").value("Descripcion completa"));
     }
 
     @Test
-    void detalle_publico_haceFallbackABdLocal_siNoHayDetalleBdns() throws Exception {
+    void detalle_publico_devuelve_dtoCompleto() throws Exception {
         Convocatoria convocatoria = Convocatoria.builder()
                 .id(11L)
-                .numeroConvocatoria("777")
-                .idBdns("444")
+                .titulo("Subvencion para digitalizacion")
                 .sector("Tecnologia")
                 .descripcion("Subvencion para digitalizacion")
                 .build();
 
+        ConvocatoriaDTO dto = new ConvocatoriaDTO();
+        dto.setId(11L);
+        dto.setTitulo("Subvencion para digitalizacion");
+        dto.setSector("Tecnologia");
+        dto.setDescripcion("Subvencion para digitalizacion");
+        dto.setIdBdns("444");
+        dto.setNumeroConvocatoria("777");
+
         when(convocatoriaRepository.findById(11L)).thenReturn(Optional.of(convocatoria));
-        when(bdnsClientService.obtenerDetalleConvocatoria("777")).thenReturn(null);
+        when(convocatoriaService.toDTO(convocatoria)).thenReturn(dto);
 
         mockMvc.perform(get("/api/convocatorias/publicas/11"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.codigoBdns").value("777"))
+                .andExpect(jsonPath("$.id").value(11))
+                .andExpect(jsonPath("$.titulo").value("Subvencion para digitalizacion"))
                 .andExpect(jsonPath("$.sector").value("Tecnologia"))
                 .andExpect(jsonPath("$.descripcion").value("Subvencion para digitalizacion"))
-                .andExpect(jsonPath("$.tiposBeneficiario").isArray())
-                .andExpect(jsonPath("$.tiposBeneficiario.length()").value(0));
+                .andExpect(jsonPath("$.numeroConvocatoria").value("777"));
     }
 
     @Test

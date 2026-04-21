@@ -17,8 +17,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -85,11 +83,14 @@ public class ConvocatoriaPersonalizadaController {
         List<Proyecto> proyectos = proyectoService.obtenerProyectos(usuario.getId());
 
         Perfil perfil = perfilOpt.orElse(null);
-        List<Convocatoria> pool = buildPool(perfil, proyectos);
 
         int safeSize = Math.min(Math.max(size, 1), 50);
         int safePage = Math.max(page, 0);
         int from = safePage * safeSize;
+
+        // Carga progresiva: para cada página solo se precarga el volumen necesario de candidatas.
+        int candidatasNecesarias = Math.min(((safePage + 1) * safeSize) + 20, 150);
+        List<Convocatoria> pool = buildPool(perfil, proyectos, candidatasNecesarias);
 
         List<ConvocatoriaPublicaDTO> todas = pool.stream()
                 .map(c -> matchService.toMatchDTO(c, perfil, proyectos))
@@ -102,7 +103,7 @@ public class ConvocatoriaPersonalizadaController {
                 .toList();
 
         long total = todas.size();
-        int totalPages = safeSize > 0 ? (int) Math.ceil((double) total / safeSize) : 0;
+        int totalPages = (int) Math.ceil((double) total / safeSize);
 
         return ResponseEntity.ok(Map.of(
                 "content", pagina,
@@ -150,8 +151,8 @@ public class ConvocatoriaPersonalizadaController {
                 ? regionService.obtenerDescendientesIds(regionId)
                 : Set.of();
 
-        // Pool grande para re-ordenar por score
-        PageRequest pageRequest = PageRequest.of(0, 200);
+        // Cargar solo la página solicitada (evita traer convocatorias de golpe).
+        PageRequest pageRequest = PageRequest.of(safePage, safeSize);
         var candidatos = convocatoriaRepository.buscarPublicoConRegion(
                 q.isBlank() ? null : q,
                 sector.isBlank() ? null : sector,
@@ -167,17 +168,11 @@ public class ConvocatoriaPersonalizadaController {
                 .sorted(Comparator.comparingInt(ConvocatoriaPublicaDTO::getMatchScore).reversed())
                 .toList();
 
-        int from = safePage * safeSize;
-        List<ConvocatoriaPublicaDTO> pagina = scorados.stream()
-                .skip(from)
-                .limit(safeSize)
-                .toList();
-
         long total = candidatos.getTotalElements();
         int totalPages = (int) Math.ceil((double) total / safeSize);
 
         return ResponseEntity.ok(Map.of(
-                "content", pagina,
+                "content", scorados,
                 "totalElements", total,
                 "totalPages", totalPages,
                 "page", safePage,
@@ -191,36 +186,42 @@ public class ConvocatoriaPersonalizadaController {
      * Construye el pool de candidatos: convocatorias filtradas por sector del usuario
      * más un conjunto de recientes para garantizar variedad.
      */
-    private List<Convocatoria> buildPool(Perfil perfil, List<Proyecto> proyectos) {
+    private List<Convocatoria> buildPool(Perfil perfil, List<Proyecto> proyectos, int maxCandidatas) {
         LinkedHashSet<Convocatoria> pool = new LinkedHashSet<>();
 
         // Sector del perfil
         if (perfil != null && perfil.getSector() != null) {
             List<String> kws = getKeywords(perfil.getSector());
+            int limitePerfil = Math.min(POOL_SECTOR, Math.max(maxCandidatas, 1));
             pool.addAll(convocatoriaRepository.buscarCandidatosPorKeywords(
-                    kws.size() > 0 ? kws.get(0) : "",
+                    !kws.isEmpty() ? kws.get(0) : "",
                     kws.size() > 1 ? kws.get(1) : "",
                     kws.size() > 2 ? kws.get(2) : "",
-                    PageRequest.of(0, POOL_SECTOR)
+                    PageRequest.of(0, limitePerfil)
             ));
         }
 
         // Sectores de proyectos
         for (Proyecto p : proyectos) {
-            if (p.getSector() == null || pool.size() >= 150) break;
+            if (p.getSector() == null || pool.size() >= maxCandidatas) break;
             List<String> kws = getKeywords(p.getSector());
+            int restantes = Math.max(maxCandidatas - pool.size(), 1);
+            int limiteProyecto = Math.min(40, restantes);
             pool.addAll(convocatoriaRepository.buscarCandidatosPorKeywords(
-                    kws.size() > 0 ? kws.get(0) : "",
+                    !kws.isEmpty() ? kws.get(0) : "",
                     kws.size() > 1 ? kws.get(1) : "",
                     kws.size() > 2 ? kws.get(2) : "",
-                    PageRequest.of(0, 40)
+                    PageRequest.of(0, limiteProyecto)
             ));
         }
 
         // Recientes de fallback
-        pool.addAll(convocatoriaRepository.findTop16ByOrderByIdDesc());
+        if (pool.size() < maxCandidatas) {
+            int limiteRecientes = Math.min(POOL_RECIENTES, maxCandidatas - pool.size());
+            pool.addAll(convocatoriaRepository.findTop16ByOrderByIdDesc().stream().limit(limiteRecientes).toList());
+        }
 
-        return new ArrayList<>(pool);
+        return pool.stream().limit(maxCandidatas).toList();
     }
 
     private List<String> getKeywords(String sector) {
