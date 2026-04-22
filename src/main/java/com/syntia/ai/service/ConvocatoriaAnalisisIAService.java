@@ -37,7 +37,7 @@ public class ConvocatoriaAnalisisIAService {
     private final ObjectMapper objectMapper;
 
     private static final String BDNS_DETALLE_URL =
-            "https://www.infosubvenciones.es/bdnstrans/api/convocatorias/";
+            "https://www.infosubvenciones.es/bdnstrans/api/convocatorias";
 
     // RestClient con SSL permisivo (igual que BdnsClientService existente)
     private final RestClient bdnsRestClient = crearRestClientSslPermisivo();
@@ -98,7 +98,7 @@ public class ConvocatoriaAnalisisIAService {
     private Map<String, Object> obtenerRawBdns(Long idBdns) {
         try {
             String json = bdnsRestClient.get()
-                    .uri(BDNS_DETALLE_URL + idBdns + "?vpd=GE&vln=es")
+                    .uri(BDNS_DETALLE_URL + "?vpd=GE&numConv=" + idBdns)
                     .retrieve()
                     .body(String.class);
 

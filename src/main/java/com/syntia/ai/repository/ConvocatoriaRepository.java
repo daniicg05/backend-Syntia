@@ -214,5 +214,6 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
                                                     @Param("kw2") String kw2,
                                                     @Param("kw3") String kw3,
                                                     Pageable pageable);
-}
 
+    Optional<Convocatoria> findByNumeroConvocatoria(String numeroConvocatoria);
+}

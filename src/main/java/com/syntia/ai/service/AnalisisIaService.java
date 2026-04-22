@@ -52,24 +52,43 @@ public class AnalisisIaService {
         executor.submit(() -> {
             try {
                 // Fase 1: buscar convocatoria
+
                 emitter.send(SseEmitter.event().name("estado").data("\"Cargando convocatoria...\""));
-                Convocatoria conv = convocatoriaRepository.findByIdBdns(String.valueOf(bdnsId))
+
+                log.info("Buscando convocatoria por numeroConvocatoria: {}", String.valueOf(bdnsId));
+
+                Convocatoria conv = convocatoriaRepository.findByNumeroConvocatoria(String.valueOf(bdnsId))
                         .orElseThrow(() -> new RuntimeException("Convocatoria no encontrada para BDNS id: " + bdnsId));
 
                 // Emitir detalle basico
                 String detalleJson = buildDetalleJson(conv);
+
+                log.info("Convocatoria encontrada: {}", conv.getTitulo());
+
                 emitter.send(SseEmitter.event().name("detalle").data(detalleJson));
 
                 // Fase 2: analisis IA
                 emitter.send(SseEmitter.event().name("estado").data("\"Analizando con IA...\""));
                 emitter.send(SseEmitter.event().name("analisis").data("{}"));
 
+                log.info("Detalle emitido, llamando a BDNS...");
+
                 String detalleTexto = conv.getNumeroConvocatoria() != null
                         ? bdnsClientService.obtenerDetalleTexto(conv.getNumeroConvocatoria())
                         : null;
 
+                log.info("BDNS respondió, llamando a OpenAI...");
+                log.info("Texto BDNS obtenido ({} chars): {}",
+                        detalleTexto != null ? detalleTexto.length() : 0,
+                        detalleTexto != null ? detalleTexto.substring(0, Math.min(500, detalleTexto.length())) : "null");
+
                 String userPrompt = buildUserPrompt(conv, detalleTexto);
+
+                log.info("BDNS respondió, llamando a OpenAI...");
+
                 String respuesta = openAiClient.chatLarge(SYSTEM_PROMPT, userPrompt);
+
+                log.info("OpenAI respondió, emitiendo completado...");
 
                 // Emitir resultado completo
                 String completadoJson = mergeDetalleConAnalisis(detalleJson, respuesta);
