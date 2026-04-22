@@ -27,14 +27,17 @@ public class RecomendacionService {
     private final RecomendacionRepository recomendacionRepository;
     private final MotorMatchingService motorMatchingService;
     private final RegionService regionService;
+    private final ConvocatoriaFavoritaService convocatoriaFavoritaService;
 
     /** Inyección por constructor para asegurar dependencia obligatoria e inmutable. */
     public RecomendacionService(RecomendacionRepository recomendacionRepository,
                                 MotorMatchingService motorMatchingService,
-                                RegionService regionService) {
+                                RegionService regionService,
+                                ConvocatoriaFavoritaService convocatoriaFavoritaService) {
         this.recomendacionRepository = recomendacionRepository;
         this.motorMatchingService = motorMatchingService;
         this.regionService = regionService;
+        this.convocatoriaFavoritaService = convocatoriaFavoritaService;
     }
 
     /**
@@ -44,12 +47,30 @@ public class RecomendacionService {
      * @return lista de RecomendacionDTO lista para la vista
      */
     public List<RecomendacionDTO> obtenerPorProyecto(Long proyectoId) {
+        return obtenerPorProyecto(proyectoId, null);
+    }
 
-        /** Consulta ordenada por puntuación y transformación inmediata a DTO. */
-        return recomendacionRepository
-                .findByProyectoIdOrderByPuntuacionDesc(proyectoId)
-                .stream()
-                .map(this::toDTO)
+    public List<RecomendacionDTO> obtenerPorProyecto(Long proyectoId, Long usuarioId) {
+        List<Recomendacion> recomendaciones = recomendacionRepository.findByProyectoIdOrderByPuntuacionDesc(proyectoId);
+        return mapToDTOConFavoritas(recomendaciones, usuarioId);
+    }
+
+    public List<RecomendacionDTO> mapToDTOConFavoritas(List<Recomendacion> recomendaciones, Long usuarioId) {
+        if (recomendaciones == null || recomendaciones.isEmpty()) {
+            return List.of();
+        }
+
+        Set<Long> favoritas = Set.of();
+        if (usuarioId != null) {
+            Set<Long> convocatoriaIds = recomendaciones.stream()
+                    .map(r -> r.getConvocatoria().getId())
+                    .collect(Collectors.toSet());
+            favoritas = convocatoriaFavoritaService.obtenerIdsFavoritasEn(usuarioId, convocatoriaIds);
+        }
+
+        Set<Long> favoritasFinal = favoritas;
+        return recomendaciones.stream()
+                .map(rec -> toDTO(rec, favoritasFinal.contains(rec.getConvocatoria().getId())))
                 .collect(Collectors.toList());
     }
 
@@ -58,7 +79,7 @@ public class RecomendacionService {
      */
     public long contarPorProyecto(Long proyectoId) {
 
-        /** Conteo directo en base de datos para evitar carga innecesaria de entidades. */
+        /* Conteo directo en base de datos para evitar carga innecesaria de entidades. */
         return recomendacionRepository.countByProyectoId(proyectoId);
     }
 
@@ -118,7 +139,10 @@ public class RecomendacionService {
      * Aplana los datos de la convocatoria asociada para evitar LazyInitializationException.
      */
     public RecomendacionDTO toDTO(Recomendacion rec) {
+        return toDTO(rec, false);
+    }
 
+    public RecomendacionDTO toDTO(Recomendacion rec, boolean favorita) {
         /** Mapeo explícito de entidad a DTO para controlar los datos expuestos. */
         RecomendacionDTO dto = new RecomendacionDTO();
         dto.setId(rec.getId());
@@ -127,6 +151,7 @@ public class RecomendacionService {
         dto.setGuia(rec.getGuia());
         dto.setGuiaEnriquecida(rec.getGuiaEnriquecida());
         dto.setUsadaIa(rec.isUsadaIa());
+        dto.setFavorita(favorita);
         dto.setConvocatoriaId(rec.getConvocatoria().getId());
         dto.setTitulo(rec.getConvocatoria().getTitulo());
         dto.setTipo(rec.getConvocatoria().getTipo());
