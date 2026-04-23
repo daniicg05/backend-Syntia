@@ -82,14 +82,15 @@ public class AuthController {
                     .body(Map.of("error", "Las contraseñas no coinciden"));
         }
 
+        String emailNormalizado = dto.getEmail().toLowerCase().strip();
         try {
-            usuarioService.registrar(dto.getEmail(), dto.getPassword(), Rol.USUARIO);
+            usuarioService.registrar(emailNormalizado, dto.getPassword(), Rol.USUARIO);
         } catch (IllegalStateException e) {
             return ResponseEntity.badRequest()
                     .body(Map.of("error", e.getMessage()));
         }
 
-        Usuario usuarioCreado = usuarioService.buscarPorEmail(dto.getEmail())
+        Usuario usuarioCreado = usuarioService.buscarPorEmail(emailNormalizado)
                 .orElseThrow(() -> new IllegalStateException("Usuario no encontrado tras registro"));
 
         String token = jwtService.generarToken(usuarioCreado.getEmail(), usuarioCreado.getRol().name());
@@ -116,10 +117,11 @@ public class AuthController {
     @PostMapping("/auth/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequestDTO request) {
 
+        String emailLogin = request.getEmail().toLowerCase().strip();
         try {
             authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
-                            request.getEmail(),
+                            emailLogin,
                             request.getPassword()
                     )
             );
@@ -128,7 +130,7 @@ public class AuthController {
                     .body(Map.of("error", "Credenciales incorrectas"));
         }
 
-        Usuario usuario = usuarioService.buscarPorEmail(request.getEmail())
+        Usuario usuario = usuarioService.buscarPorEmail(emailLogin)
                 .orElseThrow(() ->
                         new IllegalStateException("Usuario no encontrado tras autenticación"));
 

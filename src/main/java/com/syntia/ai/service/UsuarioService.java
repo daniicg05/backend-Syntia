@@ -90,12 +90,13 @@ public class UsuarioService {
      * @throws IllegalStateException si el email ya está registrado
      */
     public Usuario registrar(String email, String password, Rol rol) {
-        if (usuarioRepository.existsByEmail(email)) {
-            throw new IllegalStateException("El email ya está registrado: " + email);
+        String emailNormalizado = email.toLowerCase().strip();
+        if (usuarioRepository.existsByEmailIgnoreCase(emailNormalizado)) {
+            throw new IllegalStateException("El email ya está registrado: " + emailNormalizado);
         }
 
         Usuario usuario = Usuario.builder()
-                .email(email)
+                .email(emailNormalizado)
                 .password(passwordEncoder.encode(password))
                 .rol(rol)
                 .build();
@@ -229,22 +230,24 @@ public class UsuarioService {
             throw new IllegalArgumentException("La contraseña actual es incorrecta");
         }
 
-        if (usuario.getEmail().equalsIgnoreCase(nuevoEmail)) {
+        String nuevoEmailNormalizado = nuevoEmail.toLowerCase().strip();
+
+        if (usuario.getEmail().equalsIgnoreCase(nuevoEmailNormalizado)) {
             throw new IllegalArgumentException("El nuevo email es igual al actual");
         }
 
-        if (usuarioRepository.existsByEmail(nuevoEmail)) {
-            throw new IllegalStateException("El email ya está registrado: " + nuevoEmail);
+        if (usuarioRepository.existsByEmailIgnoreCase(nuevoEmailNormalizado)) {
+            throw new IllegalStateException("El email ya está registrado: " + nuevoEmailNormalizado);
         }
 
         String emailAnterior = usuario.getEmail();
-        usuario.setEmail(nuevoEmail);
+        usuario.setEmail(nuevoEmailNormalizado);
         Usuario actualizado = usuarioRepository.save(usuario);
 
         historialCorreoRepository.save(HistorialCorreo.builder()
                 .usuario(actualizado)
                 .anterior(emailAnterior)
-                .nuevo(nuevoEmail)
+                .nuevo(nuevoEmailNormalizado)
                 .actor(actorEmail != null && !actorEmail.isBlank() ? actorEmail : emailAnterior)
                 .build());
 
