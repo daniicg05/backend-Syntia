@@ -207,6 +207,21 @@ public class OpenAiGuiaService {
     public GuiaSubvencionDTO generarGuia(Proyecto proyecto, Perfil perfil,
                                          Convocatoria convocatoria, String detalleTexto,
                                          String urlOficial) {
+        return generarGuiaInterna(proyecto, perfil, convocatoria, detalleTexto, urlOficial);
+    }
+
+    /**
+     * Genera guía directamente para una convocatoria, sin proyecto obligatorio.
+     */
+    public GuiaSubvencionDTO generarGuiaSinProyecto(Perfil perfil,
+                                                     Convocatoria convocatoria, String detalleTexto,
+                                                     String urlOficial) {
+        return generarGuiaInterna(null, perfil, convocatoria, detalleTexto, urlOficial);
+    }
+
+    private GuiaSubvencionDTO generarGuiaInterna(Proyecto proyecto, Perfil perfil,
+                                                  Convocatoria convocatoria, String detalleTexto,
+                                                  String urlOficial) {
         String userPrompt = construirUserPrompt(proyecto, perfil, convocatoria, detalleTexto, urlOficial);
         log.info("Generando guía enriquecida para convocatoria='{}' proyecto={}",
                 convocatoria.getTitulo(), proyecto.getId());
@@ -259,11 +274,13 @@ public class OpenAiGuiaService {
         }
 
         // ── PROYECTO ──
-        sb.append("\n=== PROYECTO DEL SOLICITANTE ===\n");
-        appendIfPresent(sb, "Nombre", proyecto.getNombre());
-        appendIfPresent(sb, "Sector", proyecto.getSector());
-        appendIfPresent(sb, "Ubicación", proyecto.getUbicacion());
-        appendIfPresent(sb, "Descripción", proyecto.getDescripcion());
+        if (proyecto != null) {
+            sb.append("\n=== PROYECTO DEL SOLICITANTE ===\n");
+            appendIfPresent(sb, "Nombre", proyecto.getNombre());
+            appendIfPresent(sb, "Sector", proyecto.getSector());
+            appendIfPresent(sb, "Ubicación", proyecto.getUbicacion());
+            appendIfPresent(sb, "Descripción", proyecto.getDescripcion());
+        }
 
         sb.append("\n=== INSTRUCCIÓN ===\n");
         sb.append("Genera la guía de solicitud completa en formato JSON siguiendo el esquema del system prompt. ");

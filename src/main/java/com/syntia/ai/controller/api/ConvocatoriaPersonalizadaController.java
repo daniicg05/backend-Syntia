@@ -5,13 +5,18 @@ import com.syntia.ai.model.Perfil;
 import com.syntia.ai.model.Proyecto;
 import com.syntia.ai.model.Usuario;
 import com.syntia.ai.model.dto.ConvocatoriaPublicaDTO;
+import com.syntia.ai.model.dto.GuiaSubvencionDTO;
 import com.syntia.ai.repository.ConvocatoriaRepository;
+import com.syntia.ai.service.BdnsClientService;
 import com.syntia.ai.service.MatchService;
+import com.syntia.ai.service.OpenAiGuiaService;
+import com.syntia.ai.service.OpenAiMatchingService;
 import com.syntia.ai.service.PerfilService;
 import com.syntia.ai.service.ProyectoService;
 import com.syntia.ai.service.RegionService;
 import com.syntia.ai.service.UbicacionNormalizador;
 import com.syntia.ai.service.UsuarioService;
+import jakarta.persistence.EntityNotFoundException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -54,19 +59,28 @@ public class ConvocatoriaPersonalizadaController {
     private final ConvocatoriaRepository convocatoriaRepository;
     private final MatchService matchService;
     private final RegionService regionService;
+    private final OpenAiGuiaService openAiGuiaService;
+    private final OpenAiMatchingService openAiMatchingService;
+    private final BdnsClientService bdnsClientService;
 
     public ConvocatoriaPersonalizadaController(UsuarioService usuarioService,
                                                PerfilService perfilService,
                                                ProyectoService proyectoService,
                                                ConvocatoriaRepository convocatoriaRepository,
                                                MatchService matchService,
-                                               RegionService regionService) {
+                                               RegionService regionService,
+                                               OpenAiGuiaService openAiGuiaService,
+                                               OpenAiMatchingService openAiMatchingService,
+                                               BdnsClientService bdnsClientService) {
         this.usuarioService = usuarioService;
         this.perfilService = perfilService;
         this.proyectoService = proyectoService;
         this.convocatoriaRepository = convocatoriaRepository;
         this.matchService = matchService;
         this.regionService = regionService;
+        this.openAiGuiaService = openAiGuiaService;
+        this.openAiMatchingService = openAiMatchingService;
+        this.bdnsClientService = bdnsClientService;
     }
 
     /**
@@ -117,6 +131,10 @@ public class ConvocatoriaPersonalizadaController {
      * Búsqueda autenticada con match score.
      * ?q=&sector=&page=0&size=20
      */
+    /**
+     * Búsqueda autenticada con match score.
+     * @param sort criterio de orden: "relevancia" (por matchScore), "plazo" (fechaCierre ASC), "cuantia" (presupuesto DESC)
+     */
     @GetMapping("/buscar")
     public ResponseEntity<?> buscar(
             @RequestParam(required = false, defaultValue = "") String q,
@@ -125,6 +143,8 @@ public class ConvocatoriaPersonalizadaController {
             @RequestParam(required = false) Boolean abierto,
             @RequestParam(required = false) Long regionId,
             @RequestParam(required = false) String ubicacion,
+            @RequestParam(required = false) Double presupuestoMin,
+            @RequestParam(defaultValue = "relevancia") String sort,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             Authentication authentication) {
@@ -150,7 +170,7 @@ public class ConvocatoriaPersonalizadaController {
                 ? regionService.obtenerDescendientesIds(regionId)
                 : Set.of();
 
-        // Pool grande para re-ordenar por score
+        // Pool grande para re-ordenar por score/criterio
         PageRequest pageRequest = PageRequest.of(0, 200);
         var candidatos = convocatoriaRepository.buscarPublicoConRegion(
                 q.isBlank() ? null : q,
@@ -159,16 +179,28 @@ public class ConvocatoriaPersonalizadaController {
                 abierto == null || !abierto,
                 filtrarRegion,
                 regionIds,
+                presupuestoMin != null && presupuestoMin > 0 ? presupuestoMin : null,
                 pageRequest
         );
 
+        // Calcular matchScore para todos los candidatos
         List<ConvocatoriaPublicaDTO> scorados = candidatos.getContent().stream()
                 .map(c -> matchService.toMatchDTO(c, perfil, proyectos))
-                .sorted(Comparator.comparingInt(ConvocatoriaPublicaDTO::getMatchScore).reversed())
                 .toList();
 
+        // Ordenar según criterio solicitado
+        Comparator<ConvocatoriaPublicaDTO> comparator = switch (sort) {
+            case "plazo" -> Comparator.comparing(
+                    (ConvocatoriaPublicaDTO d) -> d.getFechaCierre() != null ? d.getFechaCierre() : java.time.LocalDate.MAX);
+            case "cuantia" -> Comparator.comparing(
+                    (ConvocatoriaPublicaDTO d) -> d.getPresupuesto() != null ? d.getPresupuesto() : 0.0,
+                    Comparator.reverseOrder());
+            default -> Comparator.comparingInt(ConvocatoriaPublicaDTO::getMatchScore).reversed();
+        };
+        List<ConvocatoriaPublicaDTO> ordenados = scorados.stream().sorted(comparator).toList();
+
         int from = safePage * safeSize;
-        List<ConvocatoriaPublicaDTO> pagina = scorados.stream()
+        List<ConvocatoriaPublicaDTO> pagina = ordenados.stream()
                 .skip(from)
                 .limit(safeSize)
                 .toList();
@@ -182,6 +214,44 @@ public class ConvocatoriaPersonalizadaController {
                 "totalPages", totalPages,
                 "page", safePage,
                 "size", safeSize
+        ));
+    }
+
+    /**
+     * Analiza una convocatoria con IA: genera análisis rápido + guía paso a paso
+     * en una sola llamada (una sola petición a BDNS, dos a OpenAI).
+     */
+    @GetMapping("/{id}/analisis")
+    public ResponseEntity<?> analisis(@PathVariable Long id,
+                                      Authentication authentication) {
+
+        resolverUsuario(authentication);
+
+        Convocatoria convocatoria = convocatoriaRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Convocatoria no encontrada: " + id));
+
+        // Una sola llamada BDNS
+        String detalleTexto = convocatoria.getNumeroConvocatoria() != null
+                ? bdnsClientService.obtenerDetalleTexto(convocatoria.getNumeroConvocatoria())
+                : null;
+
+        // 1) Análisis rápido (requisitos, documentación, pasos)
+        OpenAiMatchingService.ResultadoIA resultado =
+                openAiMatchingService.analizarConvocatoria(convocatoria, detalleTexto);
+
+        // 2) Guía completa (galería visual paso a paso) — reutiliza el detalleTexto
+        String numConv = convocatoria.getNumeroConvocatoria();
+        String urlOficial = (numConv != null && !numConv.isBlank())
+                ? "https://www.infosubvenciones.es/bdnstrans/GE/es/convocatoria/" + numConv
+                : convocatoria.getUrlOficial();
+
+        GuiaSubvencionDTO guiaCompleta =
+                openAiGuiaService.generarGuiaSinProyecto(null, convocatoria, detalleTexto, urlOficial);
+
+        return ResponseEntity.ok(Map.of(
+                "explicacion", resultado.explicacion() != null ? resultado.explicacion() : "",
+                "guia", resultado.guia() != null ? resultado.guia() : "",
+                "guiaCompleta", guiaCompleta
         ));
     }
 

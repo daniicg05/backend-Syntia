@@ -137,6 +137,8 @@ public class RecomendacionService {
         dto.setOrganismo(rec.getConvocatoria().getOrganismo());
         dto.setPresupuesto(rec.getConvocatoria().getPresupuesto());
         dto.setFechaPublicacion(rec.getConvocatoria().getFechaPublicacion());
+        dto.setNumeroConvocatoria(rec.getConvocatoria().getNumeroConvocatoria());
+        dto.setAbierto(rec.getConvocatoria().getAbierto());
 
         /** Construir URL fiable del portal BDNS — ficha individual de la convocatoria
          * La SPA Angular del portal usa el numeroConvocatoria en la URL, NO el id interno de la API

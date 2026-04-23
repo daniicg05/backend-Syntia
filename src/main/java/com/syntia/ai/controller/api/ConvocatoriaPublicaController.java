@@ -1,9 +1,10 @@
 package com.syntia.ai.controller.api;
 
 import com.syntia.ai.model.Convocatoria;
+import com.syntia.ai.model.dto.ConvocatoriaDetalleDTO;
 import com.syntia.ai.model.dto.ConvocatoriaPublicaDTO;
 import com.syntia.ai.model.dto.RegionNodoDTO;
-import com.syntia.ai.repository.ConvocatoriaRepository;
+import com.syntia.ai.repository.*;
 import com.syntia.ai.service.RegionService;
 import com.syntia.ai.service.UbicacionNormalizador;
 import org.springframework.data.domain.Page;
@@ -12,9 +13,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Endpoints públicos de convocatorias: búsqueda y destacadas para el Home.
@@ -25,11 +24,41 @@ import java.util.Set;
 public class ConvocatoriaPublicaController {
 
     private final ConvocatoriaRepository convocatoriaRepository;
+    private final IdxConvocatoriaBeneficiarioRepository beneficiarioRepository;
+    private final IdxConvocatoriaFinalidadRepository finalidadIdxRepository;
+    private final IdxConvocatoriaInstrumentoRepository instrumentoIdxRepository;
+    private final IdxConvocatoriaOrganoRepository organoIdxRepository;
+    private final IdxConvocatoriaRegionRepository regionIdxRepository;
+    private final IdxConvocatoriaTipoAdminRepository tipoAdminIdxRepository;
+    private final IdxConvocatoriaActividadRepository actividadIdxRepository;
+    private final IdxConvocatoriaReglamentoRepository reglamentoIdxRepository;
+    private final IdxConvocatoriaObjetivoRepository objetivoIdxRepository;
+    private final IdxConvocatoriaSectorProductoRepository sectorProductoIdxRepository;
     private final RegionService regionService;
 
     public ConvocatoriaPublicaController(ConvocatoriaRepository convocatoriaRepository,
+                                         IdxConvocatoriaBeneficiarioRepository beneficiarioRepository,
+                                         IdxConvocatoriaFinalidadRepository finalidadIdxRepository,
+                                         IdxConvocatoriaInstrumentoRepository instrumentoIdxRepository,
+                                         IdxConvocatoriaOrganoRepository organoIdxRepository,
+                                         IdxConvocatoriaRegionRepository regionIdxRepository,
+                                         IdxConvocatoriaTipoAdminRepository tipoAdminIdxRepository,
+                                         IdxConvocatoriaActividadRepository actividadIdxRepository,
+                                         IdxConvocatoriaReglamentoRepository reglamentoIdxRepository,
+                                         IdxConvocatoriaObjetivoRepository objetivoIdxRepository,
+                                         IdxConvocatoriaSectorProductoRepository sectorProductoIdxRepository,
                                          RegionService regionService) {
         this.convocatoriaRepository = convocatoriaRepository;
+        this.beneficiarioRepository = beneficiarioRepository;
+        this.finalidadIdxRepository = finalidadIdxRepository;
+        this.instrumentoIdxRepository = instrumentoIdxRepository;
+        this.organoIdxRepository = organoIdxRepository;
+        this.regionIdxRepository = regionIdxRepository;
+        this.tipoAdminIdxRepository = tipoAdminIdxRepository;
+        this.actividadIdxRepository = actividadIdxRepository;
+        this.reglamentoIdxRepository = reglamentoIdxRepository;
+        this.objetivoIdxRepository = objetivoIdxRepository;
+        this.sectorProductoIdxRepository = sectorProductoIdxRepository;
         this.regionService = regionService;
     }
 
@@ -45,6 +74,7 @@ public class ConvocatoriaPublicaController {
             @RequestParam(required = false) Boolean abierto,
             @RequestParam(required = false) Long regionId,
             @RequestParam(required = false) String ubicacion,
+            @RequestParam(required = false) Double presupuestoMin,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
@@ -74,10 +104,12 @@ public class ConvocatoriaPublicaController {
                 abierto == null || !abierto,
                 filtrarRegion,
                 regionIds,
+                presupuestoMin != null && presupuestoMin > 0 ? presupuestoMin : null,
                 pageRequest
         );
 
-        Page<ConvocatoriaPublicaDTO> dtos = resultado.map(this::toPublicDTO);
+        Map<String, List<String>> beneficiarioMap = cargarBeneficiarios(resultado.getContent());
+        Page<ConvocatoriaPublicaDTO> dtos = resultado.map(c -> toPublicDTO(c, beneficiarioMap));
         return ResponseEntity.ok(Map.of(
                 "content", dtos.getContent(),
                 "totalElements", dtos.getTotalElements(),
@@ -116,18 +148,51 @@ public class ConvocatoriaPublicaController {
     }
 
     /**
+     * Detalle completo de una convocatoria con datos de catálogos BDNS.
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<?> detalle(@PathVariable Long id) {
+        return convocatoriaRepository.findById(id)
+                .map(c -> ResponseEntity.ok(toDetalleDTO(c)))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
      * Últimas convocatorias para la sección de destacadas del Home.
      * Devuelve hasta 16 convocatorias recientes.
      */
     @GetMapping("/destacadas")
     public ResponseEntity<List<ConvocatoriaPublicaDTO>> destacadas() {
         List<Convocatoria> recientes = convocatoriaRepository.findTop16ByAbiertoTrueOrderByIdDesc();
-        List<ConvocatoriaPublicaDTO> dtos = recientes.stream().map(this::toPublicDTO).toList();
+        Map<String, List<String>> beneficiarioMap = cargarBeneficiarios(recientes);
+        List<ConvocatoriaPublicaDTO> dtos = recientes.stream().map(c -> toPublicDTO(c, beneficiarioMap)).toList();
         return ResponseEntity.ok(dtos);
     }
 
-    private ConvocatoriaPublicaDTO toPublicDTO(Convocatoria c) {
+    /**
+     * Carga los tipos de beneficiario para una lista de convocatorias en una sola query.
+     */
+    private Map<String, List<String>> cargarBeneficiarios(List<Convocatoria> convocatorias) {
+        Set<String> numeros = new HashSet<>();
+        for (Convocatoria c : convocatorias) {
+            if (c.getNumeroConvocatoria() != null) numeros.add(c.getNumeroConvocatoria());
+        }
+        if (numeros.isEmpty()) return Map.of();
+
+        Map<String, List<String>> map = new HashMap<>();
+        for (Object[] row : beneficiarioRepository.findBeneficiariosByNumeros(numeros)) {
+            String num = (String) row[0];
+            String desc = (String) row[1];
+            map.computeIfAbsent(num, k -> new ArrayList<>()).add(desc);
+        }
+        return map;
+    }
+
+    private ConvocatoriaPublicaDTO toPublicDTO(Convocatoria c, Map<String, List<String>> beneficiarioMap) {
         String url = construirUrl(c);
+        List<String> beneficiarios = c.getNumeroConvocatoria() != null
+                ? beneficiarioMap.getOrDefault(c.getNumeroConvocatoria(), List.of())
+                : List.of();
         return ConvocatoriaPublicaDTO.builder()
                 .id(c.getId())
                 .titulo(c.getTitulo())
@@ -144,6 +209,59 @@ public class ConvocatoriaPublicaController {
                 .presupuesto(c.getPresupuesto())
                 .regionId(c.getRegionId())
                 .provinciaId(c.getProvinciaId())
+                .tiposBeneficiario(beneficiarios)
+                .build();
+    }
+
+    private ConvocatoriaDetalleDTO toDetalleDTO(Convocatoria c) {
+        String num = c.getNumeroConvocatoria();
+        boolean hasNum = num != null && !num.isBlank();
+
+        List<String> beneficiarios = hasNum
+                ? beneficiarioRepository.findBeneficiariosByNumeros(Set.of(num)).stream()
+                    .map(row -> (String) row[1]).toList()
+                : List.of();
+        List<String> finalidades = hasNum ? finalidadIdxRepository.findDescripcionesByNumeroConvocatoria(num) : List.of();
+        List<String> instrumentos = hasNum ? instrumentoIdxRepository.findDescripcionesByNumeroConvocatoria(num) : List.of();
+        List<String> organos = hasNum ? organoIdxRepository.findDescripcionesByNumeroConvocatoria(num) : List.of();
+        List<String> regiones = hasNum ? regionIdxRepository.findDescripcionesByNumeroConvocatoria(num) : List.of();
+        List<String> tiposAdmin = hasNum ? tipoAdminIdxRepository.findTiposAdminByNumeroConvocatoria(num) : List.of();
+        List<String> actividades = hasNum ? actividadIdxRepository.findDescripcionesByNumeroConvocatoria(num) : List.of();
+        List<String> reglamentos = hasNum ? reglamentoIdxRepository.findDescripcionesByNumeroConvocatoria(num) : List.of();
+        List<String> objetivos = hasNum ? objetivoIdxRepository.findDescripcionesByNumeroConvocatoria(num) : List.of();
+        List<String> sectoresProducto = hasNum ? sectorProductoIdxRepository.findDescripcionesByNumeroConvocatoria(num) : List.of();
+
+        return ConvocatoriaDetalleDTO.builder()
+                .id(c.getId())
+                .titulo(c.getTitulo())
+                .tipo(c.getTipo())
+                .sector(c.getSector())
+                .ubicacion(c.getUbicacion())
+                .organismo(c.getOrganismo())
+                .descripcion(c.getDescripcion())
+                .textoCompleto(c.getTextoCompleto())
+                .urlOficial(construirUrl(c))
+                .idBdns(c.getIdBdns())
+                .numeroConvocatoria(c.getNumeroConvocatoria())
+                .finalidad(c.getFinalidad())
+                .presupuesto(c.getPresupuesto())
+                .abierto(c.getAbierto())
+                .mrr(c.getMrr())
+                .fechaCierre(c.getFechaCierre())
+                .fechaPublicacion(c.getFechaPublicacion())
+                .fechaInicio(c.getFechaInicio())
+                .regionId(c.getRegionId())
+                .provinciaId(c.getProvinciaId())
+                .tiposBeneficiario(beneficiarios)
+                .finalidades(finalidades)
+                .instrumentos(instrumentos)
+                .organos(organos)
+                .regiones(regiones)
+                .tipoAdmin(tiposAdmin.isEmpty() ? null : String.join(", ", tiposAdmin))
+                .actividades(actividades)
+                .reglamentos(reglamentos)
+                .objetivos(objetivos)
+                .sectoresProducto(sectoresProducto)
                 .build();
     }
 

@@ -19,6 +19,9 @@ import com.syntia.ai.service.BdnsEnrichmentService;
 import com.syntia.ai.service.BdnsEtlPanelService;
 import com.syntia.ai.service.BdnsImportJobService;
 import com.syntia.ai.service.ModoImportacion;
+import com.syntia.ai.service.CatalogoImportService;
+import com.syntia.ai.service.IndiceConvocatoriaService;
+import com.syntia.ai.service.IndiceJobService;
 import com.syntia.ai.service.ConvocatoriaService;
 import com.syntia.ai.service.PerfilService;
 import com.syntia.ai.service.ProyectoService;
@@ -64,6 +67,9 @@ public class AdminController {
     private final ConvocatoriaRepository convocatoriaRepository;
     private final PerfilRepository perfilRepository;
     private final com.syntia.ai.service.RegionService regionService;
+    private final CatalogoImportService catalogoImportService;
+    private final IndiceConvocatoriaService indiceConvocatoriaService;
+    private final IndiceJobService indiceJobService;
 
     public AdminController(UsuarioService usuarioService,
                            PerfilService perfilService,
@@ -78,7 +84,10 @@ public class AdminController {
                            BdnsEnrichmentService bdnsEnrichmentService,
                            ConvocatoriaRepository convocatoriaRepository,
                            PerfilRepository perfilRepository,
-                           com.syntia.ai.service.RegionService regionService) {
+                           com.syntia.ai.service.RegionService regionService,
+                           CatalogoImportService catalogoImportService,
+                           IndiceConvocatoriaService indiceConvocatoriaService,
+                           IndiceJobService indiceJobService) {
         this.usuarioService = usuarioService;
         this.perfilService = perfilService;
         this.convocatoriaService = convocatoriaService;
@@ -93,6 +102,9 @@ public class AdminController {
         this.convocatoriaRepository = convocatoriaRepository;
         this.perfilRepository = perfilRepository;
         this.regionService = regionService;
+        this.catalogoImportService = catalogoImportService;
+        this.indiceConvocatoriaService = indiceConvocatoriaService;
+        this.indiceJobService = indiceJobService;
     }
 
     // ─────────────────────────────────────────────
@@ -455,6 +467,53 @@ public class AdminController {
     @GetMapping("/regiones/count")
     public ResponseEntity<?> contarRegiones() {
         return ResponseEntity.ok(Map.of("total", regionService.count()));
+    }
+
+    // ── ETL Fase 1: Catálogos ──────────────────────────────────────────────────
+
+    /** Devuelve los conteos actuales de las tablas cat_*. */
+    @GetMapping("/etl/catalogos")
+    public ResponseEntity<?> conteoCatalogos() {
+        return ResponseEntity.ok(catalogoImportService.contarTodos());
+    }
+
+    /** Importa (o reimporta) todos los catálogos BDNS. Operación rápida, síncrona. */
+    @PostMapping("/etl/catalogos")
+    public ResponseEntity<?> importarCatalogos() {
+        try {
+            CatalogoImportService.ResultadoCatalogos resultado = catalogoImportService.importarTodos();
+            return ResponseEntity.ok(resultado);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "Error importando catálogos: " + e.getMessage()));
+        }
+    }
+
+    // ── ETL Fase 2: Índices ────────────────────────────────────────────────────
+
+    /** Devuelve el estado actual del job de construcción de índices y los conteos. */
+    @GetMapping("/etl/indices")
+    public ResponseEntity<?> estadoIndices() {
+        IndiceJobService.EstadoJob estado = indiceJobService.obtenerEstado();
+        IndiceConvocatoriaService.ConteoIndices conteos = indiceConvocatoriaService.contarTodos();
+        return ResponseEntity.ok(Map.of("job", estado, "conteos", conteos));
+    }
+
+    /** Lanza la construcción de índices en segundo plano. */
+    @PostMapping("/etl/indices")
+    public ResponseEntity<?> construirIndices() {
+        boolean iniciado = indiceJobService.iniciar();
+        if (!iniciado) {
+            return ResponseEntity.status(409).body(Map.of("error", "Ya hay un job de índices en curso"));
+        }
+        return ResponseEntity.accepted().body(Map.of("mensaje", "Construcción de índices iniciada en segundo plano"));
+    }
+
+    /** Cancela el job de índices en curso. */
+    @DeleteMapping("/etl/indices")
+    public ResponseEntity<?> cancelarIndices() {
+        boolean cancelado = indiceJobService.cancelar();
+        return ResponseEntity.ok(Map.of("cancelado", cancelado));
     }
 
     // ─────────────────────────────────────────────

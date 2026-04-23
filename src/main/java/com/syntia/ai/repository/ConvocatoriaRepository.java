@@ -75,18 +75,32 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
      * y por ubicación (Nacional siempre incluido).
      * Usado por ConvocatoriaBdLocalService como alternativa a la API live de BDNS.
      */
+    /**
+     * Búsqueda local para modo gratuito.
+     * IMPORTANTE: :keyword y :ubicacion deben llegar ya en minúsculas y envueltos en '%'
+     * (ej: "%tecnología%") para evitar el bug lower(bytea) de Hibernate 6 + PostgreSQL.
+     */
     @Query("SELECT c FROM Convocatoria c WHERE " +
-            "(:keyword IS NULL OR LOWER(c.titulo) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
-            "   OR LOWER(c.sector) LIKE LOWER(CONCAT('%', :keyword, '%'))) AND " +
+            "(:keyword IS NULL OR LOWER(c.titulo) LIKE :keyword " +
+            "   OR LOWER(c.sector) LIKE :keyword" +
+            "   OR (c.descripcion IS NOT NULL AND LOWER(c.descripcion) LIKE :keyword)" +
+            "   OR (c.finalidad IS NOT NULL AND LOWER(c.finalidad) LIKE :keyword)) AND " +
             "(:ubicacion IS NULL OR LOWER(c.ubicacion) = 'nacional' " +
-            "   OR LOWER(c.ubicacion) LIKE LOWER(CONCAT('%', :ubicacion, '%')))")
+            "   OR LOWER(c.ubicacion) LIKE :ubicacion)")
     List<Convocatoria> buscarParaModoGratuito(@Param("keyword") String keyword,
                                               @Param("ubicacion") String ubicacion);
 
+    /**
+     * Búsqueda local con filtro de región jerárquico.
+     * IMPORTANTE: :keyword y :ubicacionTexto deben llegar ya en minúsculas y envueltos en '%'
+     * (ej: "%tecnología%") para evitar el bug lower(bytea) de Hibernate 6 + PostgreSQL.
+     */
     @Query("SELECT c FROM Convocatoria c WHERE " +
-            "(:keyword IS NULL OR LOWER(c.titulo) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
-            "   OR LOWER(c.sector) LIKE LOWER(CONCAT('%', :keyword, '%'))) AND " +
-            "(:filtrarRegion = false OR (c.regionId IN :regionIds OR c.provinciaId IN :regionIds) OR LOWER(c.ubicacion) = 'nacional' OR LOWER(c.ubicacion) LIKE LOWER(CONCAT('%', :ubicacionTexto, '%')))")
+            "(:keyword IS NULL OR LOWER(c.titulo) LIKE :keyword " +
+            "   OR LOWER(c.sector) LIKE :keyword" +
+            "   OR (c.descripcion IS NOT NULL AND LOWER(c.descripcion) LIKE :keyword)" +
+            "   OR (c.finalidad IS NOT NULL AND LOWER(c.finalidad) LIKE :keyword)) AND " +
+            "(:filtrarRegion = false OR (c.regionId IN :regionIds OR c.provinciaId IN :regionIds) OR LOWER(c.ubicacion) = 'nacional' OR LOWER(c.ubicacion) LIKE :ubicacionTexto)")
     List<Convocatoria> buscarParaModoGratuitoConRegion(@Param("keyword") String keyword,
                                                        @Param("filtrarRegion") boolean filtrarRegion,
                                                        @Param("regionIds") Collection<Integer> regionIds,
@@ -158,13 +172,15 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
             "(:tipo IS NULL OR :tipo = '' OR " +
             "   (c.tipo IS NOT NULL AND LOWER(c.tipo) = LOWER(:tipo))) AND " +
             "(:incluirCerradas = true OR c.abierto = true) AND " +
-            "(:filtrarRegion = false OR (c.regionId IN :regionIds OR c.provinciaId IN :regionIds OR LOWER(c.ubicacion) = 'nacional'))")
+            "(:filtrarRegion = false OR (c.regionId IN :regionIds OR c.provinciaId IN :regionIds OR LOWER(c.ubicacion) = 'nacional')) AND " +
+            "(:presupuestoMin IS NULL OR (c.presupuesto IS NOT NULL AND c.presupuesto >= :presupuestoMin))")
     Page<Convocatoria> buscarPublicoConRegion(@Param("q") String q,
                                               @Param("sector") String sector,
                                               @Param("tipo") String tipo,
                                               @Param("incluirCerradas") boolean incluirCerradas,
                                               @Param("filtrarRegion") boolean filtrarRegion,
                                               @Param("regionIds") Collection<Integer> regionIds,
+                                              @Param("presupuestoMin") Double presupuestoMin,
                                               Pageable pageable);
 
     /** Devuelve los valores distintos de finalidad no nulos, ordenados alfabéticamente. */

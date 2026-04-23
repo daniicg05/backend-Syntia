@@ -77,6 +77,18 @@ public class OpenAiMatchingService {
         return parsearRespuesta(respuesta, proyecto, convocatoria);
     }
 
+    /**
+     * Analiza una convocatoria leyendo sus datos y el detalle BDNS.
+     * Extrae requisitos, documentación y plazos sin contexto de usuario.
+     */
+    public ResultadoIA analizarConvocatoria(Convocatoria convocatoria, String detalleTexto) {
+        String userPrompt = construirPromptSoloConvocatoria(convocatoria, detalleTexto);
+        log.debug("Prompt OpenAI (convocatoria) conv={} detalle={}chars",
+                convocatoria.getId(), detalleTexto != null ? detalleTexto.length() : 0);
+        String respuesta = openAiClient.chat(SYSTEM_PROMPT, userPrompt);
+        return parsearRespuestaSinProyecto(respuesta, convocatoria);
+    }
+
     private String construirPrompt(Proyecto proyecto, Perfil perfil, Convocatoria convocatoria, String detalleTexto) {
         StringBuilder sb = new StringBuilder();
 
@@ -181,6 +193,54 @@ public class OpenAiMatchingService {
         }
     }
 
+
+    private String construirPromptSoloConvocatoria(Convocatoria convocatoria, String detalleTexto) {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("=== CONVOCATORIA PÚBLICA (BDNS) ===\n");
+        sb.append("Título: ").append(convocatoria.getTitulo()).append("\n");
+        appendIfPresent(sb, "Organismo", convocatoria.getFuente());
+        appendIfPresent(sb, "Tipo", convocatoria.getTipo());
+        appendIfPresent(sb, "Ámbito", convocatoria.getUbicacion());
+        appendIfPresent(sb, "Sector", convocatoria.getSector());
+        if (convocatoria.getFechaCierre() != null)
+            sb.append("Cierre: ").append(convocatoria.getFechaCierre()).append("\n");
+
+        if (detalleTexto != null && !detalleTexto.isBlank()) {
+            sb.append("\n=== CONTENIDO OFICIAL DE LA CONVOCATORIA ===\n");
+            sb.append(limpiarTexto(detalleTexto)).append("\n");
+            sb.append("(Usa este contenido para requisitos EXACTOS y guía precisa.)\n");
+        } else {
+            sb.append("\n(Detalle no disponible. Infiere a partir del título y organismo.)\n");
+        }
+
+        sb.append("\n=== INSTRUCCIÓN ===\n");
+        sb.append("Analiza esta convocatoria y extrae los requisitos, documentación y procedimiento. ");
+        if (detalleTexto != null) {
+            sb.append("Usa el CONTENIDO OFICIAL para requisitos y guía EXACTOS.");
+        } else {
+            sb.append("No hay contenido oficial. Infiere requisitos y guía del título y organismo.");
+        }
+
+        return sb.toString();
+    }
+
+    private ResultadoIA parsearRespuestaSinProyecto(String respuesta, Convocatoria convocatoria) {
+        try {
+            JsonNode node = objectMapper.readTree(respuesta);
+            int puntuacion = Math.max(0, Math.min(100, node.path("puntuacion").asInt()));
+            String explicacion = node.path("explicacion").asText("Sin explicación disponible.");
+            String sector = node.path("sector").asText(null);
+            if (sector != null && sector.isBlank()) sector = null;
+            String guia = node.path("guia").asText(null);
+            if (guia != null && guia.isBlank()) guia = null;
+            log.debug("OpenAI (perfil) punt={} sector='{}' conv={}", puntuacion, sector, convocatoria.getId());
+            return new ResultadoIA(puntuacion, explicacion, sector, guia, true);
+        } catch (Exception e) {
+            log.warn("Error parseando OpenAI: {}. Raw={}", e.getMessage(), respuesta);
+            throw new OpenAiClient.OpenAiUnavailableException("Respuesta no parseable: " + e.getMessage());
+        }
+    }
 
     public record ResultadoIA(int puntuacion, String explicacion, String sector, String guia, boolean usadaIA) {
     }
