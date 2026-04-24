@@ -670,6 +670,32 @@ public class BdnsClientService {
     }
 
     /**
+     * Obtiene el detalle completo de una convocatoria desde la API BDNS en tiempo real.
+     * Devuelve el Map crudo con todos los campos para construir el DTO enriquecido.
+     * Devuelve null si la API no responde.
+     */
+    public Map<String, Object> obtenerDetalleLive(String numeroConvocatoria) {
+        if (numeroConvocatoria == null || numeroConvocatoria.isBlank()) return null;
+
+        try {
+            String url = UriComponentsBuilder.fromHttpUrl(BDNS_DETALLE)
+                    .queryParam("numConv", numeroConvocatoria)
+                    .toUriString();
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> detalle = restClient.get()
+                    .uri(url)
+                    .retrieve()
+                    .body(Map.class);
+
+            return detalle;
+        } catch (Exception e) {
+            log.warn("BDNS detalle live no disponible para numConv={}: {}", numeroConvocatoria, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
      * Enriquece un ConvocatoriaDTO con datos del endpoint de detalle BDNS.
      * Popula: sector real (desde sectores NACE), presupuesto, fechaInicio, fechaCierre, abierto, finalidad.
      * Solo llamar para búsquedas de usuario (no ETL masivo).
