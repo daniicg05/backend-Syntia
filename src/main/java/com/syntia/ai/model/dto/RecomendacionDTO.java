@@ -27,6 +27,8 @@ public class RecomendacionDTO {
     private String organismo;
     private Double presupuesto;
     private LocalDate fechaPublicacion;
+    private String numeroConvocatoria;
+    private Boolean abierto;
 
     private boolean vigente;
 }

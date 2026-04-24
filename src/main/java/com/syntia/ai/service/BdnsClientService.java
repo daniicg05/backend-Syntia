@@ -755,6 +755,17 @@ public class BdnsClientService {
                 }
             }
 
+            // Fecha real de publicación: usar fechaInicioSolicitud si es anterior a fechaRecepcion
+            // (fechaRecepcion = fecha de registro en BDNS, puede ser muy posterior a la apertura real)
+            if (fechaInicio != null) {
+                try {
+                    LocalDate inicio = LocalDate.parse(fechaInicio.substring(0, 10));
+                    if (dto.getFechaPublicacion() == null || inicio.isBefore(dto.getFechaPublicacion())) {
+                        dto.setFechaPublicacion(inicio);
+                    }
+                } catch (Exception ignored) {}
+            }
+
             log.debug("BDNS enriquecer numConv={}: sector='{}' presupuesto={} abierto={} finalidad='{}' regionId={}",
                     numConv, dto.getSector(), dto.getPresupuesto(), dto.getAbierto(), dto.getFinalidad(), dto.getRegionId());
 
@@ -891,14 +902,24 @@ public class BdnsClientService {
             dto.setUrlOficial("https://www.infosubvenciones.es/bdnstrans/GE/es/convocatoria/" + idBdns);
         }
 
-        // Fecha de publicación: fechaRecepcion = fecha de registro en BDNS
+        // Fecha de publicación: preferir fechaInicioSolicitud (apertura real del plazo),
+        // fallback a fechaRecepcion (fecha de registro en BDNS, menos fiable)
+        String fechaInicioSol = getString(c, "fechaInicioSolicitud", null);
         String fechaRecepcion = getString(c, "fechaRecepcion", null);
-        if (fechaRecepcion != null) {
+        String mejorFechaPubl = fechaInicioSol != null ? fechaInicioSol : fechaRecepcion;
+        if (mejorFechaPubl != null) {
             try {
-                dto.setFechaPublicacion(LocalDate.parse(fechaRecepcion.substring(0, 10)));
+                dto.setFechaPublicacion(LocalDate.parse(mejorFechaPubl.substring(0, 10)));
             } catch (Exception e) {
-                log.debug("BDNS: no se pudo parsear fechaRecepcion: {}", fechaRecepcion);
+                log.debug("BDNS: no se pudo parsear fecha publicación: {}", mejorFechaPubl);
             }
+        }
+
+        // Fecha de inicio de solicitud
+        if (fechaInicioSol != null) {
+            try {
+                dto.setFechaInicio(LocalDate.parse(fechaInicioSol.substring(0, 10)));
+            } catch (Exception ignored) {}
         }
 
         // Descripcion: mismo campo que el título en BDNS, se guarda también como descripción

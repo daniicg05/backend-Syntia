@@ -196,7 +196,9 @@ public class ConvocatoriaService {
             if (c.getOrganismo() == null && dto.getOrganismo() != null) {
                 c.setOrganismo(dto.getOrganismo()); cambios = true;
             }
-            if (c.getFechaPublicacion() == null && dto.getFechaPublicacion() != null) {
+            // Siempre actualizar fechaPublicacion si el DTO trae una distinta
+            // (corrige importaciones previas que usaban fechaRecepcion en vez de la fecha real del diario oficial)
+            if (dto.getFechaPublicacion() != null && !dto.getFechaPublicacion().equals(c.getFechaPublicacion())) {
                 c.setFechaPublicacion(dto.getFechaPublicacion()); cambios = true;
             }
             if (c.getDescripcion() == null && dto.getDescripcion() != null) {

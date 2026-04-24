@@ -2,6 +2,7 @@ package com.syntia.ai.model.dto;
 
 import lombok.*;
 import java.time.LocalDate;
+import java.util.List;
 
 @Getter
 @Setter
@@ -30,4 +31,6 @@ public class ConvocatoriaPublicaDTO {
     private Integer regionId;
     /** ID de provincia del catálogo BDNS (nivel NUTS 3, hijo de region_id). */
     private Integer provinciaId;
+    /** Tipos de beneficiario asociados a la convocatoria (del catálogo BDNS). */
+    private List<String> tiposBeneficiario;
 }

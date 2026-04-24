@@ -19,6 +19,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
 
@@ -26,6 +28,7 @@ import java.util.stream.Collectors;
  * Manejador global de excepciones para controladores REST (/api/**).
  * Devuelve respuestas JSON estandarizadas con ErrorResponse.
  */
+@Slf4j
 @RestControllerAdvice(basePackages = "com.syntia.ai.controller.api")
 public class GlobalExceptionHandler {
 
@@ -103,6 +106,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(
             Exception ex, HttpServletRequest request) {
+        log.error("Error no controlado en {}: {}", request.getRequestURI(), ex.getMessage(), ex);
         return build(HttpStatus.INTERNAL_SERVER_ERROR,
                 "Error interno en el servidor", request);
     }
