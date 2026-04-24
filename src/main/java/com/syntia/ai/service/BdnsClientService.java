@@ -1060,6 +1060,7 @@ public class BdnsClientService {
         if (containsAny(d, "social", "familia", "discapacidad", "mayores", "infanc")) return "Social";
         if (containsAny(d, "pyme", "empresa", "comercio", "emprendedor", "autónom")) return "Empresa";
         return null;
+
     }
 
     private boolean containsAny(String text, String... keywords) {
