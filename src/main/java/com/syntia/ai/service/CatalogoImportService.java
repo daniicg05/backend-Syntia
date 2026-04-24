@@ -78,94 +78,83 @@ public class CatalogoImportService {
         if (onProgreso != null) onProgreso.accept(mensaje);
     }
 
+    private static final long PAUSA_ENTRE_CATALOGOS_MS = 2_000L;
+
     private int importarFinalidades() {
-        List<BdnsCatalogoClient.CatItem> items = bdnsCatalogoClient.fetchPlano("/finalidades");
+        List<BdnsCatalogoClient.CatItem> items = bdnsCatalogoClient.fetchPlanoConRetry("/finalidades");
         if (items.isEmpty()) { log.warn("Finalidades: API devolvió 0 registros, se mantienen datos actuales"); return (int) finalidadRepo.count(); }
         finalidadRepo.deleteAll();
-        List<CatFinalidad> entidades = items.stream()
-                .map(i -> CatFinalidad.builder().id(i.id()).descripcion(i.descripcion()).build())
-                .toList();
-        finalidadRepo.saveAll(entidades);
-        log.info("Finalidades importadas: {}", entidades.size());
-        return entidades.size();
+        finalidadRepo.saveAll(items.stream().map(i -> CatFinalidad.builder().id(i.id()).descripcion(i.descripcion()).build()).toList());
+        log.info("Finalidades importadas: {}", items.size());
+        pausa();
+        return items.size();
     }
 
     private int importarInstrumentos() {
-        List<BdnsCatalogoClient.CatItem> items = bdnsCatalogoClient.fetchPlano("/instrumentos");
+        List<BdnsCatalogoClient.CatItem> items = bdnsCatalogoClient.fetchPlanoConRetry("/instrumentos");
         if (items.isEmpty()) { log.warn("Instrumentos: API devolvió 0 registros, se mantienen datos actuales"); return (int) instrumentoRepo.count(); }
         instrumentoRepo.deleteAll();
-        List<CatInstrumento> entidades = items.stream()
-                .map(i -> CatInstrumento.builder().id(i.id()).descripcion(i.descripcion()).build())
-                .toList();
-        instrumentoRepo.saveAll(entidades);
-        log.info("Instrumentos importados: {}", entidades.size());
-        return entidades.size();
+        instrumentoRepo.saveAll(items.stream().map(i -> CatInstrumento.builder().id(i.id()).descripcion(i.descripcion()).build()).toList());
+        log.info("Instrumentos importados: {}", items.size());
+        pausa();
+        return items.size();
     }
 
     private int importarBeneficiarios() {
-        List<BdnsCatalogoClient.CatItem> items = bdnsCatalogoClient.fetchPlano("/beneficiarios");
+        List<BdnsCatalogoClient.CatItem> items = bdnsCatalogoClient.fetchPlanoConRetry("/beneficiarios");
         if (items.isEmpty()) { log.warn("Beneficiarios: API devolvió 0 registros, se mantienen datos actuales"); return (int) beneficiarioRepo.count(); }
         beneficiarioRepo.deleteAll();
-        List<CatBeneficiario> entidades = items.stream()
-                .map(i -> CatBeneficiario.builder().id(i.id()).descripcion(i.descripcion()).build())
-                .toList();
-        beneficiarioRepo.saveAll(entidades);
-        log.info("Beneficiarios importados: {}", entidades.size());
-        return entidades.size();
+        beneficiarioRepo.saveAll(items.stream().map(i -> CatBeneficiario.builder().id(i.id()).descripcion(i.descripcion()).build()).toList());
+        log.info("Beneficiarios importados: {}", items.size());
+        pausa();
+        return items.size();
     }
 
     private int importarActividades() {
-        List<BdnsCatalogoClient.CatItem> items = bdnsCatalogoClient.fetchPlano("/actividades");
+        List<BdnsCatalogoClient.CatItem> items = bdnsCatalogoClient.fetchPlanoConRetry("/actividades");
         if (items.isEmpty()) { log.warn("Actividades: API devolvió 0 registros, se mantienen datos actuales"); return (int) actividadRepo.count(); }
         actividadRepo.deleteAll();
-        List<CatActividad> entidades = items.stream()
-                .map(i -> CatActividad.builder().id(i.id()).descripcion(i.descripcion()).build())
-                .toList();
-        actividadRepo.saveAll(entidades);
-        log.info("Actividades importadas: {}", entidades.size());
-        return entidades.size();
+        actividadRepo.saveAll(items.stream().map(i -> CatActividad.builder().id(i.id()).descripcion(i.descripcion()).build()).toList());
+        log.info("Actividades importadas: {}", items.size());
+        pausa();
+        return items.size();
     }
 
     private int importarReglamentos() {
-        List<BdnsCatalogoClient.CatItem> items = bdnsCatalogoClient.fetchPlano("/reglamentos");
+        List<BdnsCatalogoClient.CatItem> items = bdnsCatalogoClient.fetchPlanoConRetry("/reglamentos");
         if (items.isEmpty()) { log.warn("Reglamentos: API devolvió 0 registros, se mantienen datos actuales"); return (int) reglamentoRepo.count(); }
         reglamentoRepo.deleteAll();
-        List<CatReglamento> entidades = items.stream()
-                .map(i -> CatReglamento.builder().id(i.id()).descripcion(i.descripcion()).build())
-                .toList();
-        reglamentoRepo.saveAll(entidades);
-        log.info("Reglamentos importados: {}", entidades.size());
-        return entidades.size();
+        reglamentoRepo.saveAll(items.stream().map(i -> CatReglamento.builder().id(i.id()).descripcion(i.descripcion()).build()).toList());
+        log.info("Reglamentos importados: {}", items.size());
+        pausa();
+        return items.size();
     }
 
     private int importarObjetivos() {
-        List<BdnsCatalogoClient.CatItem> items = bdnsCatalogoClient.fetchPlano("/objetivos");
+        List<BdnsCatalogoClient.CatItem> items = bdnsCatalogoClient.fetchPlanoConRetry("/objetivos");
         if (items.isEmpty()) { log.warn("Objetivos: API devolvió 0 registros, se mantienen datos actuales"); return (int) objetivoRepo.count(); }
         objetivoRepo.deleteAll();
-        List<CatObjetivo> entidades = items.stream()
-                .map(i -> CatObjetivo.builder().id(i.id()).descripcion(i.descripcion()).build())
-                .toList();
-        objetivoRepo.saveAll(entidades);
-        log.info("Objetivos importados: {}", entidades.size());
-        return entidades.size();
+        objetivoRepo.saveAll(items.stream().map(i -> CatObjetivo.builder().id(i.id()).descripcion(i.descripcion()).build()).toList());
+        log.info("Objetivos importados: {}", items.size());
+        pausa();
+        return items.size();
     }
 
     private int importarSectoresProducto() {
-        List<BdnsCatalogoClient.CatItem> items = bdnsCatalogoClient.fetchPlano("/sectores");
+        List<BdnsCatalogoClient.CatItem> items = bdnsCatalogoClient.fetchPlanoConRetry("/sectores");
         if (items.isEmpty()) { log.warn("SectoresProducto: API devolvió 0 registros, se mantienen datos actuales"); return (int) sectorProductoRepo.count(); }
         sectorProductoRepo.deleteAll();
-        List<CatSectorProducto> entidades = items.stream()
-                .map(i -> CatSectorProducto.builder().id(i.id()).descripcion(i.descripcion()).build())
-                .toList();
-        sectorProductoRepo.saveAll(entidades);
-        log.info("SectoresProducto importados: {}", entidades.size());
-        return entidades.size();
+        sectorProductoRepo.saveAll(items.stream().map(i -> CatSectorProducto.builder().id(i.id()).descripcion(i.descripcion()).build()).toList());
+        log.info("SectoresProducto importados: {}", items.size());
+        pausa();
+        return items.size();
     }
 
     private int importarOrganos() {
-        // Fetch todos los tipos primero, antes de borrar
+        // Fetch todos los tipos primero (con pausa entre cada uno para evitar 429), antes de borrar
         List<CatOrgano> todosOrganos = new ArrayList<>();
         for (String tipo : List.of("C", "A", "L", "O")) {
+            log.info("Descargando órganos tipo={}...", tipo);
             List<BdnsCatalogoClient.OrganoItem> items = bdnsCatalogoClient.fetchOrganos(tipo);
             for (BdnsCatalogoClient.OrganoItem i : items) {
                 todosOrganos.add(CatOrgano.builder()
@@ -176,6 +165,7 @@ public class CatalogoImportService {
                         .build());
             }
             log.info("Organos tipo={} descargados: {}", tipo, items.size());
+            pausa();
         }
         if (todosOrganos.isEmpty()) {
             log.warn("Organos: API devolvió 0 registros en total, se mantienen datos actuales");
@@ -185,6 +175,10 @@ public class CatalogoImportService {
         organoRepo.saveAll(todosOrganos);
         log.info("Organos importados total: {}", todosOrganos.size());
         return todosOrganos.size();
+    }
+
+    private void pausa() {
+        try { Thread.sleep(PAUSA_ENTRE_CATALOGOS_MS); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
     }
 
     /** Devuelve conteos actuales de todas las tablas cat_*. */
