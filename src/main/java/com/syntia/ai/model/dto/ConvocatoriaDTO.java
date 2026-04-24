@@ -7,6 +7,8 @@ import org.springframework.format.annotation.DateTimeFormat;
 import java.time.LocalDate;
 
 public class ConvocatoriaDTO {
+    private Long id;
+
     @NotBlank(message = "El título es obligatorio")
     @Size(max = 300, message = "El título no puede superar los 300 caracteres")
     private String titulo;
@@ -52,6 +54,14 @@ public class ConvocatoriaDTO {
     private Integer provinciaId;
 
     public ConvocatoriaDTO() {
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
     }
 
     public String getTitulo() {

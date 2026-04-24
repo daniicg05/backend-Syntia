@@ -4,18 +4,11 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Getter
 @Setter
-public class RecomendacionDTO {
-    private Long id;
-    private int puntuacion;
-    private String explicacion;
-    private String guia;
-    private String guiaEnriquecida;
-    private Boolean usadaIa;
-    private Boolean favorita;
-
+public class ConvocatoriaFavoritaDTO {
     private Long convocatoriaId;
     private String titulo;
     private String tipo;
@@ -27,8 +20,7 @@ public class RecomendacionDTO {
     private String organismo;
     private Double presupuesto;
     private LocalDate fechaPublicacion;
-    private String numeroConvocatoria;
-    private Boolean abierto;
 
-    private boolean vigente;
+    private LocalDateTime fechaFavorita;
 }
+

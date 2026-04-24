@@ -4,6 +4,7 @@ import com.syntia.ai.model.Convocatoria;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -31,7 +32,18 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
 
     boolean existsByIdBdns(String idBdns);
 
+    /** Corrige en bloque URLs antiguas de BDNS evitando cargar entidades en memoria. */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = "UPDATE convocatorias SET url_oficial = REPLACE(url_oficial, '/bdnstrans/GE/es/convocatoria/', '/bdnstrans/GE/es/convocatorias/') " +
+            "WHERE url_oficial LIKE '%/bdnstrans/GE/es/convocatoria/%'", nativeQuery = true)
+    int corregirUrlsAntiguasBulk();
+
     Optional<Convocatoria> findByIdBdns(String idBdns);
+
+    /** Actualiza el sector solo si está vacío para evitar merges innecesarios de entidad. */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE Convocatoria c SET c.sector = :sector WHERE c.id = :id AND (c.sector IS NULL OR c.sector = '')")
+    int actualizarSectorSiVacioPorId(@Param("id") Long id, @Param("sector") String sector);
 
     /**
      * Busca una convocatoria por título (ignorando mayúsculas) y fuente.

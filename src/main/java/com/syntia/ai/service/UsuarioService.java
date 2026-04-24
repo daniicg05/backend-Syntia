@@ -6,6 +6,7 @@ import com.syntia.ai.model.HistorialCorreo;
 import com.syntia.ai.model.Rol;
 import com.syntia.ai.model.Usuario;
 import com.syntia.ai.repository.HistorialCorreoRepository;
+import com.syntia.ai.repository.ConvocatoriaFavoritaRepository;
 import com.syntia.ai.repository.PerfilRepository;
 import com.syntia.ai.repository.ProyectoRepository;
 import com.syntia.ai.repository.RecomendacionRepository;
@@ -32,6 +33,7 @@ public class UsuarioService {
     private final PerfilRepository perfilRepository;
     private final ProyectoRepository proyectoRepository;
     private final RecomendacionRepository recomendacionRepository;
+    private final ConvocatoriaFavoritaRepository convocatoriaFavoritaRepository;
     private final PasswordEncoder passwordEncoder;
 
     /**
@@ -67,12 +69,14 @@ public class UsuarioService {
                           PerfilRepository perfilRepository,
                           ProyectoRepository proyectoRepository,
                           RecomendacionRepository recomendacionRepository,
+                          ConvocatoriaFavoritaRepository convocatoriaFavoritaRepository,
                           PasswordEncoder passwordEncoder) {
         this.usuarioRepository = usuarioRepository;
         this.historialCorreoRepository = historialCorreoRepository;
         this.perfilRepository = perfilRepository;
         this.proyectoRepository = proyectoRepository;
         this.recomendacionRepository = recomendacionRepository;
+        this.convocatoriaFavoritaRepository = convocatoriaFavoritaRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -159,6 +163,7 @@ public class UsuarioService {
         validarNoEsSuperAdminProtegido(usuario);
 
         // Orden importante para respetar FKs: recomendaciones -> proyectos -> perfil/historial -> usuario.
+        convocatoriaFavoritaRepository.deleteByUsuarioId(id);
         recomendacionRepository.deleteByProyectoUsuarioId(id);
         proyectoRepository.deleteByUsuarioId(id);
         perfilRepository.deleteByUsuarioId(id);

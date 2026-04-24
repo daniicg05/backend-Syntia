@@ -1,6 +1,7 @@
 package com.syntia.ai.controller.api;
 
 import com.syntia.ai.model.Convocatoria;
+import com.syntia.ai.model.dto.ConvocatoriaDTO;
 import com.syntia.ai.model.dto.ConvocatoriaDetalleDTO;
 import com.syntia.ai.model.dto.ConvocatoriaPublicaDTO;
 import com.syntia.ai.model.dto.RegionNodoDTO;
@@ -14,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Endpoints públicos de convocatorias: búsqueda y destacadas para el Home.
@@ -22,6 +24,8 @@ import java.util.*;
 @RestController
 @RequestMapping("/api/convocatorias/publicas")
 public class ConvocatoriaPublicaController {
+
+    private static final long DETALLE_CACHE_TTL_MS = 300_000L;
 
     private final ConvocatoriaRepository convocatoriaRepository;
     private final IdxConvocatoriaBeneficiarioRepository beneficiarioRepository;
@@ -35,6 +39,9 @@ public class ConvocatoriaPublicaController {
     private final IdxConvocatoriaObjetivoRepository objetivoIdxRepository;
     private final IdxConvocatoriaSectorProductoRepository sectorProductoIdxRepository;
     private final RegionService regionService;
+    private final Map<Long, CachedDetalle> cacheDetallePublico = new ConcurrentHashMap<>();
+
+    private record CachedDetalle(ConvocatoriaDetalleDTO dto, long ts) {}
 
     public ConvocatoriaPublicaController(ConvocatoriaRepository convocatoriaRepository,
                                          IdxConvocatoriaBeneficiarioRepository beneficiarioRepository,
@@ -151,10 +158,75 @@ public class ConvocatoriaPublicaController {
      * Detalle completo de una convocatoria con datos de catálogos BDNS.
      */
     @GetMapping("/{id}")
-    public ResponseEntity<?> detalle(@PathVariable Long id) {
+    public ResponseEntity<?> detalleCompleto(@PathVariable Long id) {
         return convocatoriaRepository.findById(id)
                 .map(c -> ResponseEntity.ok(toDetalleDTO(c)))
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Detalle simplificado con caché en memoria.
+     */
+    @GetMapping("/simple/{id}")
+    public ResponseEntity<ConvocatoriaDetalleDTO> detalle(@PathVariable Long id) {
+        long now = System.currentTimeMillis();
+        CachedDetalle cached = cacheDetallePublico.get(id);
+        if (cached != null && (now - cached.ts()) < DETALLE_CACHE_TTL_MS) {
+            return ResponseEntity.ok(cached.dto());
+        }
+
+        return convocatoriaRepository.findById(id)
+                .map(c -> {
+                    ConvocatoriaDetalleDTO dto = ConvocatoriaDetalleDTO.builder()
+                            .id(c.getId())
+                            .idBdns(c.getIdBdns())
+                            .sector(c.getSector())
+                            .descripcion(c.getDescripcion())
+                            .tiposBeneficiario(Collections.emptyList())
+                            .build();
+                    cacheDetallePublico.put(id, new CachedDetalle(dto, now));
+                    return ResponseEntity.ok(dto);
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Detalle por lote para evitar N peticiones consecutivas al endpoint /{id}.
+     * Devuelve un mapa id -> detalle para los IDs existentes.
+     */
+    @GetMapping("/detalles")
+    public ResponseEntity<Map<Long, ConvocatoriaDetalleDTO>> detalles(@RequestParam List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return ResponseEntity.ok(Map.of());
+        }
+
+        long now = System.currentTimeMillis();
+        Map<Long, ConvocatoriaDetalleDTO> resultado = new HashMap<>();
+        List<Long> pendientes = ids.stream().distinct().filter(id -> {
+            CachedDetalle cached = cacheDetallePublico.get(id);
+            if (cached != null && (now - cached.ts()) < DETALLE_CACHE_TTL_MS) {
+                resultado.put(id, cached.dto());
+                return false;
+            }
+            return true;
+        }).toList();
+
+        if (!pendientes.isEmpty()) {
+            List<Convocatoria> convocatorias = convocatoriaRepository.findAllById(pendientes);
+            for (Convocatoria c : convocatorias) {
+                ConvocatoriaDetalleDTO dto = ConvocatoriaDetalleDTO.builder()
+                        .id(c.getId())
+                        .idBdns(c.getIdBdns())
+                        .sector(c.getSector())
+                        .descripcion(c.getDescripcion())
+                        .tiposBeneficiario(Collections.emptyList())
+                        .build();
+                resultado.put(c.getId(), dto);
+                cacheDetallePublico.put(c.getId(), new CachedDetalle(dto, now));
+            }
+        }
+
+        return ResponseEntity.ok(resultado);
     }
 
     /**
@@ -277,5 +349,31 @@ public class ConvocatoriaPublicaController {
             url = url.replace("/bdnstrans/GE/es/convocatoria/", "/bdnstrans/GE/es/convocatorias/");
         }
         return url;
+    }
+
+    private ConvocatoriaDTO toConvocatoriaDTO(Convocatoria c) {
+        ConvocatoriaDTO dto = new ConvocatoriaDTO();
+        dto.setId(c.getId());
+        dto.setTitulo(c.getTitulo());
+        dto.setTipo(c.getTipo());
+        dto.setSector(c.getSector());
+        dto.setUbicacion(c.getUbicacion());
+        dto.setUrlOficial(construirUrl(c));
+        dto.setFuente(c.getFuente());
+        dto.setIdBdns(c.getIdBdns());
+        dto.setNumeroConvocatoria(c.getNumeroConvocatoria());
+        dto.setFechaCierre(c.getFechaCierre());
+        dto.setOrganismo(c.getOrganismo());
+        dto.setFechaPublicacion(c.getFechaPublicacion());
+        dto.setDescripcion(c.getDescripcion());
+        dto.setTextoCompleto(c.getTextoCompleto());
+        dto.setMrr(c.getMrr());
+        dto.setPresupuesto(c.getPresupuesto());
+        dto.setAbierto(c.getAbierto());
+        dto.setFinalidad(c.getFinalidad());
+        dto.setFechaInicio(c.getFechaInicio());
+        dto.setRegionId(c.getRegionId());
+        dto.setProvinciaId(c.getProvinciaId());
+        return dto;
     }
 }

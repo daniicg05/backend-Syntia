@@ -74,7 +74,7 @@ public class RecomendacionController {
                                                          Authentication authentication) {
         Usuario usuario = resolverUsuario(authentication);
         proyectoService.obtenerPorId(proyectoId, usuario.getId());
-        return ResponseEntity.ok(recomendacionService.obtenerPorProyecto(proyectoId));
+        return ResponseEntity.ok(recomendacionService.obtenerPorProyecto(proyectoId, usuario.getId()));
     }
 
     @PostMapping("/generar")
@@ -92,9 +92,8 @@ public class RecomendacionController {
             ));
         }
 
-        List<RecomendacionDTO> dtos = recomendaciones.stream()
-                .map(recomendacionService::toDTO)
-                .toList();
+        // Mapear favoritas en lote para evitar consultas repetidas por recomendación.
+        List<RecomendacionDTO> dtos = recomendacionService.mapToDTOConFavoritas(recomendaciones, usuario.getId());
 
         return ResponseEntity.ok(dtos);
     }
