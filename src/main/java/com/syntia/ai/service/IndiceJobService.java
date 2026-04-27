@@ -5,18 +5,19 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Gestiona el ciclo de vida del job asíncrono de construcción de índices BDNS (Fase 2).
- * Patrón análogo a BdnsImportJobService para evitar el bloqueo del hilo HTTP.
+ * Gestiona el ciclo de vida del job asincrono de construccion de indices BDNS (Fase 2).
+ * Patron analogo a BdnsImportJobService para evitar el bloqueo del hilo HTTP.
  */
 @Slf4j
 @Service
 public class IndiceJobService {
 
-    public enum Estado { INACTIVO, EN_CURSO, COMPLETADO, FALLIDO }
+    public enum Estado { INACTIVO, EN_CURSO, COMPLETADO, FALLIDO, CANCELADO }
 
     public record EstadoJob(
             Estado estado,
@@ -47,17 +48,13 @@ public class IndiceJobService {
     public boolean cancelar() {
         if (!enCurso.get()) return false;
         cancelado.set(true);
-        log.info("Índice job: cancelación solicitada");
+        log.info("Indice job: cancelacion solicitada");
         return true;
     }
 
-    /**
-     * Lanza la construcción de índices en segundo plano.
-     * @return false si ya hay uno en curso
-     */
     public boolean iniciar() {
         if (!enCurso.compareAndSet(false, true)) {
-            log.warn("Ya hay un job de índices en curso — petición ignorada");
+            log.warn("Ya hay un job de indices en curso — peticion ignorada");
             return false;
         }
         cancelado.set(false);
@@ -70,18 +67,19 @@ public class IndiceJobService {
     @Async
     void ejecutarAsync(LocalDateTime inicio) {
         try {
-            // Fase 1: importar catálogos siempre antes de construir índices
-            // para garantizar que cat_* están poblados aunque el usuario haya
-            // pulsado "Construir índices" sin pulsar antes "Importar catálogos".
+            // Fase 1: catalogos. Se pasa el flag 'cancelado' para que la cancelacion
+            // se aplique tambien durante la importacion de los 8 catalogos.
             catalogoImportService.importarTodos(
-                    fase -> estadoActual.set(new EstadoJob(Estado.EN_CURSO, fase, 0, inicio, null, null, null))
+                    fase -> estadoActual.set(new EstadoJob(Estado.EN_CURSO, fase, 0, inicio, null, null, null)),
+                    cancelado::get
             );
             if (cancelado.get()) {
-                estadoActual.set(new EstadoJob(Estado.FALLIDO, null, 0, inicio, LocalDateTime.now(), "Cancelado", null));
+                estadoActual.set(new EstadoJob(Estado.CANCELADO, null, 0, inicio, LocalDateTime.now(), "Cancelado por el usuario", null));
+                log.info("Indice job cancelado durante fase de catalogos");
                 return;
             }
 
-            // Fase 2: construir índices
+            // Fase 2: indices
             IndiceConvocatoriaService.ResultadoIndices res = indiceConvocatoriaService.construirTodos(
                     fase -> estadoActual.set(new EstadoJob(Estado.EN_CURSO, fase, 0, inicio, null, null, null)),
                     cancelado
@@ -89,13 +87,22 @@ public class IndiceJobService {
             int total = res.finalidades() + res.instrumentos() + res.beneficiarios()
                       + res.organos() + res.tiposAdmin()
                       + res.actividades() + res.reglamentos() + res.objetivos() + res.sectores();
-            estadoActual.set(new EstadoJob(Estado.COMPLETADO, null, total, inicio, LocalDateTime.now(), null, res));
-            log.info("Índice job completado: {} registros totales", total);
+
+            if (cancelado.get()) {
+                estadoActual.set(new EstadoJob(Estado.CANCELADO, null, total, inicio, LocalDateTime.now(), "Cancelado por el usuario", res));
+                log.info("Indice job cancelado durante fase de indices: {} registros parciales", total);
+            } else {
+                estadoActual.set(new EstadoJob(Estado.COMPLETADO, null, total, inicio, LocalDateTime.now(), null, res));
+                log.info("Indice job completado: {} registros totales", total);
+            }
+        } catch (CancellationException e) {
+            estadoActual.set(new EstadoJob(Estado.CANCELADO, null, 0, inicio, LocalDateTime.now(), "Cancelado por el usuario", null));
+            log.info("Indice job cancelado: {}", e.getMessage());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            estadoActual.set(new EstadoJob(Estado.FALLIDO, null, 0, inicio, LocalDateTime.now(), "Interrumpido", null));
+            estadoActual.set(new EstadoJob(Estado.CANCELADO, null, 0, inicio, LocalDateTime.now(), "Interrumpido", null));
         } catch (Exception e) {
-            log.error("Índice job fallido: {}", e.getMessage(), e);
+            log.error("Indice job fallido: {}", e.getMessage(), e);
             estadoActual.set(new EstadoJob(Estado.FALLIDO, null, 0, inicio, LocalDateTime.now(), e.getMessage(), null));
         } finally {
             enCurso.set(false);

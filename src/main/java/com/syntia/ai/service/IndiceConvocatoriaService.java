@@ -12,10 +12,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /**
- * Fase 2 del ETL BDNS: construye las tablas de índice catálogo ↔ numero_convocatoria.
- * Para cada ID de catálogo, pagina el endpoint de búsqueda y guarda las asociaciones.
- * Cada save() corre en su propia transacción (sin @Transactional en el método largo
- * para evitar mantener una transacción abierta durante horas).
+ * Fase 2 del ETL BDNS: construye las tablas de indice catalogo <-> numero_convocatoria.
+ * Para cada ID de catalogo, pagina el endpoint de busqueda y guarda las asociaciones.
+ *
+ * La cancelacion se respeta en TRES niveles:
+ *   1) Entre fases (finalidades -> instrumentos -> ...)
+ *   2) Entre IDs de catalogo dentro de una fase
+ *   3) Entre paginas dentro de una llamada paginada (paginarYGuardar)
+ * Esto garantiza que pulsar "Pausar" detenga el job en pocos segundos
+ * en vez de tener que esperar a terminar la fase actual entera.
  */
 @Slf4j
 @Service
@@ -46,38 +51,67 @@ public class IndiceConvocatoriaService {
     private final IdxConvocatoriaSectorProductoRepository idxSectorProductoRepo;
 
     public ResultadoIndices construirTodos(Consumer<String> onProgreso, AtomicBoolean cancelado) throws InterruptedException {
-        log.info("=== INICIO construcción índices BDNS ===");
+        log.info("=== INICIO construccion indices BDNS ===");
+
+        int finalidades = 0, instrumentos = 0, beneficiarios = 0, organos = 0,
+            tiposAdmin = 0, actividades = 0, reglamentos = 0, objetivos = 0, sectores = 0;
+
+        if (cancelado.get()) return resultado(finalidades, instrumentos, beneficiarios, organos, tiposAdmin, actividades, reglamentos, objetivos, sectores);
         onProgreso.accept("Finalidades (1/9)");
-        int finalidades   = construirIndiceFinalidades(cancelado);
+        finalidades = construirIndiceFinalidades(cancelado);
+
+        if (cancelado.get()) return resultado(finalidades, instrumentos, beneficiarios, organos, tiposAdmin, actividades, reglamentos, objetivos, sectores);
         onProgreso.accept("Instrumentos (2/9)");
-        int instrumentos  = cancelado.get() ? 0 : construirIndiceInstrumentos(cancelado);
+        instrumentos = construirIndiceInstrumentos(cancelado);
+
+        if (cancelado.get()) return resultado(finalidades, instrumentos, beneficiarios, organos, tiposAdmin, actividades, reglamentos, objetivos, sectores);
         onProgreso.accept("Beneficiarios (3/9)");
-        int beneficiarios = cancelado.get() ? 0 : construirIndiceBeneficiarios(cancelado);
-        onProgreso.accept("Órganos (4/9)");
-        int organos       = cancelado.get() ? 0 : construirIndiceOrganos(cancelado);
-        onProgreso.accept("Tipos administración (5/9)");
-        int tiposAdmin    = cancelado.get() ? 0 : construirIndiceTiposAdmin(cancelado);
+        beneficiarios = construirIndiceBeneficiarios(cancelado);
+
+        if (cancelado.get()) return resultado(finalidades, instrumentos, beneficiarios, organos, tiposAdmin, actividades, reglamentos, objetivos, sectores);
+        onProgreso.accept("Organos (4/9)");
+        organos = construirIndiceOrganos(cancelado);
+
+        if (cancelado.get()) return resultado(finalidades, instrumentos, beneficiarios, organos, tiposAdmin, actividades, reglamentos, objetivos, sectores);
+        onProgreso.accept("Tipos administracion (5/9)");
+        tiposAdmin = construirIndiceTiposAdmin(cancelado);
+
+        if (cancelado.get()) return resultado(finalidades, instrumentos, beneficiarios, organos, tiposAdmin, actividades, reglamentos, objetivos, sectores);
         onProgreso.accept("Actividades (6/9)");
-        int actividades   = cancelado.get() ? 0 : construirIndiceActividades(cancelado);
+        actividades = construirIndiceActividades(cancelado);
+
+        if (cancelado.get()) return resultado(finalidades, instrumentos, beneficiarios, organos, tiposAdmin, actividades, reglamentos, objetivos, sectores);
         onProgreso.accept("Reglamentos (7/9)");
-        int reglamentos   = cancelado.get() ? 0 : construirIndiceReglamentos(cancelado);
+        reglamentos = construirIndiceReglamentos(cancelado);
+
+        if (cancelado.get()) return resultado(finalidades, instrumentos, beneficiarios, organos, tiposAdmin, actividades, reglamentos, objetivos, sectores);
         onProgreso.accept("Objetivos (8/9)");
-        int objetivos     = cancelado.get() ? 0 : construirIndiceObjetivos(cancelado);
+        objetivos = construirIndiceObjetivos(cancelado);
+
+        if (cancelado.get()) return resultado(finalidades, instrumentos, beneficiarios, organos, tiposAdmin, actividades, reglamentos, objetivos, sectores);
         onProgreso.accept("Sectores/Productos (9/9)");
-        int sectores      = cancelado.get() ? 0 : construirIndiceSectoresProducto(cancelado);
-        log.info("=== FIN índices: finalidades={} instrumentos={} beneficiarios={} organos={} tiposAdmin={} actividades={} reglamentos={} objetivos={} sectores={}",
+        sectores = construirIndiceSectoresProducto(cancelado);
+
+        log.info("=== FIN indices: finalidades={} instrumentos={} beneficiarios={} organos={} tiposAdmin={} actividades={} reglamentos={} objetivos={} sectores={}",
                 finalidades, instrumentos, beneficiarios, organos, tiposAdmin, actividades, reglamentos, objetivos, sectores);
+        return resultado(finalidades, instrumentos, beneficiarios, organos, tiposAdmin, actividades, reglamentos, objetivos, sectores);
+    }
+
+    private ResultadoIndices resultado(int finalidades, int instrumentos, int beneficiarios,
+                                       int organos, int tiposAdmin, int actividades,
+                                       int reglamentos, int objetivos, int sectores) {
         return new ResultadoIndices(finalidades, instrumentos, beneficiarios, organos, tiposAdmin, actividades, reglamentos, objetivos, sectores);
     }
 
     private int construirIndiceFinalidades(AtomicBoolean cancelado) throws InterruptedException {
         AtomicInteger total = new AtomicInteger();
         List<CatFinalidad> cats = finalidadRepo.findAll();
-        log.info("Construyendo índice finalidades para {} IDs", cats.size());
+        log.info("Construyendo indice finalidades para {} IDs", cats.size());
         for (CatFinalidad cat : cats) {
             if (cancelado.get()) break;
-            paginarYGuardar("finalidad", String.valueOf(cat.getId()), numeros -> {
+            paginarYGuardar("finalidad", String.valueOf(cat.getId()), cancelado, numeros -> {
                 for (String num : numeros) {
+                    if (cancelado.get()) return;
                     if (!idxFinalidadRepo.existsByNumeroConvocatoriaAndFinalidadId(num, cat.getId())) {
                         idxFinalidadRepo.save(IdxConvocatoriaFinalidad.builder()
                                 .numeroConvocatoria(num).finalidadId(cat.getId()).build());
@@ -85,20 +119,22 @@ public class IndiceConvocatoriaService {
                     }
                 }
             });
+            if (cancelado.get()) break;
             Thread.sleep(DELAY_MS);
         }
-        log.info("Índice finalidades: {} registros", total.get());
+        log.info("Indice finalidades: {} registros", total.get());
         return total.get();
     }
 
     private int construirIndiceInstrumentos(AtomicBoolean cancelado) throws InterruptedException {
         AtomicInteger total = new AtomicInteger();
         List<CatInstrumento> cats = instrumentoRepo.findAll();
-        log.info("Construyendo índice instrumentos para {} IDs", cats.size());
+        log.info("Construyendo indice instrumentos para {} IDs", cats.size());
         for (CatInstrumento cat : cats) {
             if (cancelado.get()) break;
-            paginarYGuardar("instrumentos", String.valueOf(cat.getId()), numeros -> {
+            paginarYGuardar("instrumentos", String.valueOf(cat.getId()), cancelado, numeros -> {
                 for (String num : numeros) {
+                    if (cancelado.get()) return;
                     if (!idxInstrumentoRepo.existsByNumeroConvocatoriaAndInstrumentoId(num, cat.getId())) {
                         idxInstrumentoRepo.save(IdxConvocatoriaInstrumento.builder()
                                 .numeroConvocatoria(num).instrumentoId(cat.getId()).build());
@@ -106,20 +142,22 @@ public class IndiceConvocatoriaService {
                     }
                 }
             });
+            if (cancelado.get()) break;
             Thread.sleep(DELAY_MS);
         }
-        log.info("Índice instrumentos: {} registros", total.get());
+        log.info("Indice instrumentos: {} registros", total.get());
         return total.get();
     }
 
     private int construirIndiceBeneficiarios(AtomicBoolean cancelado) throws InterruptedException {
         AtomicInteger total = new AtomicInteger();
         List<CatBeneficiario> cats = beneficiarioRepo.findAll();
-        log.info("Construyendo índice beneficiarios para {} IDs", cats.size());
+        log.info("Construyendo indice beneficiarios para {} IDs", cats.size());
         for (CatBeneficiario cat : cats) {
             if (cancelado.get()) break;
-            paginarYGuardar("tiposBeneficiario", String.valueOf(cat.getId()), numeros -> {
+            paginarYGuardar("tiposBeneficiario", String.valueOf(cat.getId()), cancelado, numeros -> {
                 for (String num : numeros) {
+                    if (cancelado.get()) return;
                     if (!idxBeneficiarioRepo.existsByNumeroConvocatoriaAndBeneficiarioId(num, cat.getId())) {
                         idxBeneficiarioRepo.save(IdxConvocatoriaBeneficiario.builder()
                                 .numeroConvocatoria(num).beneficiarioId(cat.getId()).build());
@@ -127,20 +165,22 @@ public class IndiceConvocatoriaService {
                     }
                 }
             });
+            if (cancelado.get()) break;
             Thread.sleep(DELAY_MS);
         }
-        log.info("Índice beneficiarios: {} registros", total.get());
+        log.info("Indice beneficiarios: {} registros", total.get());
         return total.get();
     }
 
     private int construirIndiceOrganos(AtomicBoolean cancelado) throws InterruptedException {
         AtomicInteger total = new AtomicInteger();
         List<CatOrgano> cats = organoRepo.findAll();
-        log.info("Construyendo índice organos para {} IDs", cats.size());
+        log.info("Construyendo indice organos para {} IDs", cats.size());
         for (CatOrgano cat : cats) {
             if (cancelado.get()) break;
-            paginarYGuardar("organos", String.valueOf(cat.getId()), numeros -> {
+            paginarYGuardar("organos", String.valueOf(cat.getId()), cancelado, numeros -> {
                 for (String num : numeros) {
+                    if (cancelado.get()) return;
                     if (!idxOrganoRepo.existsByNumeroConvocatoriaAndOrganoId(num, cat.getId())) {
                         idxOrganoRepo.save(IdxConvocatoriaOrgano.builder()
                                 .numeroConvocatoria(num)
@@ -151,9 +191,10 @@ public class IndiceConvocatoriaService {
                     }
                 }
             });
+            if (cancelado.get()) break;
             Thread.sleep(DELAY_MS);
         }
-        log.info("Índice organos: {} registros", total.get());
+        log.info("Indice organos: {} registros", total.get());
         return total.get();
     }
 
@@ -161,8 +202,9 @@ public class IndiceConvocatoriaService {
         AtomicInteger total = new AtomicInteger();
         for (String tipo : List.of("C", "A", "L", "O")) {
             if (cancelado.get()) break;
-            paginarYGuardar("tipoAdministracion", tipo, numeros -> {
+            paginarYGuardar("tipoAdministracion", tipo, cancelado, numeros -> {
                 for (String num : numeros) {
+                    if (cancelado.get()) return;
                     if (!idxTipoAdminRepo.existsByNumeroConvocatoriaAndTipoAdmin(num, tipo)) {
                         idxTipoAdminRepo.save(IdxConvocatoriaTipoAdmin.builder()
                                 .numeroConvocatoria(num).tipoAdmin(tipo).build());
@@ -170,20 +212,22 @@ public class IndiceConvocatoriaService {
                     }
                 }
             });
+            if (cancelado.get()) break;
             Thread.sleep(DELAY_MS);
         }
-        log.info("Índice tiposAdmin: {} registros", total.get());
+        log.info("Indice tiposAdmin: {} registros", total.get());
         return total.get();
     }
 
     private int construirIndiceActividades(AtomicBoolean cancelado) throws InterruptedException {
         AtomicInteger total = new AtomicInteger();
         List<CatActividad> cats = actividadRepo.findAll();
-        log.info("Construyendo índice actividades para {} IDs", cats.size());
+        log.info("Construyendo indice actividades para {} IDs", cats.size());
         for (CatActividad cat : cats) {
             if (cancelado.get()) break;
-            paginarYGuardar("actividades", String.valueOf(cat.getId()), numeros -> {
+            paginarYGuardar("actividades", String.valueOf(cat.getId()), cancelado, numeros -> {
                 for (String num : numeros) {
+                    if (cancelado.get()) return;
                     if (!idxActividadRepo.existsByNumeroConvocatoriaAndActividadId(num, cat.getId())) {
                         idxActividadRepo.save(IdxConvocatoriaActividad.builder()
                                 .numeroConvocatoria(num).actividadId(cat.getId()).build());
@@ -191,20 +235,22 @@ public class IndiceConvocatoriaService {
                     }
                 }
             });
+            if (cancelado.get()) break;
             Thread.sleep(DELAY_MS);
         }
-        log.info("Índice actividades: {} registros", total.get());
+        log.info("Indice actividades: {} registros", total.get());
         return total.get();
     }
 
     private int construirIndiceReglamentos(AtomicBoolean cancelado) throws InterruptedException {
         AtomicInteger total = new AtomicInteger();
         List<CatReglamento> cats = reglamentoRepo.findAll();
-        log.info("Construyendo índice reglamentos para {} IDs", cats.size());
+        log.info("Construyendo indice reglamentos para {} IDs", cats.size());
         for (CatReglamento cat : cats) {
             if (cancelado.get()) break;
-            paginarYGuardar("reglamentos", String.valueOf(cat.getId()), numeros -> {
+            paginarYGuardar("reglamentos", String.valueOf(cat.getId()), cancelado, numeros -> {
                 for (String num : numeros) {
+                    if (cancelado.get()) return;
                     if (!idxReglamentoRepo.existsByNumeroConvocatoriaAndReglamentoId(num, cat.getId())) {
                         idxReglamentoRepo.save(IdxConvocatoriaReglamento.builder()
                                 .numeroConvocatoria(num).reglamentoId(cat.getId()).build());
@@ -212,20 +258,22 @@ public class IndiceConvocatoriaService {
                     }
                 }
             });
+            if (cancelado.get()) break;
             Thread.sleep(DELAY_MS);
         }
-        log.info("Índice reglamentos: {} registros", total.get());
+        log.info("Indice reglamentos: {} registros", total.get());
         return total.get();
     }
 
     private int construirIndiceObjetivos(AtomicBoolean cancelado) throws InterruptedException {
         AtomicInteger total = new AtomicInteger();
         List<CatObjetivo> cats = objetivoRepo.findAll();
-        log.info("Construyendo índice objetivos para {} IDs", cats.size());
+        log.info("Construyendo indice objetivos para {} IDs", cats.size());
         for (CatObjetivo cat : cats) {
             if (cancelado.get()) break;
-            paginarYGuardar("objetivos", String.valueOf(cat.getId()), numeros -> {
+            paginarYGuardar("objetivos", String.valueOf(cat.getId()), cancelado, numeros -> {
                 for (String num : numeros) {
+                    if (cancelado.get()) return;
                     if (!idxObjetivoRepo.existsByNumeroConvocatoriaAndObjetivoId(num, cat.getId())) {
                         idxObjetivoRepo.save(IdxConvocatoriaObjetivo.builder()
                                 .numeroConvocatoria(num).objetivoId(cat.getId()).build());
@@ -233,20 +281,22 @@ public class IndiceConvocatoriaService {
                     }
                 }
             });
+            if (cancelado.get()) break;
             Thread.sleep(DELAY_MS);
         }
-        log.info("Índice objetivos: {} registros", total.get());
+        log.info("Indice objetivos: {} registros", total.get());
         return total.get();
     }
 
     private int construirIndiceSectoresProducto(AtomicBoolean cancelado) throws InterruptedException {
         AtomicInteger total = new AtomicInteger();
         List<CatSectorProducto> cats = sectorProductoRepo.findAll();
-        log.info("Construyendo índice sectores/productos para {} IDs", cats.size());
+        log.info("Construyendo indice sectores/productos para {} IDs", cats.size());
         for (CatSectorProducto cat : cats) {
             if (cancelado.get()) break;
-            paginarYGuardar("sectores", String.valueOf(cat.getId()), numeros -> {
+            paginarYGuardar("sectores", String.valueOf(cat.getId()), cancelado, numeros -> {
                 for (String num : numeros) {
+                    if (cancelado.get()) return;
                     if (!idxSectorProductoRepo.existsByNumeroConvocatoriaAndSectorProductoId(num, cat.getId())) {
                         idxSectorProductoRepo.save(IdxConvocatoriaSectorProducto.builder()
                                 .numeroConvocatoria(num).sectorProductoId(cat.getId()).build());
@@ -254,9 +304,10 @@ public class IndiceConvocatoriaService {
                     }
                 }
             });
+            if (cancelado.get()) break;
             Thread.sleep(DELAY_MS);
         }
-        log.info("Índice sectores/productos: {} registros", total.get());
+        log.info("Indice sectores/productos: {} registros", total.get());
         return total.get();
     }
 
@@ -282,16 +333,28 @@ public class IndiceConvocatoriaService {
     @FunctionalInterface
     interface NumerosConsumer { void accept(List<String> numeros); }
 
-    private void paginarYGuardar(String param, String valor, NumerosConsumer consumer) {
+    /**
+     * Pagina el endpoint de filtros consultando 'cancelado' entre paginas.
+     * Esto permite que un Pausar abortado a mitad de un catalogo grande
+     * tarde como mucho 'DELAY_PAGINAS' ms (200) en surtir efecto.
+     */
+    private void paginarYGuardar(String param, String valor, AtomicBoolean cancelado, NumerosConsumer consumer) {
         int pagina = 0;
         while (true) {
+            if (cancelado.get()) return;
             BdnsCatalogoClient.PaginaIndice pag = bdnsCatalogoClient.buscarPorFiltro(param, valor, pagina);
+            if (cancelado.get()) return;
             if (!pag.numerosConvocatoria().isEmpty()) {
                 consumer.accept(pag.numerosConvocatoria());
             }
             if (pag.esUltima()) break;
             pagina++;
-            try { Thread.sleep(200); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
         }
     }
 
