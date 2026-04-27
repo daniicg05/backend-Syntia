@@ -20,6 +20,7 @@ import com.syntia.ai.service.BdnsEtlPanelService;
 import com.syntia.ai.service.BdnsImportJobService;
 import com.syntia.ai.service.ModoImportacion;
 import com.syntia.ai.service.CatalogoImportService;
+import com.syntia.ai.service.CatalogoJobService;
 import com.syntia.ai.service.IndiceConvocatoriaService;
 import com.syntia.ai.service.IndiceJobService;
 import com.syntia.ai.service.ConvocatoriaService;
@@ -68,6 +69,7 @@ public class AdminController {
     private final PerfilRepository perfilRepository;
     private final com.syntia.ai.service.RegionService regionService;
     private final CatalogoImportService catalogoImportService;
+    private final CatalogoJobService catalogoJobService;
     private final IndiceConvocatoriaService indiceConvocatoriaService;
     private final IndiceJobService indiceJobService;
 
@@ -86,6 +88,7 @@ public class AdminController {
                            PerfilRepository perfilRepository,
                            com.syntia.ai.service.RegionService regionService,
                            CatalogoImportService catalogoImportService,
+                           CatalogoJobService catalogoJobService,
                            IndiceConvocatoriaService indiceConvocatoriaService,
                            IndiceJobService indiceJobService) {
         this.usuarioService = usuarioService;
@@ -103,6 +106,7 @@ public class AdminController {
         this.perfilRepository = perfilRepository;
         this.regionService = regionService;
         this.catalogoImportService = catalogoImportService;
+        this.catalogoJobService = catalogoJobService;
         this.indiceConvocatoriaService = indiceConvocatoriaService;
         this.indiceJobService = indiceJobService;
     }
@@ -474,15 +478,32 @@ public class AdminController {
     /** Devuelve los conteos actuales de las tablas cat_*. */
     @GetMapping("/etl/catalogos")
     public ResponseEntity<?> conteoCatalogos() {
-        return ResponseEntity.ok(catalogoImportService.contarTodos());
+        CatalogoImportService.ConteoCatalogos conteos = catalogoImportService.contarTodos();
+        return ResponseEntity.ok(Map.of(
+                "job", catalogoJobService.obtenerEstado(),
+                "conteos", conteos,
+                "finalidades", conteos.finalidades(),
+                "instrumentos", conteos.instrumentos(),
+                "beneficiarios", conteos.beneficiarios(),
+                "actividades", conteos.actividades(),
+                "reglamentos", conteos.reglamentos(),
+                "objetivos", conteos.objetivos(),
+                "sectores", conteos.sectores(),
+                "organos", conteos.organos()
+        ));
     }
 
     /** Importa (o reimporta) todos los catálogos BDNS. Operación rápida, síncrona. */
     @PostMapping("/etl/catalogos")
     public ResponseEntity<?> importarCatalogos() {
         try {
-            CatalogoImportService.ResultadoCatalogos resultado = catalogoImportService.importarTodos();
-            return ResponseEntity.ok(resultado);
+            boolean iniciado = catalogoJobService.iniciar();
+            if (!iniciado) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body(Map.of("error", "Ya hay un job de catalogos en curso"));
+            }
+            return ResponseEntity.accepted()
+                    .body(Map.of("mensaje", "Importacion de catalogos iniciada en segundo plano"));
         } catch (Exception e) {
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", "Error importando catálogos: " + e.getMessage()));
@@ -490,6 +511,13 @@ public class AdminController {
     }
 
     // ── ETL Fase 2: Índices ────────────────────────────────────────────────────
+
+    /** Cancela el job de catalogos en curso. */
+    @DeleteMapping("/etl/catalogos")
+    public ResponseEntity<?> cancelarCatalogos() {
+        boolean cancelado = catalogoJobService.cancelar();
+        return ResponseEntity.ok(Map.of("cancelado", cancelado));
+    }
 
     /** Devuelve el estado actual del job de construcción de índices y los conteos. */
     @GetMapping("/etl/indices")

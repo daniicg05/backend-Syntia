@@ -76,7 +76,7 @@ public class IndiceConvocatoriaService {
         log.info("Construyendo índice finalidades para {} IDs", cats.size());
         for (CatFinalidad cat : cats) {
             if (cancelado.get()) break;
-            paginarYGuardar("finalidad", String.valueOf(cat.getId()), numeros -> {
+            paginarYGuardar(cancelado, "finalidad", String.valueOf(cat.getId()), numeros -> {
                 for (String num : numeros) {
                     if (!idxFinalidadRepo.existsByNumeroConvocatoriaAndFinalidadId(num, cat.getId())) {
                         idxFinalidadRepo.save(IdxConvocatoriaFinalidad.builder()
@@ -97,7 +97,7 @@ public class IndiceConvocatoriaService {
         log.info("Construyendo índice instrumentos para {} IDs", cats.size());
         for (CatInstrumento cat : cats) {
             if (cancelado.get()) break;
-            paginarYGuardar("instrumentos", String.valueOf(cat.getId()), numeros -> {
+            paginarYGuardar(cancelado, "instrumentos", String.valueOf(cat.getId()), numeros -> {
                 for (String num : numeros) {
                     if (!idxInstrumentoRepo.existsByNumeroConvocatoriaAndInstrumentoId(num, cat.getId())) {
                         idxInstrumentoRepo.save(IdxConvocatoriaInstrumento.builder()
@@ -118,7 +118,7 @@ public class IndiceConvocatoriaService {
         log.info("Construyendo índice beneficiarios para {} IDs", cats.size());
         for (CatBeneficiario cat : cats) {
             if (cancelado.get()) break;
-            paginarYGuardar("tiposBeneficiario", String.valueOf(cat.getId()), numeros -> {
+            paginarYGuardar(cancelado, "tiposBeneficiario", String.valueOf(cat.getId()), numeros -> {
                 for (String num : numeros) {
                     if (!idxBeneficiarioRepo.existsByNumeroConvocatoriaAndBeneficiarioId(num, cat.getId())) {
                         idxBeneficiarioRepo.save(IdxConvocatoriaBeneficiario.builder()
@@ -139,7 +139,7 @@ public class IndiceConvocatoriaService {
         log.info("Construyendo índice organos para {} IDs", cats.size());
         for (CatOrgano cat : cats) {
             if (cancelado.get()) break;
-            paginarYGuardar("organos", String.valueOf(cat.getId()), numeros -> {
+            paginarYGuardar(cancelado, "organos", String.valueOf(cat.getId()), numeros -> {
                 for (String num : numeros) {
                     if (!idxOrganoRepo.existsByNumeroConvocatoriaAndOrganoId(num, cat.getId())) {
                         idxOrganoRepo.save(IdxConvocatoriaOrgano.builder()
@@ -161,7 +161,7 @@ public class IndiceConvocatoriaService {
         AtomicInteger total = new AtomicInteger();
         for (String tipo : List.of("C", "A", "L", "O")) {
             if (cancelado.get()) break;
-            paginarYGuardar("tipoAdministracion", tipo, numeros -> {
+            paginarYGuardar(cancelado, "tipoAdministracion", tipo, numeros -> {
                 for (String num : numeros) {
                     if (!idxTipoAdminRepo.existsByNumeroConvocatoriaAndTipoAdmin(num, tipo)) {
                         idxTipoAdminRepo.save(IdxConvocatoriaTipoAdmin.builder()
@@ -182,7 +182,7 @@ public class IndiceConvocatoriaService {
         log.info("Construyendo índice actividades para {} IDs", cats.size());
         for (CatActividad cat : cats) {
             if (cancelado.get()) break;
-            paginarYGuardar("actividades", String.valueOf(cat.getId()), numeros -> {
+            paginarYGuardar(cancelado, "actividades", String.valueOf(cat.getId()), numeros -> {
                 for (String num : numeros) {
                     if (!idxActividadRepo.existsByNumeroConvocatoriaAndActividadId(num, cat.getId())) {
                         idxActividadRepo.save(IdxConvocatoriaActividad.builder()
@@ -203,7 +203,7 @@ public class IndiceConvocatoriaService {
         log.info("Construyendo índice reglamentos para {} IDs", cats.size());
         for (CatReglamento cat : cats) {
             if (cancelado.get()) break;
-            paginarYGuardar("reglamentos", String.valueOf(cat.getId()), numeros -> {
+            paginarYGuardar(cancelado, "reglamentos", String.valueOf(cat.getId()), numeros -> {
                 for (String num : numeros) {
                     if (!idxReglamentoRepo.existsByNumeroConvocatoriaAndReglamentoId(num, cat.getId())) {
                         idxReglamentoRepo.save(IdxConvocatoriaReglamento.builder()
@@ -224,7 +224,7 @@ public class IndiceConvocatoriaService {
         log.info("Construyendo índice objetivos para {} IDs", cats.size());
         for (CatObjetivo cat : cats) {
             if (cancelado.get()) break;
-            paginarYGuardar("objetivos", String.valueOf(cat.getId()), numeros -> {
+            paginarYGuardar(cancelado, "objetivos", String.valueOf(cat.getId()), numeros -> {
                 for (String num : numeros) {
                     if (!idxObjetivoRepo.existsByNumeroConvocatoriaAndObjetivoId(num, cat.getId())) {
                         idxObjetivoRepo.save(IdxConvocatoriaObjetivo.builder()
@@ -245,7 +245,7 @@ public class IndiceConvocatoriaService {
         log.info("Construyendo índice sectores/productos para {} IDs", cats.size());
         for (CatSectorProducto cat : cats) {
             if (cancelado.get()) break;
-            paginarYGuardar("sectores", String.valueOf(cat.getId()), numeros -> {
+            paginarYGuardar(cancelado, "sectores", String.valueOf(cat.getId()), numeros -> {
                 for (String num : numeros) {
                     if (!idxSectorProductoRepo.existsByNumeroConvocatoriaAndSectorProductoId(num, cat.getId())) {
                         idxSectorProductoRepo.save(IdxConvocatoriaSectorProducto.builder()
@@ -282,9 +282,9 @@ public class IndiceConvocatoriaService {
     @FunctionalInterface
     interface NumerosConsumer { void accept(List<String> numeros); }
 
-    private void paginarYGuardar(String param, String valor, NumerosConsumer consumer) {
+    private void paginarYGuardar(AtomicBoolean cancelado, String param, String valor, NumerosConsumer consumer) {
         int pagina = 0;
-        while (true) {
+        while (!cancelado.get()) {
             BdnsCatalogoClient.PaginaIndice pag = bdnsCatalogoClient.buscarPorFiltro(param, valor, pagina);
             if (!pag.numerosConvocatoria().isEmpty()) {
                 consumer.accept(pag.numerosConvocatoria());
