@@ -1,6 +1,7 @@
 package com.syntia.ai.config;
 
 import com.syntia.ai.model.ErrorResponse;
+import com.syntia.ai.service.OpenAiClient;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -95,6 +96,14 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleAccessDenied(
             AccessDeniedException ex, HttpServletRequest request) {
         return build(HttpStatus.FORBIDDEN, "Acceso denegado", request);
+    }
+
+    @ExceptionHandler(OpenAiClient.OpenAiUnavailableException.class)
+    public ResponseEntity<ErrorResponse> handleOpenAiUnavailable(
+            OpenAiClient.OpenAiUnavailableException ex, HttpServletRequest request) {
+        log.warn("OpenAI no disponible en {}: {}", request.getRequestURI(), ex.getMessage());
+        return build(HttpStatus.SERVICE_UNAVAILABLE,
+                "El servicio de análisis IA no está disponible en este momento. Inténtalo de nuevo más tarde.", request);
     }
 
     @ExceptionHandler(NoResourceFoundException.class)
