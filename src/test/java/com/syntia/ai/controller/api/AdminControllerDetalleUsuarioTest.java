@@ -28,6 +28,13 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.syntia.ai.repository.SyncStateRepository;
 import com.syntia.ai.service.BdnsEnrichmentService;
 import com.syntia.ai.service.BdnsEtlPanelService;
+import com.syntia.ai.service.CatalogoImportService;
+import com.syntia.ai.service.CatalogoJobService;
+import com.syntia.ai.service.IndiceConvocatoriaService;
+import com.syntia.ai.service.IndiceJobService;
+import com.syntia.ai.service.RegionService;
+import com.syntia.ai.repository.ConvocatoriaRepository;
+import com.syntia.ai.repository.PerfilRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -82,6 +89,20 @@ class AdminControllerDetalleUsuarioTest {
     private SyncStateRepository syncStateRepository;
     @MockBean
     private BdnsEnrichmentService bdnsEnrichmentService;
+    @MockBean
+    private ConvocatoriaRepository convocatoriaRepository;
+    @MockBean
+    private PerfilRepository perfilRepository;
+    @MockBean
+    private RegionService regionService;
+    @MockBean
+    private CatalogoImportService catalogoImportService;
+    @MockBean
+    private CatalogoJobService catalogoJobService;
+    @MockBean
+    private IndiceConvocatoriaService indiceConvocatoriaService;
+    @MockBean
+    private IndiceJobService indiceJobService;
 
     @Test
     @WithMockUser(roles = "ADMIN")
@@ -155,7 +176,7 @@ class AdminControllerDetalleUsuarioTest {
                 .mapToObj(i -> Convocatoria.builder().id((long) i + 1).titulo("Convocatoria " + i).build())
                 .toList();
 
-        when(convocatoriaService.obtenerPagina(eq(0), eq(50)))
+        when(convocatoriaService.obtenerPaginaFiltrada(eq(0), eq(50), eq(""), eq("")))
                 .thenReturn(new PageImpl<>(convocatorias, PageRequest.of(0, 50), 120));
 
         mockMvc.perform(get("/api/admin/convocatorias"))
@@ -171,12 +192,32 @@ class AdminControllerDetalleUsuarioTest {
 
     @Test
     @WithMockUser(roles = "ADMIN")
+    void iniciarCatalogos_lanzaJobAsincrono() throws Exception {
+        when(catalogoJobService.iniciar()).thenReturn(true);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/admin/etl/catalogos"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.mensaje").exists());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void cancelarCatalogos_devuelveEstadoCancelacion() throws Exception {
+        when(catalogoJobService.cancelar()).thenReturn(true);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/admin/etl/catalogos"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cancelado").value(true));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
     void listarConvocatorias_respondePaginaSolicitada() throws Exception {
         List<Convocatoria> convocatorias = IntStream.range(0, 20)
                 .mapToObj(i -> Convocatoria.builder().id((long) i + 101).titulo("Convocatoria " + i).build())
                 .toList();
 
-        when(convocatoriaService.obtenerPagina(eq(2), eq(50)))
+        when(convocatoriaService.obtenerPaginaFiltrada(eq(2), eq(50), eq(""), eq("")))
                 .thenReturn(new PageImpl<>(convocatorias, PageRequest.of(2, 50), 120));
 
         mockMvc.perform(get("/api/admin/convocatorias").param("page", "2"))
