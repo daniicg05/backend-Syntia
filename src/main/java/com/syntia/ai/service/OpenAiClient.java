@@ -29,6 +29,7 @@ public class OpenAiClient {
     @Value("${openai.api-key:}")
     private String apiKey;
 
+
     @Value("${openai.model:gpt-4.1}")
     private String model;
 
