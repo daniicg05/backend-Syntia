@@ -4,11 +4,14 @@ import com.syntia.ai.model.Convocatoria;
 import com.syntia.ai.model.Perfil;
 import com.syntia.ai.model.Proyecto;
 import com.syntia.ai.model.Usuario;
+import com.syntia.ai.model.dto.AnalisisCompletoDTO;
 import com.syntia.ai.model.dto.ConvocatoriaPublicaDTO;
 import com.syntia.ai.model.dto.GuiaSubvencionDTO;
 import com.syntia.ai.repository.ConvocatoriaRepository;
 import com.syntia.ai.service.BdnsClientService;
+import com.syntia.ai.service.ConvocatoriaContextBuilder;
 import com.syntia.ai.service.MatchService;
+import com.syntia.ai.service.OpenAiAnalisisService;
 import com.syntia.ai.service.OpenAiGuiaService;
 import com.syntia.ai.service.OpenAiMatchingService;
 import com.syntia.ai.service.PerfilService;
@@ -62,6 +65,8 @@ public class ConvocatoriaPersonalizadaController {
     private final OpenAiGuiaService openAiGuiaService;
     private final OpenAiMatchingService openAiMatchingService;
     private final BdnsClientService bdnsClientService;
+    private final ConvocatoriaContextBuilder contextBuilder;
+    private final OpenAiAnalisisService openAiAnalisisService;
 
     public ConvocatoriaPersonalizadaController(UsuarioService usuarioService,
                                                PerfilService perfilService,
@@ -71,7 +76,9 @@ public class ConvocatoriaPersonalizadaController {
                                                RegionService regionService,
                                                OpenAiGuiaService openAiGuiaService,
                                                OpenAiMatchingService openAiMatchingService,
-                                               BdnsClientService bdnsClientService) {
+                                               BdnsClientService bdnsClientService,
+                                               ConvocatoriaContextBuilder contextBuilder,
+                                               OpenAiAnalisisService openAiAnalisisService) {
         this.usuarioService = usuarioService;
         this.perfilService = perfilService;
         this.proyectoService = proyectoService;
@@ -81,6 +88,8 @@ public class ConvocatoriaPersonalizadaController {
         this.openAiGuiaService = openAiGuiaService;
         this.openAiMatchingService = openAiMatchingService;
         this.bdnsClientService = bdnsClientService;
+        this.contextBuilder = contextBuilder;
+        this.openAiAnalisisService = openAiAnalisisService;
     }
 
     /**
@@ -218,41 +227,61 @@ public class ConvocatoriaPersonalizadaController {
     }
 
     /**
-     * Analiza una convocatoria con IA: genera análisis rápido + guía paso a paso
-     * en una sola llamada (una sola petición a BDNS, dos a OpenAI).
+     * Análisis completo de una convocatoria con IA.
+     * Recopila datos de BD local + catálogos + BDNS live + perfil + proyecto en paralelo,
+     * y genera un informe estructurado en slides para la galería interactiva.
+     *
+     * @param id         ID de la convocatoria
+     * @param proyectoId ID del proyecto del usuario (opcional; si no se pasa, usa el más afín)
      */
     @GetMapping("/{id}/analisis")
     public ResponseEntity<?> analisis(@PathVariable Long id,
+                                      @RequestParam(required = false) Long proyectoId,
                                       Authentication authentication) {
 
-        resolverUsuario(authentication);
+        Usuario usuario = resolverUsuario(authentication);
 
         Convocatoria convocatoria = convocatoriaRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Convocatoria no encontrada: " + id));
 
-        // Una sola llamada BDNS
-        String detalleTexto = convocatoria.getNumeroConvocatoria() != null
-                ? bdnsClientService.obtenerDetalleTexto(convocatoria.getNumeroConvocatoria())
-                : null;
+        // Load user data
+        Perfil perfil = perfilService.obtenerPerfil(usuario.getId()).orElse(null);
+        Proyecto proyecto = resolverProyecto(usuario, proyectoId, convocatoria);
 
-        // 1) Análisis rápido (requisitos, documentación, pasos)
-        OpenAiMatchingService.ResultadoIA resultado =
-                openAiMatchingService.analizarConvocatoria(convocatoria, detalleTexto);
+        // Build comprehensive context (parallel: BD + catalogs + BDNS live)
+        String contexto = contextBuilder.buildContext(convocatoria, perfil, proyecto);
 
-        // 2) Guía completa (galería visual paso a paso) — reutiliza el detalleTexto
-        String numConv = convocatoria.getNumeroConvocatoria();
-        String urlOficial = (numConv != null && !numConv.isBlank())
-                ? "https://www.infosubvenciones.es/bdnstrans/GE/es/convocatoria/" + numConv
-                : convocatoria.getUrlOficial();
+        // Single AI call with all context
+        AnalisisCompletoDTO analisis = openAiAnalisisService.analizar(contexto);
 
-        GuiaSubvencionDTO guiaCompleta =
-                openAiGuiaService.generarGuiaSinProyecto(null, convocatoria, detalleTexto, urlOficial);
+        return ResponseEntity.ok(analisis);
+    }
 
-        return ResponseEntity.ok(Map.of(
-                "explicacion", resultado.explicacion() != null ? resultado.explicacion() : "",
-                "guia", resultado.guia() != null ? resultado.guia() : "",
-                "guiaCompleta", guiaCompleta
-        ));
+    /**
+     * Resuelve el proyecto a usar para el análisis.
+     * Si se pasa proyectoId, lo usa. Si no, busca el más afín por sector.
+     */
+    private Proyecto resolverProyecto(Usuario usuario, Long proyectoId, Convocatoria convocatoria) {
+        List<Proyecto> proyectos = proyectoService.obtenerProyectos(usuario.getId());
+        if (proyectos.isEmpty()) return null;
+
+        if (proyectoId != null) {
+            return proyectos.stream()
+                    .filter(p -> p.getId().equals(proyectoId))
+                    .findFirst()
+                    .orElse(proyectos.get(0));
+        }
+
+        // Pick project with matching sector, or first
+        String sectorConv = convocatoria.getSector();
+        if (sectorConv != null && !sectorConv.isBlank()) {
+            String sectorLower = sectorConv.toLowerCase();
+            return proyectos.stream()
+                    .filter(p -> p.getSector() != null && p.getSector().toLowerCase().contains(sectorLower))
+                    .findFirst()
+                    .orElse(proyectos.get(0));
+        }
+        return proyectos.get(0);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────────
