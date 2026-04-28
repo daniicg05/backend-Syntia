@@ -37,11 +37,12 @@ public class BdnsImportExecutor {
                          BiConsumer<String, Integer> onFallido,
                          ModoImportacion modo,
                          java.util.concurrent.atomic.AtomicBoolean cancelado,
-                         long delayMsOverride) {
+                         long delayMsOverride,
+                         Integer limiteConvocatorias) {
         int total = 0;
         try {
             log.info("=== BdnsImportExecutor: arrancando importación masiva — modo={} delayMs={} ===", modo, delayMsOverride);
-            total = estrategiaService.importarTodo(onProgreso, modo, cancelado, delayMsOverride);
+            total = estrategiaService.importarTodo(onProgreso, modo, cancelado, delayMsOverride, limiteConvocatorias);
             log.info("=== BdnsImportExecutor: importación completada — {} nuevos ===", total);
             onCompletado.accept(total);
         } catch (InterruptedException e) {

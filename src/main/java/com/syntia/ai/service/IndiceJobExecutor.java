@@ -28,11 +28,12 @@ public class IndiceJobExecutor {
                          Consumer<IndiceConvocatoriaService.ResultadoIndices> onCompletado,
                          BiConsumer<String, IndiceConvocatoriaService.ResultadoIndices> onCancelado,
                          BiConsumer<String, IndiceConvocatoriaService.ResultadoIndices> onFallido,
-                         AtomicBoolean cancelado) {
+                         AtomicBoolean cancelado,
+                         Integer limiteConvocatorias) {
         IndiceConvocatoriaService.ResultadoIndices resultado = null;
         try {
             log.info("=== IndiceJobExecutor: arrancando construcción de índices ===");
-            resultado = indiceConvocatoriaService.construirTodos(onFase, cancelado);
+            resultado = indiceConvocatoriaService.construirTodos(onFase, cancelado, limiteConvocatorias);
             if (cancelado.get()) {
                 log.info("=== IndiceJobExecutor: construcción cancelada ===");
                 onCancelado.accept("Cancelado por el usuario", resultado);

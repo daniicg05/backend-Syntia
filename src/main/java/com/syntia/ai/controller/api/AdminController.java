@@ -309,15 +309,19 @@ public class AdminController {
     @PostMapping("/bdns/importar")
     public ResponseEntity<?> lanzarImportacionBdns(
             @RequestParam(defaultValue = "FULL") String modo,
-            @RequestParam(defaultValue = "-1") long delayMs) {
+            @RequestParam(defaultValue = "-1") long delayMs,
+            @RequestParam(required = false) Integer limite) {
         ModoImportacion modoImportacion;
         try {
             modoImportacion = ModoImportacion.valueOf(modo.toUpperCase());
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest()
-                    .body(Map.of("error", "Modo inválido. Valores permitidos: FULL, INCREMENTAL"));
+                    .body(Map.of("error", "Modo invalido. Valores permitidos: FULL, NUEVAS, INCREMENTAL"));
         }
-        boolean iniciado = bdnsImportJobService.iniciar(modoImportacion, delayMs);
+        if (limite != null && limite < 1) {
+            return ResponseEntity.badRequest().body(Map.of("error", "El limite debe ser mayor que 0"));
+        }
+        boolean iniciado = bdnsImportJobService.iniciar(modoImportacion, delayMs, limite);
         if (!iniciado) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("error", "Ya hay una importación BDNS en curso."));
@@ -497,6 +501,10 @@ public class AdminController {
     @PostMapping("/etl/catalogos")
     public ResponseEntity<?> importarCatalogos() {
         try {
+            if (indiceJobService.estaEnCurso()) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body(Map.of("error", "No se pueden importar catalogos mientras hay un job de indices en curso"));
+            }
             boolean iniciado = catalogoJobService.iniciar();
             if (!iniciado) {
                 return ResponseEntity.status(HttpStatus.CONFLICT)
@@ -529,8 +537,12 @@ public class AdminController {
 
     /** Lanza la construcción de índices en segundo plano. */
     @PostMapping("/etl/indices")
-    public ResponseEntity<?> construirIndices() {
-        boolean iniciado = indiceJobService.iniciar();
+    public ResponseEntity<?> construirIndices(@RequestParam(required = false) Integer limite) {
+        if (catalogoJobService.estaEnCurso()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("error", "No se pueden construir indices mientras hay un job de catalogos en curso"));
+        }
+        boolean iniciado = indiceJobService.iniciar(limite);
         if (!iniciado) {
             return ResponseEntity.status(409).body(Map.of("error", "Ya hay un job de índices en curso"));
         }

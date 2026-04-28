@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -31,6 +32,9 @@ public class BdnsImportEstrategiaService {
 
     @Value("${bdns.import.delay-ms:300}")
     private long delayMs;
+
+    @Value("${bdns.import.limite-convocatorias:5000}")
+    private int limiteConvocatoriasDefault;
 
     private final BdnsClientService bdnsClientService;
     private final ConvocatoriaService convocatoriaService;
@@ -60,10 +64,12 @@ public class BdnsImportEstrategiaService {
     public int importarTodo(BiConsumer<String, Integer> onProgreso,
                             ModoImportacion modo,
                             AtomicBoolean cancelado,
-                            long delayMsOverride) throws InterruptedException {
+                            long delayMsOverride,
+                            Integer limiteConvocatorias) throws InterruptedException {
         long efectiveDelayMs = delayMsOverride >= 0 ? delayMsOverride : this.delayMs;
+        int limite = Math.max(1, limiteConvocatorias != null ? limiteConvocatorias : limiteConvocatoriasDefault);
         String ejecucionId = UUID.randomUUID().toString();
-        log.info("BDNS import global: ejecucionId={} modo={} delayMs={}", ejecucionId, modo, efectiveDelayMs);
+        log.info("BDNS import global: ejecucionId={} modo={} delayMs={} limite={}", ejecucionId, modo, efectiveDelayMs, limite);
 
         // Sincronizar catálogo de regiones si la tabla está vacía
         if (regionService.count() == 0) {
@@ -80,39 +86,40 @@ public class BdnsImportEstrategiaService {
         SyncState syncState = syncStateRepo.findByEje(EJE_GLOBAL)
                 .orElse(SyncState.builder().eje(EJE_GLOBAL).build());
 
-        if (modo == ModoImportacion.INCREMENTAL && syncState.getEstado() == SyncState.Estado.COMPLETADO) {
-            log.info("BDNS import global: ya COMPLETADO en modo INCREMENTAL, omitido");
-            onProgreso.accept("GLOBAL [omitido]", 0);
-            return 0;
-        }
-
         int paginaInicio = 0;
-        boolean esReanudacion = modo == ModoImportacion.INCREMENTAL
-                && (syncState.getEstado() == SyncState.Estado.ERROR
-                    || syncState.getEstado() == SyncState.Estado.EN_PROGRESO)
-                && syncState.getUltimaPaginaOk() >= 0;
+        boolean esReanudacion = modo == ModoImportacion.INCREMENTAL && syncState.getUltimaPaginaOk() >= 0;
         if (esReanudacion) {
             paginaInicio = syncState.getUltimaPaginaOk() + 1;
             log.info("BDNS import global: reanudando desde pág. {} (última ok: {})",
                     paginaInicio, syncState.getUltimaPaginaOk());
         }
 
-        syncState.setEstado(SyncState.Estado.EN_PROGRESO);
-        syncState.setTsInicio(Instant.now());
-        syncState.setTsUltimaCarga(null);
-        if (modo == ModoImportacion.FULL || paginaInicio == 0) {
-            syncState.setUltimaPaginaOk(-1);
-            syncState.setRegistrosNuevos(0);
-            syncState.setRegistrosActualizados(0);
+        Long ultimaConvocatoriaLocal = modo == ModoImportacion.NUEVAS
+                ? convocatoriaService.obtenerMaxNumeroConvocatoriaNumerico()
+                : null;
+        boolean actualizaEstadoGlobal = modo != ModoImportacion.NUEVAS;
+
+        if (actualizaEstadoGlobal) {
+            syncState.setEstado(SyncState.Estado.EN_PROGRESO);
+            syncState.setTsInicio(Instant.now());
+            syncState.setTsUltimaCarga(null);
+            if (modo == ModoImportacion.FULL || paginaInicio == 0) {
+                syncState.setUltimaPaginaOk(-1);
+                syncState.setRegistrosNuevos(0);
+                syncState.setRegistrosActualizados(0);
+            }
+            syncState = syncStateRepo.save(syncState);
         }
-        syncState = syncStateRepo.save(syncState);
 
         int pag = paginaInicio;
         int nuevosTotal = 0;
+        int procesadas = 0;
         int maxPaginas = Integer.MAX_VALUE;
+        boolean limiteAlcanzado = false;
+        boolean encontroUltimaLocal = false;
 
         try {
-            while (pag <= maxPaginas && !cancelado.get()) {
+            while (pag <= maxPaginas && !cancelado.get() && procesadas < limite && !encontroUltimaLocal) {
                 String progStr = maxPaginas == Integer.MAX_VALUE
                         ? "GLOBAL – pág. " + pag
                         : "GLOBAL – pág. " + pag + "/" + (maxPaginas + 1);
@@ -131,23 +138,41 @@ public class BdnsImportEstrategiaService {
                     break;
                 }
 
-                // Enriquecer cada convocatoria con datos del endpoint de detalle
+                List<com.syntia.ai.model.dto.ConvocatoriaDTO> candidatas = new java.util.ArrayList<>();
                 for (com.syntia.ai.model.dto.ConvocatoriaDTO dto : pagina.items()) {
+                    if (procesadas >= limite) {
+                        limiteAlcanzado = true;
+                        break;
+                    }
+                    Long numero = parseNumeroConvocatoria(dto.getNumeroConvocatoria());
+                    if (modo == ModoImportacion.NUEVAS && ultimaConvocatoriaLocal != null
+                            && numero != null && numero <= ultimaConvocatoriaLocal) {
+                        encontroUltimaLocal = true;
+                        break;
+                    }
+                    candidatas.add(dto);
+                    procesadas++;
+                }
+
+                // Enriquecer cada convocatoria con datos del endpoint de detalle
+                for (com.syntia.ai.model.dto.ConvocatoriaDTO dto : candidatas) {
                     bdnsClientService.enriquecerConDetalle(dto);
                 }
 
-                ResultadoPersistencia resultado = convocatoriaService.persistirNuevas(pagina.items());
+                ResultadoPersistencia resultado = convocatoriaService.persistirNuevas(candidatas);
                 nuevosTotal += resultado.nuevas();
 
-                syncState.setUltimaPaginaOk(pag);
-                syncState.setRegistrosNuevos(syncState.getRegistrosNuevos() + resultado.nuevas());
-                syncState.setRegistrosActualizados(syncState.getRegistrosActualizados() + resultado.actualizados());
-                syncState.setTsUltimaCarga(Instant.now());
-                syncStateRepo.save(syncState);
+                if (actualizaEstadoGlobal && candidatas.size() == pagina.items().size()) {
+                    syncState.setUltimaPaginaOk(pag);
+                    syncState.setRegistrosNuevos(syncState.getRegistrosNuevos() + resultado.nuevas());
+                    syncState.setRegistrosActualizados(syncState.getRegistrosActualizados() + resultado.actualizados());
+                    syncState.setTsUltimaCarga(Instant.now());
+                    syncStateRepo.save(syncState);
+                }
 
                 syncLogRepo.save(SyncLog.builder()
                         .ejecucionId(ejecucionId)
-                        .eje(EJE_GLOBAL)
+                        .eje(modo == ModoImportacion.NUEVAS ? "GLOBAL_NUEVAS" : EJE_GLOBAL)
                         .pagina(pag)
                         .registrosNuevos(resultado.nuevas())
                         .registrosActualizados(resultado.actualizados())
@@ -170,22 +195,38 @@ public class BdnsImportEstrategiaService {
                 if (efectiveDelayMs > 0) Thread.sleep(efectiveDelayMs);
             }
 
-            syncState.setEstado(cancelado.get() ? SyncState.Estado.ERROR : SyncState.Estado.COMPLETADO);
+            if (actualizaEstadoGlobal) {
+            boolean pendiente = (limiteAlcanzado || procesadas >= limite) && pag <= maxPaginas && !cancelado.get();
+            syncState.setEstado(cancelado.get() || pendiente ? SyncState.Estado.ERROR : SyncState.Estado.COMPLETADO);
             syncState.setTsUltimaCarga(Instant.now());
             syncStateRepo.save(syncState);
+            }
 
         } catch (InterruptedException e) {
+            if (actualizaEstadoGlobal) {
             syncState.setEstado(SyncState.Estado.ERROR);
             syncState.setTsUltimaCarga(Instant.now());
             syncStateRepo.save(syncState);
+            }
             throw e;
         } catch (Exception e) {
+            if (actualizaEstadoGlobal) {
             syncState.setEstado(SyncState.Estado.ERROR);
             syncState.setTsUltimaCarga(Instant.now());
             syncStateRepo.save(syncState);
+            }
             log.error("BDNS import global: error en pág. {}: {}", pag, e.getMessage());
         }
 
         return nuevosTotal;
+    }
+
+    private Long parseNumeroConvocatoria(String numeroConvocatoria) {
+        if (numeroConvocatoria == null || numeroConvocatoria.isBlank()) return null;
+        try {
+            return Long.parseLong(numeroConvocatoria.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 }

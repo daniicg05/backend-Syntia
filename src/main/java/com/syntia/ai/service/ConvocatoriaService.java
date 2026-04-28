@@ -196,6 +196,10 @@ public class ConvocatoriaService {
         return new ResultadoPersistencia(nuevas, duplicadas, rechazadas, actualizados);
     }
 
+    public Long obtenerMaxNumeroConvocatoriaNumerico() {
+        return convocatoriaRepository.findMaxNumeroConvocatoriaNumerico();
+    }
+
     /**
      * Rellena solo los campos que están a null en un registro existente.
      * No sobreescribe datos ya presentes (protege ediciones manuales).

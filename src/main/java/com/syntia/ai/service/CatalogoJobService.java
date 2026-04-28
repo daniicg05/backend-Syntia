@@ -1,7 +1,6 @@
 package com.syntia.ai.service;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -29,14 +28,21 @@ public class CatalogoJobService {
     private final AtomicReference<EstadoJob> estadoActual =
             new AtomicReference<>(new EstadoJob(Estado.INACTIVO, null, 0, null, null, null, null));
 
-    private final CatalogoImportService catalogoImportService;
+    private final BdnsEtlJobCoordinator bdnsEtlJobCoordinator;
+    private final CatalogoJobExecutor catalogoJobExecutor;
 
-    public CatalogoJobService(CatalogoImportService catalogoImportService) {
-        this.catalogoImportService = catalogoImportService;
+    public CatalogoJobService(BdnsEtlJobCoordinator bdnsEtlJobCoordinator,
+                              CatalogoJobExecutor catalogoJobExecutor) {
+        this.bdnsEtlJobCoordinator = bdnsEtlJobCoordinator;
+        this.catalogoJobExecutor = catalogoJobExecutor;
     }
 
     public EstadoJob obtenerEstado() {
         return estadoActual.get();
+    }
+
+    public boolean estaEnCurso() {
+        return enCurso.get() || bdnsEtlJobCoordinator.estaEnCurso(BdnsEtlJobCoordinator.Job.CATALOGOS);
     }
 
     public boolean cancelar() {
@@ -47,8 +53,14 @@ public class CatalogoJobService {
     }
 
     public boolean iniciar() {
+        if (!bdnsEtlJobCoordinator.iniciar(BdnsEtlJobCoordinator.Job.CATALOGOS)) {
+            log.warn("Ya hay un job ETL BDNS en curso");
+            return false;
+        }
+
         if (!enCurso.compareAndSet(false, true)) {
             log.warn("Ya hay un job de catalogos en curso");
+            bdnsEtlJobCoordinator.finalizar(BdnsEtlJobCoordinator.Job.CATALOGOS);
             return false;
         }
 
@@ -56,32 +68,35 @@ public class CatalogoJobService {
         LocalDateTime inicio = LocalDateTime.now();
         estadoActual.set(new EstadoJob(Estado.EN_CURSO, "Iniciando...", 0, inicio, null, null, null));
 
-        ejecutarAsync(inicio);
-        return true;
-    }
+        catalogoJobExecutor.ejecutar(
+                fase -> estadoActual.set(new EstadoJob(Estado.EN_CURSO, fase, 0, inicio, null, null, null)),
+                resultado -> {
+                    int total = total(resultado);
+                    estadoActual.set(new EstadoJob(Estado.COMPLETADO, null, total, inicio, LocalDateTime.now(), null, resultado));
+                    enCurso.set(false);
+                    cancelado.set(false);
+                    bdnsEtlJobCoordinator.finalizar(BdnsEtlJobCoordinator.Job.CATALOGOS);
+                    log.info("Catalogo job completado: {} registros totales", total);
+                },
+                (mensaje, resultado) -> {
+                    int total = total(resultado);
+                    estadoActual.set(new EstadoJob(Estado.CANCELADO, null, total, inicio, LocalDateTime.now(), mensaje, resultado));
+                    log.info("Catalogo job cancelado: {} registros parciales", total);
+                    enCurso.set(false);
+                    cancelado.set(false);
+                    bdnsEtlJobCoordinator.finalizar(BdnsEtlJobCoordinator.Job.CATALOGOS);
+                },
+                (error, resultado) -> {
+                    int total = total(resultado);
+                    estadoActual.set(new EstadoJob(Estado.FALLIDO, null, total, inicio, LocalDateTime.now(), error, resultado));
+                    enCurso.set(false);
+                    cancelado.set(false);
+                    bdnsEtlJobCoordinator.finalizar(BdnsEtlJobCoordinator.Job.CATALOGOS);
+                },
+                cancelado
+        );
 
-    @Async
-    void ejecutarAsync(LocalDateTime inicio) {
-        try {
-            CatalogoImportService.ResultadoCatalogos resultado = catalogoImportService.importarTodos(
-                    fase -> estadoActual.set(new EstadoJob(Estado.EN_CURSO, fase, 0, inicio, null, null, null)),
-                    cancelado::get
-            );
-            int total = total(resultado);
-            if (cancelado.get()) {
-                estadoActual.set(new EstadoJob(Estado.CANCELADO, null, total, inicio, LocalDateTime.now(), "Cancelado por el usuario", resultado));
-                log.info("Catalogo job cancelado: {} registros parciales", total);
-            } else {
-                estadoActual.set(new EstadoJob(Estado.COMPLETADO, null, total, inicio, LocalDateTime.now(), null, resultado));
-                log.info("Catalogo job completado: {} registros totales", total);
-            }
-        } catch (Exception e) {
-            log.error("Catalogo job FALLIDO: {}", e.getMessage(), e);
-            estadoActual.set(new EstadoJob(Estado.FALLIDO, null, 0, inicio, LocalDateTime.now(), e.getMessage(), null));
-        } finally {
-            enCurso.set(false);
-            cancelado.set(false);
-        }
+        return true;
     }
 
     private int total(CatalogoImportService.ResultadoCatalogos res) {
