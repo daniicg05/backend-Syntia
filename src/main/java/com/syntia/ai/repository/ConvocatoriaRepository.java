@@ -137,6 +137,13 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
 
     long countByNumeroConvocatoriaIsNotNull();
 
+    @Query(value = """
+            SELECT MAX(CAST(numero_convocatoria AS BIGINT))
+            FROM convocatorias
+            WHERE numero_convocatoria ~ '^[0-9]+$'
+            """, nativeQuery = true)
+    Long findMaxNumeroConvocatoriaNumerico();
+
     /**
      * Búsqueda pública full-text: filtra por keyword en título/descripción/sector
      * y opcionalmente por sector (LIKE). Usado por el endpoint público de búsqueda.

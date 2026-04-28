@@ -62,6 +62,10 @@ public class BdnsImportJobService {
      * @return true si se inició correctamente, false si ya había uno en curso
      */
     public boolean iniciar(ModoImportacion modo, long delayMsOverride) {
+        return iniciar(modo, delayMsOverride, null);
+    }
+
+    public boolean iniciar(ModoImportacion modo, long delayMsOverride, Integer limiteConvocatorias) {
         if (!enCurso.compareAndSet(false, true)) {
             log.warn("Ya hay una importación BDNS en curso — petición ignorada");
             return false;
@@ -87,7 +91,8 @@ public class BdnsImportJobService {
                 },
                 modo,
                 cancelado,
-                delayMsOverride
+                delayMsOverride,
+                limiteConvocatorias
         );
         return true;
     }

@@ -10,5 +10,6 @@ package com.syntia.ai.service;
  */
 public enum ModoImportacion {
     FULL,
+    NUEVAS,
     INCREMENTAL
 }
