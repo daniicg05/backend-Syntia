@@ -116,8 +116,8 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleGenericException(
             Exception ex, HttpServletRequest request) {
         log.error("Error no controlado en {}: {}", request.getRequestURI(), ex.getMessage(), ex);
-        return build(HttpStatus.INTERNAL_SERVER_ERROR,
-                "Error interno en el servidor", request);
+        String msg = ex.getMessage() != null ? ex.getMessage() : "Error interno en el servidor";
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, msg, request);
     }
 
     private ResponseEntity<ErrorResponse> build(HttpStatus status, String mensaje,

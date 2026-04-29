@@ -1,0 +1,115 @@
+package com.syntia.ai.controller.api;
+
+import com.syntia.ai.model.AnalisisConvocatoria;
+import com.syntia.ai.model.Recomendacion;
+import com.syntia.ai.model.Usuario;
+import com.syntia.ai.model.dto.GuiaSubvencionDTO;
+import com.syntia.ai.model.dto.GuiaUsuarioDTO;
+import com.syntia.ai.repository.AnalisisConvocatoriaRepository;
+import com.syntia.ai.repository.RecomendacionRepository;
+import com.syntia.ai.service.OpenAiGuiaService;
+import com.syntia.ai.service.UsuarioService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.ArrayList;
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/usuario/guias")
+@PreAuthorize("hasRole('USUARIO')")
+public class GuiaUsuarioController {
+
+    private final RecomendacionRepository recomendacionRepository;
+    private final AnalisisConvocatoriaRepository analisisConvocatoriaRepository;
+    private final OpenAiGuiaService openAiGuiaService;
+    private final UsuarioService usuarioService;
+
+    public GuiaUsuarioController(RecomendacionRepository recomendacionRepository,
+                                 AnalisisConvocatoriaRepository analisisConvocatoriaRepository,
+                                 OpenAiGuiaService openAiGuiaService,
+                                 UsuarioService usuarioService) {
+        this.recomendacionRepository = recomendacionRepository;
+        this.analisisConvocatoriaRepository = analisisConvocatoriaRepository;
+        this.openAiGuiaService = openAiGuiaService;
+        this.usuarioService = usuarioService;
+    }
+
+    @GetMapping
+    public ResponseEntity<List<GuiaUsuarioDTO>> listarGuias(Authentication authentication) {
+        Usuario usuario = usuarioService.buscarPorEmail(authentication.getName())
+                .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado"));
+
+        List<GuiaUsuarioDTO> guias = new ArrayList<>();
+
+        // 1. Guías de recomendaciones (flujo proyecto → buscar → analizar IA → ver guía)
+        List<Recomendacion> recs = recomendacionRepository.findGuiasEnriquecidasByUsuarioId(usuario.getId());
+        for (Recomendacion rec : recs) {
+            GuiaSubvencionDTO guiaDto = openAiGuiaService.deserializarGuia(rec.getGuiaEnriquecida());
+            if (guiaDto == null) continue;
+
+            String numConv = rec.getConvocatoria().getNumeroConvocatoria();
+            String url = (numConv != null && !numConv.isBlank())
+                    ? "https://www.infosubvenciones.es/bdnstrans/GE/es/convocatoria/" + numConv
+                    : rec.getConvocatoria().getUrlOficial();
+
+            guias.add(GuiaUsuarioDTO.builder()
+                    .id(rec.getId())
+                    .origen("recomendacion")
+                    .convocatoriaId(rec.getConvocatoria().getId())
+                    .titulo(rec.getConvocatoria().getTitulo())
+                    .organismo(rec.getConvocatoria().getOrganismo())
+                    .sector(rec.getConvocatoria().getSector())
+                    .ubicacion(rec.getConvocatoria().getUbicacion())
+                    .fechaCierre(rec.getConvocatoria().getFechaCierre())
+                    .abierto(rec.getConvocatoria().getAbierto())
+                    .urlOficial(url)
+                    .numeroConvocatoria(numConv)
+                    .proyectoId(rec.getProyecto().getId())
+                    .proyectoNombre(rec.getProyecto().getNombre())
+                    .guia(guiaDto)
+                    .creadoEn(rec.getGeneradaEn())
+                    .puntuacion(rec.getPuntuacion())
+                    .build());
+        }
+
+        // 2. Guías de análisis individuales (flujo catálogo → analizar con IA)
+        List<AnalisisConvocatoria> analisis = analisisConvocatoriaRepository
+                .findGuiasEnriquecidasByUsuarioId(usuario.getId());
+        for (AnalisisConvocatoria a : analisis) {
+            GuiaSubvencionDTO guiaDto = openAiGuiaService.deserializarGuia(a.getGuiaEnriquecida());
+            if (guiaDto == null) continue;
+
+            String numConv = a.getConvocatoria().getNumeroConvocatoria();
+            String url = (numConv != null && !numConv.isBlank())
+                    ? "https://www.infosubvenciones.es/bdnstrans/GE/es/convocatoria/" + numConv
+                    : a.getConvocatoria().getUrlOficial();
+
+            guias.add(GuiaUsuarioDTO.builder()
+                    .id(a.getId() + 1_000_000L) // offset to avoid ID collision with recomendaciones
+                    .origen("analisis")
+                    .convocatoriaId(a.getConvocatoria().getId())
+                    .titulo(a.getConvocatoria().getTitulo())
+                    .organismo(a.getConvocatoria().getOrganismo())
+                    .sector(a.getConvocatoria().getSector())
+                    .ubicacion(a.getConvocatoria().getUbicacion())
+                    .fechaCierre(a.getConvocatoria().getFechaCierre())
+                    .abierto(a.getConvocatoria().getAbierto())
+                    .urlOficial(url)
+                    .numeroConvocatoria(numConv)
+                    .proyectoId(a.getProyecto() != null ? a.getProyecto().getId() : null)
+                    .proyectoNombre(a.getProyecto() != null ? a.getProyecto().getNombre() : null)
+                    .guia(guiaDto)
+                    .creadoEn(a.getCreadoEn())
+                    .puntuacion(0)
+                    .build());
+        }
+
+        return ResponseEntity.ok(guias);
+    }
+}
