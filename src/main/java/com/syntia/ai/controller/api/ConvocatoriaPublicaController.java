@@ -83,6 +83,8 @@ public class ConvocatoriaPublicaController {
             @RequestParam(required = false) Long regionId,
             @RequestParam(required = false) String ubicacion,
             @RequestParam(required = false) Double presupuestoMin,
+            @RequestParam(required = false) Integer plazoCierreDias,
+            @RequestParam(required = false, defaultValue = "") String tipoBeneficiario,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
@@ -104,6 +106,9 @@ public class ConvocatoriaPublicaController {
         Set<Integer> regionIds = filtrarRegion
                 ? regionService.obtenerDescendientesIds(regionId)
                 : Set.of();
+        LocalDate fechaCierreHasta = plazoCierreDias != null && plazoCierreDias > 0
+                ? LocalDate.now().plusDays(plazoCierreDias)
+                : null;
 
         Page<Convocatoria> resultado = convocatoriaRepository.buscarPublicoConRegion(
                 q.isBlank() ? null : q,
@@ -113,6 +118,8 @@ public class ConvocatoriaPublicaController {
                 filtrarRegion,
                 regionIds,
                 presupuestoMin != null && presupuestoMin > 0 ? presupuestoMin : null,
+                fechaCierreHasta,
+                tipoBeneficiario.isBlank() ? null : tipoBeneficiario,
                 pageRequest
         );
 

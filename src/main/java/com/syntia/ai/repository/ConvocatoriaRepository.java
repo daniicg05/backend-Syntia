@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -154,7 +155,7 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
             "   (c.descripcion IS NOT NULL AND LOWER(c.descripcion) LIKE LOWER(CONCAT('%', :q, '%'))) OR " +
             "   (c.finalidad IS NOT NULL AND LOWER(c.finalidad) LIKE LOWER(CONCAT('%', :q, '%')))) AND " +
             "(:sector IS NULL OR :sector = '' OR " +
-            "   (c.sector IS NOT NULL AND LOWER(c.sector) = LOWER(:sector))) AND " +
+            "   (c.finalidad IS NOT NULL AND LOWER(c.finalidad) = LOWER(:sector))) AND " +
             "(:tipo IS NULL OR :tipo = '' OR " +
             "   (c.tipo IS NOT NULL AND LOWER(c.tipo) = LOWER(:tipo))) AND " +
             "(:incluirCerradas = true OR c.abierto = true)")
@@ -175,12 +176,17 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
             "   (c.descripcion IS NOT NULL AND LOWER(c.descripcion) LIKE LOWER(CONCAT('%', :q, '%'))) OR " +
             "   (c.finalidad IS NOT NULL AND LOWER(c.finalidad) LIKE LOWER(CONCAT('%', :q, '%')))) AND " +
             "(:sector IS NULL OR :sector = '' OR " +
-            "   (c.sector IS NOT NULL AND LOWER(c.sector) = LOWER(:sector))) AND " +
+            "   (c.finalidad IS NOT NULL AND LOWER(c.finalidad) = LOWER(:sector))) AND " +
             "(:tipo IS NULL OR :tipo = '' OR " +
             "   (c.tipo IS NOT NULL AND LOWER(c.tipo) = LOWER(:tipo))) AND " +
             "(:incluirCerradas = true OR c.abierto = true) AND " +
             "(:filtrarRegion = false OR (c.regionId IN :regionIds OR c.provinciaId IN :regionIds OR LOWER(c.ubicacion) = 'nacional')) AND " +
-            "(:presupuestoMin IS NULL OR (c.presupuesto IS NOT NULL AND c.presupuesto >= :presupuestoMin))")
+            "(:presupuestoMin IS NULL OR (c.presupuesto IS NOT NULL AND c.presupuesto >= :presupuestoMin)) AND " +
+            "(:fechaCierreHasta IS NULL OR (c.fechaCierre IS NOT NULL AND c.fechaCierre >= CURRENT_DATE AND c.fechaCierre <= :fechaCierreHasta)) AND " +
+            "(:tipoBeneficiario IS NULL OR :tipoBeneficiario = '' OR EXISTS (" +
+            "   SELECT 1 FROM IdxConvocatoriaBeneficiario ib JOIN CatBeneficiario b ON ib.beneficiarioId = b.id " +
+            "   WHERE ib.numeroConvocatoria = c.numeroConvocatoria " +
+            "   AND LOWER(b.descripcion) LIKE LOWER(CONCAT('%', :tipoBeneficiario, '%'))))")
     Page<Convocatoria> buscarPublicoConRegion(@Param("q") String q,
                                               @Param("sector") String sector,
                                               @Param("tipo") String tipo,
@@ -188,6 +194,8 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
                                               @Param("filtrarRegion") boolean filtrarRegion,
                                               @Param("regionIds") Collection<Integer> regionIds,
                                               @Param("presupuestoMin") Double presupuestoMin,
+                                              @Param("fechaCierreHasta") LocalDate fechaCierreHasta,
+                                              @Param("tipoBeneficiario") String tipoBeneficiario,
                                               Pageable pageable);
 
     /** Devuelve los valores distintos de finalidad no nulos, ordenados alfabéticamente. */
@@ -198,7 +206,7 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
     @Query("SELECT c FROM Convocatoria c WHERE " +
             "(:q IS NULL OR :q = '' OR LOWER(c.titulo) LIKE LOWER(CONCAT('%', :q, '%'))) AND " +
             "(:sector IS NULL OR :sector = '' OR " +
-            "   (c.sector IS NOT NULL AND LOWER(c.sector) LIKE LOWER(CONCAT('%', :sector, '%'))))")
+            "   (c.finalidad IS NOT NULL AND LOWER(c.finalidad) LIKE LOWER(CONCAT('%', :sector, '%'))))")
     Page<Convocatoria> buscarAdmin(@Param("q") String q,
                                    @Param("sector") String sector,
                                    Pageable pageable);
