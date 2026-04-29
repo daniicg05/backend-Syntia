@@ -11,6 +11,7 @@ import com.syntia.ai.model.dto.ConvocatoriaPublicaDTO;
 import com.syntia.ai.model.dto.GuiaSubvencionDTO;
 import com.syntia.ai.repository.AnalisisConvocatoriaRepository;
 import com.syntia.ai.repository.ConvocatoriaRepository;
+import com.syntia.ai.repository.IdxConvocatoriaBeneficiarioRepository;
 import com.syntia.ai.service.BdnsClientService;
 import com.syntia.ai.service.ConvocatoriaContextBuilder;
 import com.syntia.ai.service.MatchService;
@@ -31,8 +32,10 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -66,6 +69,7 @@ public class ConvocatoriaPersonalizadaController {
     private final PerfilService perfilService;
     private final ProyectoService proyectoService;
     private final ConvocatoriaRepository convocatoriaRepository;
+    private final IdxConvocatoriaBeneficiarioRepository beneficiarioRepository;
     private final AnalisisConvocatoriaRepository analisisConvocatoriaRepository;
     private final MatchService matchService;
     private final RegionService regionService;
@@ -80,6 +84,7 @@ public class ConvocatoriaPersonalizadaController {
                                                PerfilService perfilService,
                                                ProyectoService proyectoService,
                                                ConvocatoriaRepository convocatoriaRepository,
+                                               IdxConvocatoriaBeneficiarioRepository beneficiarioRepository,
                                                AnalisisConvocatoriaRepository analisisConvocatoriaRepository,
                                                MatchService matchService,
                                                RegionService regionService,
@@ -92,6 +97,7 @@ public class ConvocatoriaPersonalizadaController {
         this.perfilService = perfilService;
         this.proyectoService = proyectoService;
         this.convocatoriaRepository = convocatoriaRepository;
+        this.beneficiarioRepository = beneficiarioRepository;
         this.analisisConvocatoriaRepository = analisisConvocatoriaRepository;
         this.matchService = matchService;
         this.regionService = regionService;
@@ -164,6 +170,8 @@ public class ConvocatoriaPersonalizadaController {
             @RequestParam(required = false) Long regionId,
             @RequestParam(required = false) String ubicacion,
             @RequestParam(required = false) Double presupuestoMin,
+            @RequestParam(required = false) Integer plazoCierreDias,
+            @RequestParam(required = false, defaultValue = "") String tipoBeneficiario,
             @RequestParam(defaultValue = "relevancia") String sort,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -189,6 +197,9 @@ public class ConvocatoriaPersonalizadaController {
         Set<Integer> regionIds = filtrarRegion
                 ? regionService.obtenerDescendientesIds(regionId)
                 : Set.of();
+        LocalDate fechaCierreHasta = plazoCierreDias != null && plazoCierreDias > 0
+                ? LocalDate.now().plusDays(plazoCierreDias)
+                : null;
 
         // Pool grande para re-ordenar por score/criterio
         PageRequest pageRequest = PageRequest.of(0, 200);
@@ -200,12 +211,20 @@ public class ConvocatoriaPersonalizadaController {
                 filtrarRegion,
                 regionIds,
                 presupuestoMin != null && presupuestoMin > 0 ? presupuestoMin : null,
+                fechaCierreHasta,
+                tipoBeneficiario.isBlank() ? null : tipoBeneficiario,
                 pageRequest
         );
+
+        Map<String, List<String>> beneficiarioMap = cargarBeneficiarios(candidatos.getContent());
 
         // Calcular matchScore para todos los candidatos
         List<ConvocatoriaPublicaDTO> scorados = candidatos.getContent().stream()
                 .map(c -> matchService.toMatchDTO(c, perfil, proyectos))
+                .peek(dto -> dto.setTiposBeneficiario(
+                        dto.getNumeroConvocatoria() != null
+                                ? beneficiarioMap.getOrDefault(dto.getNumeroConvocatoria(), List.of())
+                                : List.of()))
                 .toList();
 
         // Ordenar según criterio solicitado
@@ -245,6 +264,22 @@ public class ConvocatoriaPersonalizadaController {
      * @param id         ID de la convocatoria
      * @param proyectoId ID del proyecto del usuario (opcional; si no se pasa, usa el más afín)
      */
+    private Map<String, List<String>> cargarBeneficiarios(List<Convocatoria> convocatorias) {
+        Set<String> numeros = new LinkedHashSet<>();
+        for (Convocatoria c : convocatorias) {
+            if (c.getNumeroConvocatoria() != null) numeros.add(c.getNumeroConvocatoria());
+        }
+        if (numeros.isEmpty()) return Map.of();
+
+        Map<String, List<String>> map = new HashMap<>();
+        for (Object[] row : beneficiarioRepository.findBeneficiariosByNumeros(numeros)) {
+            String num = (String) row[0];
+            String desc = (String) row[1];
+            map.computeIfAbsent(num, k -> new ArrayList<>()).add(desc);
+        }
+        return map;
+    }
+
     @Transactional
     @GetMapping("/{id}/analisis")
     public ResponseEntity<?> analisis(@PathVariable Long id,
