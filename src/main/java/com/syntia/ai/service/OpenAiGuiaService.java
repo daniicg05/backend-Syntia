@@ -224,7 +224,7 @@ public class OpenAiGuiaService {
                                                   String urlOficial) {
         String userPrompt = construirUserPrompt(proyecto, perfil, convocatoria, detalleTexto, urlOficial);
         log.info("Generando guía enriquecida para convocatoria='{}' proyecto={}",
-                convocatoria.getTitulo(), proyecto.getId());
+                convocatoria.getTitulo(), proyecto != null ? proyecto.getId() : "sin proyecto");
 
         String respuesta = openAiClient.chatLarge(GUIA_SYSTEM_PROMPT, userPrompt);
         return parsearGuia(respuesta, convocatoria);

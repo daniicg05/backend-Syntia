@@ -138,4 +138,9 @@ public interface RecomendacionRepository extends JpaRepository<Recomendacion, In
      */
     @Query("SELECT r FROM Recomendacion r JOIN FETCH r.convocatoria WHERE r.proyecto.id = :proyectoId AND r.usadaIa = false")
     List<Recomendacion> findByProyectoIdAndUsadaIaFalse(@Param("proyectoId") Long proyectoId);
+
+    @Query("SELECT r FROM Recomendacion r JOIN FETCH r.convocatoria JOIN FETCH r.proyecto " +
+            "WHERE r.proyecto.usuario.id = :usuarioId AND r.guiaEnriquecida IS NOT NULL " +
+            "ORDER BY r.generadaEn DESC")
+    List<Recomendacion> findGuiasEnriquecidasByUsuarioId(@Param("usuarioId") Long usuarioId);
 }

@@ -1,5 +1,7 @@
 package com.syntia.ai.controller.api;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.syntia.ai.model.AnalisisConvocatoria;
 import com.syntia.ai.model.Convocatoria;
 import com.syntia.ai.model.Perfil;
 import com.syntia.ai.model.Proyecto;
@@ -7,6 +9,7 @@ import com.syntia.ai.model.Usuario;
 import com.syntia.ai.model.dto.AnalisisCompletoDTO;
 import com.syntia.ai.model.dto.ConvocatoriaPublicaDTO;
 import com.syntia.ai.model.dto.GuiaSubvencionDTO;
+import com.syntia.ai.repository.AnalisisConvocatoriaRepository;
 import com.syntia.ai.repository.ConvocatoriaRepository;
 import com.syntia.ai.service.BdnsClientService;
 import com.syntia.ai.service.ConvocatoriaContextBuilder;
@@ -20,10 +23,12 @@ import com.syntia.ai.service.RegionService;
 import com.syntia.ai.service.UbicacionNormalizador;
 import com.syntia.ai.service.UsuarioService;
 import jakarta.persistence.EntityNotFoundException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
@@ -38,6 +43,7 @@ import java.util.Set;
  * Endpoints autenticados de búsqueda y recomendaciones personalizadas.
  * Combina el matching de perfil+proyectos con las convocatorias de la BD.
  */
+@Slf4j
 @RestController
 @RequestMapping("/api/usuario/convocatorias")
 public class ConvocatoriaPersonalizadaController {
@@ -60,6 +66,7 @@ public class ConvocatoriaPersonalizadaController {
     private final PerfilService perfilService;
     private final ProyectoService proyectoService;
     private final ConvocatoriaRepository convocatoriaRepository;
+    private final AnalisisConvocatoriaRepository analisisConvocatoriaRepository;
     private final MatchService matchService;
     private final RegionService regionService;
     private final OpenAiGuiaService openAiGuiaService;
@@ -67,11 +74,13 @@ public class ConvocatoriaPersonalizadaController {
     private final BdnsClientService bdnsClientService;
     private final ConvocatoriaContextBuilder contextBuilder;
     private final OpenAiAnalisisService openAiAnalisisService;
+    private final ObjectMapper objectMapper;
 
     public ConvocatoriaPersonalizadaController(UsuarioService usuarioService,
                                                PerfilService perfilService,
                                                ProyectoService proyectoService,
                                                ConvocatoriaRepository convocatoriaRepository,
+                                               AnalisisConvocatoriaRepository analisisConvocatoriaRepository,
                                                MatchService matchService,
                                                RegionService regionService,
                                                OpenAiGuiaService openAiGuiaService,
@@ -83,6 +92,7 @@ public class ConvocatoriaPersonalizadaController {
         this.perfilService = perfilService;
         this.proyectoService = proyectoService;
         this.convocatoriaRepository = convocatoriaRepository;
+        this.analisisConvocatoriaRepository = analisisConvocatoriaRepository;
         this.matchService = matchService;
         this.regionService = regionService;
         this.openAiGuiaService = openAiGuiaService;
@@ -90,6 +100,7 @@ public class ConvocatoriaPersonalizadaController {
         this.bdnsClientService = bdnsClientService;
         this.contextBuilder = contextBuilder;
         this.openAiAnalisisService = openAiAnalisisService;
+        this.objectMapper = new ObjectMapper();
     }
 
     /**
@@ -234,15 +245,29 @@ public class ConvocatoriaPersonalizadaController {
      * @param id         ID de la convocatoria
      * @param proyectoId ID del proyecto del usuario (opcional; si no se pasa, usa el más afín)
      */
+    @Transactional
     @GetMapping("/{id}/analisis")
     public ResponseEntity<?> analisis(@PathVariable Long id,
                                       @RequestParam(required = false) Long proyectoId,
                                       Authentication authentication) {
-
+      try {
         Usuario usuario = resolverUsuario(authentication);
 
         Convocatoria convocatoria = convocatoriaRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Convocatoria no encontrada: " + id));
+
+        // Check cache
+        Optional<AnalisisConvocatoria> cached = analisisConvocatoriaRepository
+                .findByConvocatoriaIdAndUsuarioId(id, usuario.getId());
+        if (cached.isPresent()) {
+            try {
+                AnalisisCompletoDTO dto = objectMapper.readValue(cached.get().getResultado(), AnalisisCompletoDTO.class);
+                log.debug("Análisis cacheado para convocatoria={} usuario={}", id, usuario.getId());
+                return ResponseEntity.ok(dto);
+            } catch (Exception e) {
+                log.warn("Error deserializando análisis cacheado, regenerando: {}", e.getMessage());
+            }
+        }
 
         // Load user data
         Perfil perfil = perfilService.obtenerPerfil(usuario.getId()).orElse(null);
@@ -254,7 +279,101 @@ public class ConvocatoriaPersonalizadaController {
         // Single AI call with all context
         AnalisisCompletoDTO analisis = openAiAnalisisService.analizar(contexto);
 
+        // Generate enriched guide in the same flow (cheaper than a separate call)
+        String guiaJson = null;
+        try {
+            String numConv = convocatoria.getNumeroConvocatoria();
+            String detalleTexto = (numConv != null) ? bdnsClientService.obtenerDetalleTexto(numConv) : null;
+            String urlOficial = (numConv != null && !numConv.isBlank())
+                    ? "https://www.infosubvenciones.es/bdnstrans/GE/es/convocatoria/" + numConv
+                    : convocatoria.getUrlOficial();
+
+            GuiaSubvencionDTO guia = (proyecto != null)
+                    ? openAiGuiaService.generarGuia(proyecto, perfil, convocatoria, detalleTexto, urlOficial)
+                    : openAiGuiaService.generarGuiaSinProyecto(perfil, convocatoria, detalleTexto, urlOficial);
+            guiaJson = openAiGuiaService.serializarGuia(guia);
+        } catch (Exception e) {
+            log.warn("Error generando guía enriquecida para convocatoria={}: {}", id, e.getMessage());
+        }
+
+        // Persist analysis + guide
+        try {
+            String json = objectMapper.writeValueAsString(analisis);
+            AnalisisConvocatoria entity = cached.orElseGet(() ->
+                    AnalisisConvocatoria.builder()
+                            .convocatoria(convocatoria)
+                            .usuario(usuario)
+                            .proyecto(proyecto)
+                            .build());
+            entity.setResultado(json);
+            entity.setProyecto(proyecto);
+            entity.setGuiaEnriquecida(guiaJson);
+            analisisConvocatoriaRepository.save(entity);
+            log.info("Análisis y guía guardados para convocatoria={} usuario={}", id, usuario.getId());
+        } catch (Exception e) {
+            log.warn("Error persistiendo análisis: {}", e.getMessage());
+        }
+
         return ResponseEntity.ok(analisis);
+      } catch (EntityNotFoundException e) {
+          return ResponseEntity.status(404).body(Map.of("error", e.getMessage()));
+      } catch (Exception e) {
+          log.error("Error en análisis convocatoria={}: {}", id, e.getMessage(), e);
+          return ResponseEntity.status(500).body(Map.of("error", e.getMessage() != null ? e.getMessage() : "Error interno del servidor"));
+      }
+    }
+
+    /**
+     * Devuelve la guía enriquecida de una convocatoria previamente analizada.
+     * Si no existe aún (análisis antiguo sin guía), la genera bajo demanda.
+     */
+    @Transactional
+    @GetMapping("/{id}/guia")
+    public ResponseEntity<?> guia(@PathVariable Long id, Authentication authentication) {
+        Usuario usuario = resolverUsuario(authentication);
+
+        Optional<AnalisisConvocatoria> cached = analisisConvocatoriaRepository
+                .findByConvocatoriaIdAndUsuarioId(id, usuario.getId());
+
+        if (cached.isEmpty()) {
+            return ResponseEntity.status(404).body(Map.of("error", "Primero analiza esta convocatoria con IA."));
+        }
+
+        AnalisisConvocatoria ac = cached.get();
+
+        // If guide already exists, return it
+        if (ac.getGuiaEnriquecida() != null && !ac.getGuiaEnriquecida().isBlank()) {
+            GuiaSubvencionDTO guia = openAiGuiaService.deserializarGuia(ac.getGuiaEnriquecida());
+            if (guia != null) {
+                return ResponseEntity.ok(guia);
+            }
+        }
+
+        // Generate guide on demand
+        try {
+            Convocatoria convocatoria = ac.getConvocatoria();
+            Perfil perfil = perfilService.obtenerPerfil(usuario.getId()).orElse(null);
+            Proyecto proyecto = ac.getProyecto();
+
+            String numConv = convocatoria.getNumeroConvocatoria();
+            String detalleTexto = (numConv != null) ? bdnsClientService.obtenerDetalleTexto(numConv) : null;
+            String urlOficial = (numConv != null && !numConv.isBlank())
+                    ? "https://www.infosubvenciones.es/bdnstrans/GE/es/convocatoria/" + numConv
+                    : convocatoria.getUrlOficial();
+
+            GuiaSubvencionDTO guia = (proyecto != null)
+                    ? openAiGuiaService.generarGuia(proyecto, perfil, convocatoria, detalleTexto, urlOficial)
+                    : openAiGuiaService.generarGuiaSinProyecto(perfil, convocatoria, detalleTexto, urlOficial);
+
+            ac.setGuiaEnriquecida(openAiGuiaService.serializarGuia(guia));
+            analisisConvocatoriaRepository.save(ac);
+            log.info("Guía generada bajo demanda para convocatoria={} usuario={}", id, usuario.getId());
+
+            return ResponseEntity.ok(guia);
+        } catch (Exception e) {
+            log.error("Error generando guía bajo demanda para convocatoria={}: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(500).body(Map.of("error", "Error generando la guía: " + e.getMessage()));
+        }
     }
 
     /**

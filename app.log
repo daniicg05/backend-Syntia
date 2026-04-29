@@ -1,0 +1,36 @@
+2026-04-29T00:34:41.947+02:00  WARN 11616 --- [syntia-ia] [HikariPool-1 housekeeper] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Thread starvation or clock leap detected (housekeeper delta=2h19m50s510ms277µs699ns).
+2026-04-29T03:09:06.671+02:00  WARN 11616 --- [syntia-ia] [HikariPool-1 housekeeper] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Thread starvation or clock leap detected (housekeeper delta=2h33m54s679ms737µs100ns).
+2026-04-29T09:18:15.595+02:00  WARN 11616 --- [syntia-ia] [HikariPool-1 connection adder] org.postgresql.core.ConnectionFactory    : Failed to closed stream with error: {0}
+
+java.net.SocketException: Connection reset by peer
+	at java.base/sun.nio.ch.NioSocketImpl.implWrite(NioSocketImpl.java:425) ~[na:na]
+	at java.base/sun.nio.ch.NioSocketImpl.write(NioSocketImpl.java:445) ~[na:na]
+	at java.base/sun.nio.ch.NioSocketImpl$2.write(NioSocketImpl.java:831) ~[na:na]
+	at java.base/java.net.Socket$SocketOutputStream.write(Socket.java:1035) ~[na:na]
+	at java.base/java.io.BufferedOutputStream.flushBuffer(BufferedOutputStream.java:81) ~[na:na]
+	at java.base/java.io.BufferedOutputStream.flush(BufferedOutputStream.java:142) ~[na:na]
+	at java.base/java.io.FilterOutputStream.flush(FilterOutputStream.java:153) ~[na:na]
+	at org.postgresql.core.PGStream$1.close(PGStream.java:314) ~[postgresql-42.6.0.jar:42.6.0]
+	at java.base/sun.nio.cs.StreamEncoder.implClose(StreamEncoder.java:347) ~[na:na]
+	at java.base/sun.nio.cs.StreamEncoder.close(StreamEncoder.java:169) ~[na:na]
+	at java.base/java.io.OutputStreamWriter.close(OutputStreamWriter.java:252) ~[na:na]
+	at org.postgresql.core.PGStream.close(PGStream.java:747) ~[postgresql-42.6.0.jar:42.6.0]
+	at org.postgresql.core.ConnectionFactory.closeStream(ConnectionFactory.java:89) ~[postgresql-42.6.0.jar:42.6.0]
+	at org.postgresql.core.v3.ConnectionFactoryImpl.tryConnect(ConnectionFactoryImpl.java:207) ~[postgresql-42.6.0.jar:42.6.0]
+	at org.postgresql.core.v3.ConnectionFactoryImpl.openConnectionImpl(ConnectionFactoryImpl.java:258) ~[postgresql-42.6.0.jar:42.6.0]
+	at org.postgresql.core.ConnectionFactory.openConnection(ConnectionFactory.java:54) ~[postgresql-42.6.0.jar:42.6.0]
+	at org.postgresql.jdbc.PgConnection.<init>(PgConnection.java:263) ~[postgresql-42.6.0.jar:42.6.0]
+	at org.postgresql.Driver.makeConnection(Driver.java:443) ~[postgresql-42.6.0.jar:42.6.0]
+	at org.postgresql.Driver.connect(Driver.java:297) ~[postgresql-42.6.0.jar:42.6.0]
+	at com.zaxxer.hikari.util.DriverDataSource.getConnection(DriverDataSource.java:137) ~[HikariCP-5.1.0.jar:na]
+	at com.zaxxer.hikari.pool.PoolBase.newConnection(PoolBase.java:360) ~[HikariCP-5.1.0.jar:na]
+	at com.zaxxer.hikari.pool.PoolBase.newPoolEntry(PoolBase.java:202) ~[HikariCP-5.1.0.jar:na]
+	at com.zaxxer.hikari.pool.HikariPool.createPoolEntry(HikariPool.java:461) ~[HikariCP-5.1.0.jar:na]
+	at com.zaxxer.hikari.pool.HikariPool$PoolEntryCreator.call(HikariPool.java:724) ~[HikariCP-5.1.0.jar:na]
+	at com.zaxxer.hikari.pool.HikariPool$PoolEntryCreator.call(HikariPool.java:703) ~[HikariCP-5.1.0.jar:na]
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264) ~[na:na]
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136) ~[na:na]
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635) ~[na:na]
+	at java.base/java.lang.Thread.run(Thread.java:840) ~[na:na]
+
+2026-04-29T09:18:45.439+02:00  WARN 11616 --- [syntia-ia] [HikariPool-1 housekeeper] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Thread starvation or clock leap detected (housekeeper delta=6h9m38s768ms382µs700ns).
