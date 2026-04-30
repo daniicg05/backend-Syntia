@@ -223,6 +223,7 @@ public class ConvocatoriaPublicaController {
         List<String> beneficiarios = c.getNumeroConvocatoria() != null
                 ? beneficiarioMap.getOrDefault(c.getNumeroConvocatoria(), List.of())
                 : List.of();
+        Boolean abierto = calcularAbierto(c.getAbierto(), c.getFechaCierre());
         return ConvocatoriaPublicaDTO.builder()
                 .id(c.getId())
                 .titulo(c.getTitulo())
@@ -232,7 +233,7 @@ public class ConvocatoriaPublicaController {
                 .ubicacion(c.getUbicacion())
                 .fechaCierre(c.getFechaCierre())
                 .fechaPublicacion(c.getFechaPublicacion())
-                .abierto(c.getAbierto())
+                .abierto(abierto)
                 .urlOficial(url)
                 .idBdns(c.getIdBdns())
                 .numeroConvocatoria(c.getNumeroConvocatoria())
@@ -331,7 +332,12 @@ public class ConvocatoriaPublicaController {
                 ? organoNivel1 : String.join(", ", local.tiposAdmin());
         Double presupuesto = hasLive && live.get("presupuestoTotal") instanceof Number n
                 ? n.doubleValue() : c.getPresupuesto();
-        Boolean abierto = hasLive && live.get("abierto") instanceof Boolean b ? b : c.getAbierto();
+        LocalDate fechaCierreMerged = c.getFechaCierre();
+        if (fechaCierreMerged == null && hasLive) {
+            fechaCierreMerged = parseDate(live.get("fechaFinSolicitud"));
+        }
+        Boolean abiertoRaw = hasLive && live.get("abierto") instanceof Boolean b ? b : c.getAbierto();
+        Boolean abierto = calcularAbierto(abiertoRaw, fechaCierreMerged);
         Boolean mrr = hasLive && live.get("mrr") instanceof Boolean b ? b : c.getMrr();
 
         // Si finalidades local viene vacío pero tenemos finalidad de live, poblarla
@@ -359,7 +365,7 @@ public class ConvocatoriaPublicaController {
                 .presupuesto(presupuesto)
                 .abierto(abierto)
                 .mrr(mrr)
-                .fechaCierre(c.getFechaCierre())
+                .fechaCierre(fechaCierreMerged)
                 .fechaPublicacion(c.getFechaPublicacion())
                 .fechaInicio(c.getFechaInicio())
                 .regionId(c.getRegionId())
@@ -468,5 +474,11 @@ public class ConvocatoriaPublicaController {
             url = url.replace("/bdnstrans/GE/es/convocatoria/", "/bdnstrans/GE/es/convocatorias/");
         }
         return url;
+    }
+
+    private Boolean calcularAbierto(Boolean abierto, LocalDate fechaCierre) {
+        if (Boolean.TRUE.equals(abierto)) return true;
+        if (fechaCierre == null) return true;
+        return !fechaCierre.isBefore(LocalDate.now());
     }
 }

@@ -67,7 +67,7 @@ public class GuiaUsuarioController {
                     .sector(rec.getConvocatoria().getSector())
                     .ubicacion(rec.getConvocatoria().getUbicacion())
                     .fechaCierre(rec.getConvocatoria().getFechaCierre())
-                    .abierto(rec.getConvocatoria().getAbierto())
+                    .abierto(calcularAbierto(rec.getConvocatoria().getAbierto(), rec.getConvocatoria().getFechaCierre()))
                     .urlOficial(url)
                     .numeroConvocatoria(numConv)
                     .proyectoId(rec.getProyecto().getId())
@@ -99,7 +99,7 @@ public class GuiaUsuarioController {
                     .sector(a.getConvocatoria().getSector())
                     .ubicacion(a.getConvocatoria().getUbicacion())
                     .fechaCierre(a.getConvocatoria().getFechaCierre())
-                    .abierto(a.getConvocatoria().getAbierto())
+                    .abierto(calcularAbierto(a.getConvocatoria().getAbierto(), a.getConvocatoria().getFechaCierre()))
                     .urlOficial(url)
                     .numeroConvocatoria(numConv)
                     .proyectoId(a.getProyecto() != null ? a.getProyecto().getId() : null)
@@ -111,5 +111,11 @@ public class GuiaUsuarioController {
         }
 
         return ResponseEntity.ok(guias);
+    }
+
+    private Boolean calcularAbierto(Boolean abierto, java.time.LocalDate fechaCierre) {
+        if (Boolean.TRUE.equals(abierto)) return true;
+        if (fechaCierre == null) return true;
+        return !fechaCierre.isBefore(java.time.LocalDate.now());
     }
 }
