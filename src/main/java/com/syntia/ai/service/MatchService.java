@@ -114,6 +114,7 @@ public class MatchService {
      */
     public ConvocatoriaPublicaDTO toMatchDTO(Convocatoria c, Perfil perfil, List<Proyecto> proyectos) {
         ResultadoMatch resultado = calcular(perfil, proyectos, c);
+        Boolean abierto = calcularAbierto(c.getAbierto(), c.getFechaCierre());
         return ConvocatoriaPublicaDTO.builder()
                 .id(c.getId())
                 .titulo(c.getTitulo())
@@ -123,7 +124,7 @@ public class MatchService {
                 .ubicacion(c.getUbicacion())
                 .fechaCierre(c.getFechaCierre())
                 .fechaPublicacion(c.getFechaPublicacion())
-                .abierto(c.getAbierto())
+                .abierto(abierto)
                 .urlOficial(construirUrl(c))
                 .idBdns(c.getIdBdns())
                 .numeroConvocatoria(c.getNumeroConvocatoria())
@@ -200,6 +201,12 @@ public class MatchService {
 
     private String nullSafe(String s) {
         return s != null ? s : "";
+    }
+
+    private Boolean calcularAbierto(Boolean abierto, java.time.LocalDate fechaCierre) {
+        if (Boolean.TRUE.equals(abierto)) return true;
+        if (fechaCierre == null) return true;
+        return !fechaCierre.isBefore(java.time.LocalDate.now());
     }
 
     /** Resultado del cálculo de match: score + razón legible. */
