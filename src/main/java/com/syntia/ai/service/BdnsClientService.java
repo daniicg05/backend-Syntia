@@ -1145,13 +1145,13 @@ public class BdnsClientService {
         if (detalle == null) return List.of();
 
         // Candidatas ordenadas por probabilidad
-        List<Object> candidates = List.of(
+        Object[] candidates = {
                 detalle.get("reglamentos"),   // plural
                 detalle.get("reglamento"),    // singular
                 detalle.get("descripcionBasesReguladoras"),
                 detalle.get("basesReguladoras"),
                 detalle.get("descripcionBases")
-        );
+        };
 
         for (Object cand : candidates) {
             List<String> out = extraerDescripcionesDesdeUniversal(cand);
