@@ -18,6 +18,8 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Fase 2 del ETL BDNS: construye las tablas de índice catálogo ↔ numero_convocatoria.
@@ -32,6 +34,7 @@ public class IndiceConvocatoriaService {
 
     private static final int DELAY_MS = 300;
     private static final String EJE_SYNC_INDICES_DETALLE = "INDICES_BDNS_DETALLE";
+    private static final Pattern REGLAMENTO_NUMERO_PATTERN = Pattern.compile("\\b\\d{3,4}/\\d{4}\\b");
 
     @Value("${bdns.indices.detalle.page-size:50}")
     private int detallePageSize;
@@ -447,7 +450,7 @@ public class IndiceConvocatoriaService {
         }
 
         for (String descripcion : bdnsClientService.extraerReglamentosDelDetalle(detalle)) {
-            Integer id = catalogos.reglamentos.get(normalizar(descripcion));
+            Integer id = resolverReglamento(catalogos, descripcion);
             if (id != null && !idxReglamentoRepo.existsByNumeroConvocatoriaAndReglamentoId(numeroConvocatoria, id)) {
                 idxReglamentoRepo.save(IdxConvocatoriaReglamento.builder().numeroConvocatoria(numeroConvocatoria).reglamentoId(id).build());
                 res.reglamentos++;
@@ -479,7 +482,14 @@ public class IndiceConvocatoriaService {
         instrumentoRepo.findAll().forEach(c -> maps.instrumentos.putIfAbsent(normalizar(c.getDescripcion()), c.getId()));
         beneficiarioRepo.findAll().forEach(c -> maps.beneficiarios.putIfAbsent(normalizar(c.getDescripcion()), c.getId()));
         actividadRepo.findAll().forEach(c -> maps.actividades.putIfAbsent(normalizar(c.getDescripcion()), c.getId()));
-        reglamentoRepo.findAll().forEach(c -> maps.reglamentos.putIfAbsent(normalizar(c.getDescripcion()), c.getId()));
+        reglamentoRepo.findAll().forEach(c -> {
+            String descripcion = normalizar(c.getDescripcion());
+            maps.reglamentos.putIfAbsent(descripcion, c.getId());
+            String numero = extraerNumeroReglamento(descripcion);
+            if (numero != null && c.getId() != null && c.getId() != 0) {
+                maps.reglamentosPorNumero.putIfAbsent(numero, c.getId());
+            }
+        });
         objetivoRepo.findAll().forEach(c -> maps.objetivos.putIfAbsent(normalizar(c.getDescripcion()), c.getId()));
         sectorProductoRepo.findAll().forEach(c -> maps.sectores.putIfAbsent(normalizar(c.getDescripcion()), c.getId()));
         organoRepo.findAll().forEach(c -> {
@@ -504,6 +514,26 @@ public class IndiceConvocatoriaService {
             if (general != null) return general;
         }
         return null;
+    }
+
+    private Integer resolverReglamento(CatalogoMaps catalogos, String descripcion) {
+        String key = normalizar(descripcion);
+        if (key.isBlank()) return null;
+
+        Integer exacto = catalogos.reglamentos.get(key);
+        if (exacto != null && exacto != 0) return exacto;
+
+        String numero = extraerNumeroReglamento(key);
+        if (numero == null) return null;
+
+        Integer porNumero = catalogos.reglamentosPorNumero.get(numero);
+        return porNumero != null && porNumero != 0 ? porNumero : null;
+    }
+
+    private String extraerNumeroReglamento(String value) {
+        if (value == null) return null;
+        Matcher matcher = REGLAMENTO_NUMERO_PATTERN.matcher(value);
+        return matcher.find() ? matcher.group() : null;
     }
 
     private List<String> descripciones(Object obj) {
@@ -613,6 +643,7 @@ public class IndiceConvocatoriaService {
         final Map<String, Integer> organosPorTipo = new HashMap<>();
         final Map<String, Integer> actividades = new HashMap<>();
         final Map<String, Integer> reglamentos = new HashMap<>();
+        final Map<String, Integer> reglamentosPorNumero = new HashMap<>();
         final Map<String, Integer> objetivos = new HashMap<>();
         final Map<String, Integer> sectores = new HashMap<>();
     }
