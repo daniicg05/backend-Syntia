@@ -1,6 +1,5 @@
 package com.syntia.ai.service;
 
-import com.syntia.ai.model.Perfil;
 import com.syntia.ai.model.Proyecto;
 import com.syntia.ai.model.dto.FiltrosBdns;
 
@@ -9,28 +8,24 @@ public final class BdnsFiltrosBuilder {
     private BdnsFiltrosBuilder() {
     }
 
-    public static FiltrosBdns construir(Proyecto proyecto, Perfil perfil) {
-        String descripcion = resolverDescripcion(proyecto, perfil);
+    public static FiltrosBdns construir(Proyecto proyecto) {
+        String descripcion = resolverDescripcion(proyecto);
 
-        String ubicacionRaw = resolverUbicacion(proyecto, perfil);
-        Integer regionId = UbicacionNormalizador.normalizarARegionId(ubicacionRaw);
+        String ubicacionRaw = proyecto.getUbicacion();
+        Integer regionId = (ubicacionRaw != null && !ubicacionRaw.isBlank())
+                ? UbicacionNormalizador.normalizarARegionId(ubicacionRaw)
+                : null;
 
-        String sectorRaw = proyecto.getSector() != null ? proyecto.getSector()
-                : (perfil != null ? perfil.getSector() : null);
+        String sectorRaw = proyecto.getSector();
         Integer finalidadId = SectorNormalizador.normalizarAFinalidadId(sectorRaw);
 
         return new FiltrosBdns(descripcion, regionId, finalidadId);
     }
 
-    private static String resolverDescripcion(Proyecto proyecto, Perfil perfil) {
+    private static String resolverDescripcion(Proyecto proyecto) {
         String sector = proyecto.getSector();
         if (sector != null && !sector.isBlank()) {
             String normalizado = SectorNormalizador.normalizarABusqueda(sector);
-            if (normalizado != null) return normalizado;
-        }
-
-        if (perfil != null && perfil.getSector() != null && !perfil.getSector().isBlank()) {
-            String normalizado = SectorNormalizador.normalizarABusqueda(perfil.getSector());
             if (normalizado != null) return normalizado;
         }
 
@@ -41,15 +36,5 @@ public final class BdnsFiltrosBuilder {
         }
 
         return "subvencion pyme empresa";
-    }
-
-    private static String resolverUbicacion(Proyecto proyecto, Perfil perfil) {
-        if (proyecto.getUbicacion() != null && !proyecto.getUbicacion().isBlank()) {
-            return proyecto.getUbicacion();
-        }
-        if (perfil != null && perfil.getUbicacion() != null && !perfil.getUbicacion().isBlank()) {
-            return perfil.getUbicacion();
-        }
-        return null;
     }
 }

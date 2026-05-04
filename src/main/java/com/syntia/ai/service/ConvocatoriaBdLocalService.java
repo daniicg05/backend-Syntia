@@ -1,7 +1,6 @@
 package com.syntia.ai.service;
 
 import com.syntia.ai.model.Convocatoria;
-import com.syntia.ai.model.Perfil;
 import com.syntia.ai.model.Proyecto;
 import com.syntia.ai.model.dto.ConvocatoriaDTO;
 import com.syntia.ai.repository.ConvocatoriaRepository;
@@ -44,9 +43,10 @@ public class ConvocatoriaBdLocalService {
      * Tokeniza el keyword en palabras individuales para mejorar el recall cuando
      * el sector del proyecto no coincide literalmente con los sectores CNAE de la BD.
      */
-    public List<ConvocatoriaDTO> buscar(Proyecto proyecto, Perfil perfil) {
-        String keyword = resolverKeyword(proyecto, perfil);
-        String ubicacionRaw = resolverUbicacion(proyecto, perfil);
+    public List<ConvocatoriaDTO> buscar(Proyecto proyecto) {
+        String keyword = resolverKeyword(proyecto);
+        String ubicacionRaw = proyecto.getUbicacion() != null && !proyecto.getUbicacion().isBlank()
+                ? proyecto.getUbicacion().trim() : null;
 
         Integer regionIdMapped = UbicacionNormalizador.normalizarARegionId(ubicacionRaw);
         boolean filtrarRegion = regionIdMapped != null;
@@ -132,25 +132,12 @@ public class ConvocatoriaBdLocalService {
         return tokens;
     }
 
-    private String resolverKeyword(Proyecto proyecto, Perfil perfil) {
+    private String resolverKeyword(Proyecto proyecto) {
         if (proyecto.getSector() != null && !proyecto.getSector().isBlank()) {
             return proyecto.getSector().trim();
         }
-        if (perfil != null && perfil.getSector() != null && !perfil.getSector().isBlank()) {
-            return perfil.getSector().trim();
-        }
         if (proyecto.getNombre() != null && !proyecto.getNombre().isBlank()) {
             return proyecto.getNombre().trim();
-        }
-        return null;
-    }
-
-    private String resolverUbicacion(Proyecto proyecto, Perfil perfil) {
-        if (proyecto.getUbicacion() != null && !proyecto.getUbicacion().isBlank()) {
-            return proyecto.getUbicacion().trim();
-        }
-        if (perfil != null && perfil.getUbicacion() != null && !perfil.getUbicacion().isBlank()) {
-            return perfil.getUbicacion().trim();
         }
         return null;
     }
