@@ -396,7 +396,7 @@ public class ConvocatoriaPublicaController {
                 .sePublicaDiarioOficial(hasLive && live.get("sePublicaDiarioOficial") instanceof Boolean b ? b : null)
                 .ayudaEstado(hasLive ? toStr(live.get("ayudaEstado")) : null)
                 .urlAyudaEstado(hasLive ? toStr(live.get("urlAyudaEstado")) : null)
-                .reglamento(hasLive ? toStr(live.get("reglamento")) : null)
+                .reglamento(hasLive ? extraerPrimerReglamento(live) : null)
                 .sedeElectronica(hasLive ? toStr(live.get("sedeElectronica")) : null)
                 .fechaRecepcion(hasLive ? toStr(live.get("fechaRecepcion")) : null)
                 .documentos(documentos)
@@ -416,6 +416,15 @@ public class ConvocatoriaPublicaController {
     private String pick(String preferred, String fallback) {
         if (preferred != null && !preferred.isBlank()) return preferred;
         return fallback;
+    }
+
+    /**
+     * Extrae el primer reglamento del detalle, usando BdnsClientService de forma robusta.
+     * Devuelve el primer reglamento encontrado o null.
+     */
+    private String extraerPrimerReglamento(Map<String, Object> live) {
+        List<String> reglamentos = bdnsClientService.extraerReglamentosDelDetalle(live);
+        return reglamentos.isEmpty() ? null : reglamentos.get(0);
     }
 
     private List<String> extraerDescripciones(Object raw) {

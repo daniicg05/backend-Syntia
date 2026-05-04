@@ -446,7 +446,7 @@ public class IndiceConvocatoriaService {
             }
         }
 
-        for (String descripcion : descripciones(detalle.get("reglamento"))) {
+        for (String descripcion : bdnsClientService.extraerReglamentosDelDetalle(detalle)) {
             Integer id = catalogos.reglamentos.get(normalizar(descripcion));
             if (id != null && !idxReglamentoRepo.existsByNumeroConvocatoriaAndReglamentoId(numeroConvocatoria, id)) {
                 idxReglamentoRepo.save(IdxConvocatoriaReglamento.builder().numeroConvocatoria(numeroConvocatoria).reglamentoId(id).build());
@@ -512,6 +512,17 @@ public class IndiceConvocatoriaService {
         }
         String descripcion = descripcion(obj);
         return descripcion == null || descripcion.isBlank() ? List.of() : List.of(descripcion);
+    }
+
+    /**
+     * Extrae una lista de descripciones desde un objeto que puede ser: String, List, Map, o nada.
+     * Devuelve la primera lista no vacía encontrada.
+     * DEPRECATED: Usar BdnsClientService.extraerReglamentosDelDetalle() en su lugar.
+     */
+    @Deprecated
+    @SuppressWarnings("unchecked")
+    private List<String> extraerReglamentosDesdeDetalle(Map<String, Object> detalle) {
+        return bdnsClientService.extraerReglamentosDelDetalle(detalle);
     }
 
     private String descripcion(Object obj) {
