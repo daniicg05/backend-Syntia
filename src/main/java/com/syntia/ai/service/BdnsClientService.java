@@ -1133,6 +1133,76 @@ public class BdnsClientService {
         }
     }
 
+    // ── Extracción robusta de reglamentos ────────────────────────────────
+
+    /**
+     * Extrae reglamentos del detalle BDNS probando múltiples claves y estructuras.
+     * Devuelve una lista de descripciones de reglamentos encontrados.
+     * Si existe `reglamentos` (plural) como lista, lo usa; si no, prueba `reglamento` (singular)
+     * y otras claves alternativas. No usa fallback a anuncios.
+     */
+    public List<String> extraerReglamentosDelDetalle(Map<String, Object> detalle) {
+        if (detalle == null) return List.of();
+
+        // Candidatas ordenadas por probabilidad
+        List<Object> candidates = List.of(
+                detalle.get("reglamentos"),   // plural
+                detalle.get("reglamento"),    // singular
+                detalle.get("descripcionBasesReguladoras"),
+                detalle.get("basesReguladoras"),
+                detalle.get("descripcionBases")
+        );
+
+        for (Object cand : candidates) {
+            List<String> out = extraerDescripcionesDesdeUniversal(cand);
+            if (!out.isEmpty()) return out;
+        }
+
+        return List.of();
+    }
+
+    /**
+     * Extrae descripciones desde un objeto que puede ser: String, List, Map, o nada.
+     * Soporta listas con objetos que tienen campo 'descripcion'.
+     */
+    @SuppressWarnings("unchecked")
+    private List<String> extraerDescripcionesDesdeUniversal(Object val) {
+        if (val == null) return List.of();
+
+        if (val instanceof String s) {
+            String trim = s.trim();
+            return !trim.isBlank() ? List.of(trim) : List.of();
+        }
+
+        if (val instanceof List<?> list) {
+            List<String> result = new ArrayList<>();
+            for (Object item : list) {
+                if (item == null) continue;
+                if (item instanceof String s) {
+                    String trim = s.trim();
+                    if (!trim.isBlank()) result.add(trim);
+                } else if (item instanceof Map<?, ?> m) {
+                    Object desc = m.get("descripcion");
+                    if (desc instanceof String s) {
+                        String trim = s.trim();
+                        if (!trim.isBlank()) result.add(trim);
+                    }
+                }
+            }
+            return result;
+        }
+
+        if (val instanceof Map<?, ?> m) {
+            Object desc = m.get("descripcion");
+            if (desc instanceof String s) {
+                String trim = s.trim();
+                return !trim.isBlank() ? List.of(trim) : List.of();
+            }
+        }
+
+        return List.of();
+    }
+
     // ── Excepción propia ─────────────────────────────────────────────────────
 
     public static class BdnsException extends RuntimeException {
