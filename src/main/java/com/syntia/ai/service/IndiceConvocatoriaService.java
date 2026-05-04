@@ -47,6 +47,8 @@ public class IndiceConvocatoriaService {
 
     private final BdnsCatalogoClient bdnsCatalogoClient;
     private final BdnsClientService bdnsClientService;
+    private final BdnsRegionMapper bdnsRegionMapper;
+    private final RegionService regionService;
     private final SyncStateRepository syncStateRepo;
 
     private final CatFinalidadRepository finalidadRepo;
@@ -62,6 +64,7 @@ public class IndiceConvocatoriaService {
     private final IdxConvocatoriaInstrumentoRepository idxInstrumentoRepo;
     private final IdxConvocatoriaBeneficiarioRepository idxBeneficiarioRepo;
     private final IdxConvocatoriaOrganoRepository idxOrganoRepo;
+    private final IdxConvocatoriaRegionRepository idxRegionRepo;
     private final IdxConvocatoriaTipoAdminRepository idxTipoAdminRepo;
     private final IdxConvocatoriaActividadRepository idxActividadRepo;
     private final IdxConvocatoriaReglamentoRepository idxReglamentoRepo;
@@ -98,7 +101,7 @@ public class IndiceConvocatoriaService {
         int sectores      = cancelado.get() ? 0 : construirIndiceSectoresProducto(onProgreso, cancelado);
         log.info("=== FIN índices: finalidades={} instrumentos={} beneficiarios={} organos={} tiposAdmin={} actividades={} reglamentos={} objetivos={} sectores={}",
                 finalidades, instrumentos, beneficiarios, organos, tiposAdmin, actividades, reglamentos, objetivos, sectores);
-        return new ResultadoIndices(finalidades, instrumentos, beneficiarios, organos, tiposAdmin, actividades, reglamentos, objetivos, sectores);
+        return new ResultadoIndices(finalidades, instrumentos, beneficiarios, organos, 0, tiposAdmin, actividades, reglamentos, objetivos, sectores);
     }
 
     private ResultadoIndices construirPorDetallePaginado(Consumer<String> onProgreso, AtomicBoolean cancelado, Integer limiteConvocatorias) throws InterruptedException {
@@ -120,6 +123,7 @@ public class IndiceConvocatoriaService {
         syncState.setTsUltimaCarga(Instant.now());
         syncState = syncStateRepo.save(syncState);
 
+        asegurarCatalogoRegiones(onProgreso);
         notificar(onProgreso, "Cargando catalogos...");
         CatalogoMaps catalogos = cargarCatalogosNormalizados();
         AcumuladorIndices acumulado = new AcumuladorIndices();
@@ -441,6 +445,16 @@ public class IndiceConvocatoriaService {
             }
         }
 
+        Integer regionId = bdnsRegionMapper.extraerRegionId(detalle);
+        if (guardarRegion(numeroConvocatoria, regionId)) {
+            res.regiones++;
+        }
+
+        Integer provinciaId = bdnsRegionMapper.extraerProvinciaId(detalle);
+        if (!Objects.equals(regionId, provinciaId) && guardarRegion(numeroConvocatoria, provinciaId)) {
+            res.regiones++;
+        }
+
         for (String descripcion : descripciones(detalle.get("sectores"))) {
             Integer id = catalogos.actividades.get(normalizar(descripcion));
             if (id != null && !idxActividadRepo.existsByNumeroConvocatoriaAndActividadId(numeroConvocatoria, id)) {
@@ -500,6 +514,23 @@ public class IndiceConvocatoriaService {
             }
         });
         return maps;
+    }
+
+    private void asegurarCatalogoRegiones(Consumer<String> onProgreso) {
+        if (regionService.count() > 0) return;
+        notificar(onProgreso, "Sincronizando catalogo de regiones...");
+        int total = regionService.sincronizarRegiones();
+        log.info("Catalogo de regiones sincronizado antes de construir indices: {} registros", total);
+    }
+
+    private boolean guardarRegion(String numeroConvocatoria, Integer regionId) {
+        if (regionId == null || regionId <= 0) return false;
+        if (idxRegionRepo.existsByNumeroConvocatoriaAndRegionId(numeroConvocatoria, regionId)) return false;
+        idxRegionRepo.save(IdxConvocatoriaRegion.builder()
+                .numeroConvocatoria(numeroConvocatoria)
+                .regionId(regionId)
+                .build());
+        return true;
     }
 
     private Integer resolverOrgano(CatalogoMaps catalogos, String tipoAdmin, String... descripciones) {
@@ -603,6 +634,7 @@ public class IndiceConvocatoriaService {
                 idxInstrumentoRepo.count(),
                 idxBeneficiarioRepo.count(),
                 idxOrganoRepo.count(),
+                idxRegionRepo.count(),
                 idxTipoAdminRepo.count(),
                 idxActividadRepo.count(),
                 idxReglamentoRepo.count(),
@@ -612,7 +644,7 @@ public class IndiceConvocatoriaService {
     }
 
     public record ConteoIndices(long finalidades, long instrumentos, long beneficiarios,
-                                long organos, long tiposAdmin, long actividades,
+                                long organos, long regiones, long tiposAdmin, long actividades,
                                 long reglamentos, long objetivos, long sectores) {}
 
     @FunctionalInterface
@@ -653,6 +685,7 @@ public class IndiceConvocatoriaService {
         int instrumentos;
         int beneficiarios;
         int organos;
+        int regiones;
         int tiposAdmin;
         int actividades;
         int reglamentos;
@@ -664,6 +697,7 @@ public class IndiceConvocatoriaService {
             instrumentos += other.instrumentos;
             beneficiarios += other.beneficiarios;
             organos += other.organos;
+            regiones += other.regiones;
             tiposAdmin += other.tiposAdmin;
             actividades += other.actividades;
             reglamentos += other.reglamentos;
@@ -672,17 +706,17 @@ public class IndiceConvocatoriaService {
         }
 
         int total() {
-            return finalidades + instrumentos + beneficiarios + organos + tiposAdmin
+            return finalidades + instrumentos + beneficiarios + organos + regiones + tiposAdmin
                     + actividades + reglamentos + objetivos + sectores;
         }
 
         ResultadoIndices toResultado() {
-            return new ResultadoIndices(finalidades, instrumentos, beneficiarios, organos, tiposAdmin,
+            return new ResultadoIndices(finalidades, instrumentos, beneficiarios, organos, regiones, tiposAdmin,
                     actividades, reglamentos, objetivos, sectores);
         }
     }
 
     public record ResultadoIndices(int finalidades, int instrumentos, int beneficiarios,
-                                   int organos, int tiposAdmin, int actividades,
+                                   int organos, int regiones, int tiposAdmin, int actividades,
                                    int reglamentos, int objetivos, int sectores) {}
 }
