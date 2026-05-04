@@ -143,4 +143,18 @@ public interface RecomendacionRepository extends JpaRepository<Recomendacion, In
             "WHERE r.proyecto.usuario.id = :usuarioId AND r.guiaEnriquecida IS NOT NULL " +
             "ORDER BY r.generadaEn DESC")
     List<Recomendacion> findGuiasEnriquecidasByUsuarioId(@Param("usuarioId") Long usuarioId);
+
+    /**
+     * Limpia la guía enriquecida de una recomendación validando usuario propietario.
+     */
+    @Modifying
+    @Query("UPDATE Recomendacion r SET r.guiaEnriquecida = null WHERE r.id = :id AND r.proyecto.usuario.id = :usuarioId")
+    int limpiarGuiaEnriquecidaByIdAndUsuarioId(@Param("id") Long id, @Param("usuarioId") Long usuarioId);
+
+    /**
+     * Elimina una recomendación por ID validando que pertenece al usuario propietario.
+     */
+    @Modifying
+    @Query("DELETE FROM Recomendacion r WHERE r.id = :id AND r.proyecto.usuario.id = :usuarioId")
+    int deleteByIdAndUsuarioId(@Param("id") Long id, @Param("usuarioId") Long usuarioId);
 }

@@ -13,9 +13,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,6 +27,8 @@ import java.util.List;
 @RequestMapping("/api/usuario/guias")
 @PreAuthorize("hasRole('USUARIO')")
 public class GuiaUsuarioController {
+
+    private static final long ANALISIS_ID_OFFSET = 1_000_000L;
 
     private final RecomendacionRepository recomendacionRepository;
     private final AnalisisConvocatoriaRepository analisisConvocatoriaRepository;
@@ -42,8 +47,7 @@ public class GuiaUsuarioController {
 
     @GetMapping
     public ResponseEntity<List<GuiaUsuarioDTO>> listarGuias(Authentication authentication) {
-        Usuario usuario = usuarioService.buscarPorEmail(authentication.getName())
-                .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado"));
+        Usuario usuario = resolverUsuario(authentication);
 
         List<GuiaUsuarioDTO> guias = new ArrayList<>();
 
@@ -91,7 +95,7 @@ public class GuiaUsuarioController {
                     : a.getConvocatoria().getUrlOficial();
 
             guias.add(GuiaUsuarioDTO.builder()
-                    .id(a.getId() + 1_000_000L) // offset to avoid ID collision with recomendaciones
+                    .id(a.getId() + ANALISIS_ID_OFFSET) // offset to avoid ID collision with recomendaciones
                     .origen("analisis")
                     .convocatoriaId(a.getConvocatoria().getId())
                     .titulo(a.getConvocatoria().getTitulo())
@@ -111,6 +115,35 @@ public class GuiaUsuarioController {
         }
 
         return ResponseEntity.ok(guias);
+    }
+
+    @Transactional
+    @DeleteMapping("/{origen}/{id}")
+    public ResponseEntity<?> eliminarGuia(@PathVariable String origen,
+                                          @PathVariable Long id,
+                                          Authentication authentication) {
+        Usuario usuario = resolverUsuario(authentication);
+        int eliminadas;
+
+        switch (origen) {
+            case "recomendacion" -> eliminadas = recomendacionRepository
+                    .deleteByIdAndUsuarioId(id, usuario.getId());
+            case "analisis" -> {
+                long realId = id >= ANALISIS_ID_OFFSET ? id - ANALISIS_ID_OFFSET : id;
+                eliminadas = analisisConvocatoriaRepository
+                        .deleteByIdAndUsuarioId(realId, usuario.getId());
+            }
+            default -> {
+                return ResponseEntity.badRequest().body("Origen inválido: " + origen);
+            }
+        }
+
+        return eliminadas > 0 ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
+    }
+
+    private Usuario resolverUsuario(Authentication authentication) {
+        return usuarioService.buscarPorEmail(authentication.getName())
+                .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado"));
     }
 
     private Boolean calcularAbierto(Boolean abierto, java.time.LocalDate fechaCierre) {
