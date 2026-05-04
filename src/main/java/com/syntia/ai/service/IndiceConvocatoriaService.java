@@ -446,7 +446,7 @@ public class IndiceConvocatoriaService {
             }
         }
 
-        for (String descripcion : descripciones(detalle.get("reglamento"))) {
+        for (String descripcion : extraerReglamentosDesdeDetalle(detalle)) {
             Integer id = catalogos.reglamentos.get(normalizar(descripcion));
             if (id != null && !idxReglamentoRepo.existsByNumeroConvocatoriaAndReglamentoId(numeroConvocatoria, id)) {
                 idxReglamentoRepo.save(IdxConvocatoriaReglamento.builder().numeroConvocatoria(numeroConvocatoria).reglamentoId(id).build());
@@ -512,6 +512,44 @@ public class IndiceConvocatoriaService {
         }
         String descripcion = descripcion(obj);
         return descripcion == null || descripcion.isBlank() ? List.of() : List.of(descripcion);
+    }
+
+    /**
+     * Extrae una lista de descripciones que pueden representar reglamentos desde el Map de detalle.
+     * Acepta varias claves y estructuras (singular/plural, String, List, Map) y devuelve la primera
+     * lista encontrada no vacía.
+     */
+    @SuppressWarnings("unchecked")
+    private List<String> extraerReglamentosDesdeDetalle(Map<String, Object> detalle) {
+        if (detalle == null) return List.of();
+
+        List<Object> candidates = List.of(
+                detalle.get("reglamento"),
+                detalle.get("reglamentos"),
+                detalle.get("descripcionBasesReguladoras"),
+                detalle.get("basesReguladoras"),
+                detalle.get("descripcionBases")
+        );
+
+        for (Object cand : candidates) {
+            if (cand == null) continue;
+            List<String> out = descripciones(cand);
+            if (!out.isEmpty()) return out;
+        }
+
+        // Fallback: intentar extraer texto del primer anuncio
+        Object anunciosObj = detalle.get("anuncios");
+        if (anunciosObj instanceof List<?> anList && !anList.isEmpty()) {
+            Object first = anList.get(0);
+            if (first instanceof Map<?, ?> am) {
+                String texto = stringFromMap((Map<?, ?>) am, "texto");
+                if (texto != null && !texto.isBlank()) {
+                    return List.of(texto);
+                }
+            }
+        }
+
+        return List.of();
     }
 
     private String descripcion(Object obj) {
