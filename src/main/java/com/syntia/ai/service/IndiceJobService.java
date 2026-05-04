@@ -110,14 +110,14 @@ public class IndiceJobService {
     private int total(IndiceConvocatoriaService.ResultadoIndices res) {
         if (res == null) return 0;
         return res.finalidades() + res.instrumentos() + res.beneficiarios()
-                + res.organos() + res.tiposAdmin()
+                + res.organos() + res.regiones() + res.tiposAdmin()
                 + res.actividades() + res.reglamentos() + res.objetivos() + res.sectores();
     }
 
     private int total(IndiceConvocatoriaService.ConteoIndices conteos) {
         if (conteos == null) return 0;
         long total = conteos.finalidades() + conteos.instrumentos() + conteos.beneficiarios()
-                + conteos.organos() + conteos.tiposAdmin()
+                + conteos.organos() + conteos.regiones() + conteos.tiposAdmin()
                 + conteos.actividades() + conteos.reglamentos() + conteos.objetivos() + conteos.sectores();
         return total > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) total;
     }
