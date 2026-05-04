@@ -154,7 +154,7 @@ public class RecomendacionController {
 
         int candidatas = busquedaRapidaService.buscarYGuardarCandidatas(proyecto);
         String mensaje = candidatas > 0
-                ? candidatas + " convocatorias encontradas. Pulsa «Analizar con IA» para puntuar y ordenar."
+                ? candidatas + " convocatorias encontradas. Pulsa «Ver detalles» para ver información más detallada de la convocatoria."
                 : "No se encontraron convocatorias en BDNS para este proyecto. Prueba a ajustar el sector o la ubicación.";
         return ResponseEntity.ok(Map.of("candidatas", candidatas, "mensaje", mensaje));
     }

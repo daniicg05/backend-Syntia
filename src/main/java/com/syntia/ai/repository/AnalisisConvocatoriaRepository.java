@@ -23,4 +23,20 @@ public interface AnalisisConvocatoriaRepository extends JpaRepository<AnalisisCo
     @Modifying
     @Query("DELETE FROM AnalisisConvocatoria a WHERE a.usuario.id = :usuarioId")
     void deleteByUsuarioId(@Param("usuarioId") Long usuarioId);
+
+    @Modifying
+    @Query("UPDATE AnalisisConvocatoria a SET a.guiaEnriquecida = null WHERE a.id = :id AND a.usuario.id = :usuarioId")
+    int limpiarGuiaEnriquecidaByIdAndUsuarioId(@Param("id") Long id, @Param("usuarioId") Long usuarioId);
+
+    @Modifying
+    @Query("UPDATE AnalisisConvocatoria a SET a.guiaEnriquecida = null, a.proyecto = null WHERE a.proyecto.id = :proyectoId")
+    int limpiarGuiaYProyectoByProyectoId(@Param("proyectoId") Long proyectoId);
+
+    @Modifying
+    @Query("DELETE FROM AnalisisConvocatoria a WHERE a.id = :id AND a.usuario.id = :usuarioId")
+    int deleteByIdAndUsuarioId(@Param("id") Long id, @Param("usuarioId") Long usuarioId);
+
+    @Modifying
+    @Query("DELETE FROM AnalisisConvocatoria a WHERE a.proyecto.id = :proyectoId")
+    void deleteByProyectoId(@Param("proyectoId") Long proyectoId);
 }

@@ -3,6 +3,7 @@ package com.syntia.ai.service;
 import com.syntia.ai.model.Proyecto;
 import com.syntia.ai.model.Usuario;
 import com.syntia.ai.model.dto.ProyectoDTO;
+import com.syntia.ai.repository.AnalisisConvocatoriaRepository;
 import com.syntia.ai.repository.ProyectoRepository;
 import com.syntia.ai.repository.RecomendacionRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -25,11 +26,14 @@ public class ProyectoService {
     /** Repositorio para acceso y persistencia de proyectos. */
     private final ProyectoRepository proyectoRepository;
     private final RecomendacionRepository recomendacionRepository;
+    private final AnalisisConvocatoriaRepository analisisConvocatoriaRepository;
 
     public ProyectoService(ProyectoRepository proyectoRepository,
-                           RecomendacionRepository recomendacionRepository) {
+                           RecomendacionRepository recomendacionRepository,
+                           AnalisisConvocatoriaRepository analisisConvocatoriaRepository) {
         this.proyectoRepository = proyectoRepository;
         this.recomendacionRepository = recomendacionRepository;
+        this.analisisConvocatoriaRepository = analisisConvocatoriaRepository;
     }
 
     /**
@@ -123,6 +127,7 @@ public class ProyectoService {
     @Transactional
     public void eliminar(Long id, Long usuarioId) {
         Proyecto proyecto = obtenerPorId(id, usuarioId);
+        analisisConvocatoriaRepository.deleteByProyectoId(id);
         recomendacionRepository.deleteByProyectoId(id);
         proyectoRepository.delete(proyecto);
     }
@@ -159,3 +164,4 @@ public class ProyectoService {
         }
     }
 }
+
