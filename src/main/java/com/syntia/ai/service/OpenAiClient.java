@@ -29,6 +29,7 @@ public class OpenAiClient {
     @Value("${openai.api-key:}")
     private String apiKey;
 
+
     @Value("${openai.model:gpt-4.1}")
     private String model;
 
@@ -38,6 +39,10 @@ public class OpenAiClient {
     /** Max tokens para respuestas largas (guías de solicitud con JSON complejo). */
     @Value("${openai.max-tokens-large:4000}")
     private int maxTokensLarge;
+
+    /** Max tokens para análisis completo (10 slides con contenido rico). */
+    @Value("${openai.max-tokens-analisis:8000}")
+    private int maxTokensAnalisis;
 
     @Value("${openai.temperature:0.3}")
     private double temperature;
@@ -52,6 +57,9 @@ public class OpenAiClient {
 
     /** Máximo de caracteres del userPrompt para guías enriquecidas (necesita más contexto). */
     private static final int MAX_PROMPT_CHARS_LARGE = 8000;
+
+    /** Máximo de caracteres del userPrompt para análisis completo (incluye texto oficial + catálogos + perfil). */
+    private static final int MAX_PROMPT_CHARS_ANALISIS = 25000;
 
     public OpenAiClient(RestClient.Builder builder) {
         // Timeout estándar: 10s conexión, 30s lectura — para matching y keywords
@@ -181,6 +189,54 @@ public class OpenAiClient {
         } catch (Exception e) {
             log.warn("Error al llamar a OpenAI (chatLarge): {}", e.getMessage());
             throw new OpenAiUnavailableException("Error en la llamada a OpenAI (chatLarge): " + e.getMessage());
+        }
+    }
+
+    /**
+     * Envía un prompt para análisis completo de convocatorias.
+     * Usa {@link #maxTokensAnalisis} (por defecto 8000) y un prompt mucho más largo
+     * que incluye texto oficial, catálogos BDNS, perfil y proyecto del usuario.
+     */
+    public String chatAnalisis(String systemPrompt, String userPrompt) {
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new OpenAiUnavailableException("openai.api-key no configurada");
+        }
+
+        String promptFinal = userPrompt.length() > MAX_PROMPT_CHARS_ANALISIS
+                ? userPrompt.substring(0, MAX_PROMPT_CHARS_ANALISIS)
+                : userPrompt;
+
+        try {
+            Map<String, Object> requestBody = Map.of(
+                    "model", model,
+                    "max_tokens", maxTokensAnalisis,
+                    "temperature", 0.2,
+                    "response_format", Map.of("type", "json_object"),
+                    "messages", List.of(
+                            Map.of("role", "system", "content", systemPrompt),
+                            Map.of("role", "user",   "content", promptFinal)
+                    )
+            );
+
+            ChatResponse response = restClientLarge.post()
+                    .uri(API_URL)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(requestBody)
+                    .retrieve()
+                    .body(ChatResponse.class);
+
+            if (response == null || response.choices() == null || response.choices().isEmpty()) {
+                throw new OpenAiUnavailableException("Respuesta vacía de OpenAI (chatAnalisis)");
+            }
+
+            return response.choices().get(0).message().content().trim();
+
+        } catch (OpenAiUnavailableException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("Error al llamar a OpenAI (chatAnalisis): {}", e.getMessage());
+            throw new OpenAiUnavailableException("Error en la llamada a OpenAI (chatAnalisis): " + e.getMessage());
         }
     }
 

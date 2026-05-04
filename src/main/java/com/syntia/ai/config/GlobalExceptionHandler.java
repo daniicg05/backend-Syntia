@@ -1,6 +1,7 @@
 package com.syntia.ai.config;
 
 import com.syntia.ai.model.ErrorResponse;
+import com.syntia.ai.service.OpenAiClient;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -19,6 +20,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
 
@@ -26,7 +29,8 @@ import java.util.stream.Collectors;
  * Manejador global de excepciones para controladores REST (/api/**).
  * Devuelve respuestas JSON estandarizadas con ErrorResponse.
  */
-@RestControllerAdvice(basePackages = "com.syntia.mvp.controller.api")
+@Slf4j
+@RestControllerAdvice(basePackages = "com.syntia.ai.controller.api")
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(EntityNotFoundException.class)
@@ -94,6 +98,14 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.FORBIDDEN, "Acceso denegado", request);
     }
 
+    @ExceptionHandler(OpenAiClient.OpenAiUnavailableException.class)
+    public ResponseEntity<ErrorResponse> handleOpenAiUnavailable(
+            OpenAiClient.OpenAiUnavailableException ex, HttpServletRequest request) {
+        log.warn("OpenAI no disponible en {}: {}", request.getRequestURI(), ex.getMessage());
+        return build(HttpStatus.SERVICE_UNAVAILABLE,
+                "El servicio de análisis IA no está disponible en este momento. Inténtalo de nuevo más tarde.", request);
+    }
+
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ErrorResponse> handleNoResource(
             NoResourceFoundException ex, HttpServletRequest request) {
@@ -103,8 +115,9 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(
             Exception ex, HttpServletRequest request) {
-        return build(HttpStatus.INTERNAL_SERVER_ERROR,
-                "Error interno en el servidor", request);
+        log.error("Error no controlado en {}: {}", request.getRequestURI(), ex.getMessage(), ex);
+        String msg = ex.getMessage() != null ? ex.getMessage() : "Error interno en el servidor";
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, msg, request);
     }
 
     private ResponseEntity<ErrorResponse> build(HttpStatus status, String mensaje,

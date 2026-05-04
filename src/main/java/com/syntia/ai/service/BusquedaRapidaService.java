@@ -2,6 +2,7 @@ package com.syntia.ai.service;
 
 import com.syntia.ai.model.Convocatoria;
 import com.syntia.ai.model.Perfil;
+import com.syntia.ai.model.Plan;
 import com.syntia.ai.model.Proyecto;
 import com.syntia.ai.model.Recomendacion;
 import com.syntia.ai.model.dto.ConvocatoriaDTO;
@@ -25,6 +26,7 @@ import java.util.Set;
 public class BusquedaRapidaService {
 
     private final BdnsClientService bdnsClientService;
+    private final ConvocatoriaBdLocalService convocatoriaBdLocalService;
     private final PerfilService perfilService;
     private final ConvocatoriaRepository convocatoriaRepository;
     private final RecomendacionRepository recomendacionRepository;
@@ -33,10 +35,12 @@ public class BusquedaRapidaService {
     private static final int MAX_CANDIDATAS = 150;
 
     public BusquedaRapidaService(BdnsClientService bdnsClientService,
+                                 ConvocatoriaBdLocalService convocatoriaBdLocalService,
                                  PerfilService perfilService,
                                  ConvocatoriaRepository convocatoriaRepository,
                                  RecomendacionRepository recomendacionRepository) {
         this.bdnsClientService = bdnsClientService;
+        this.convocatoriaBdLocalService = convocatoriaBdLocalService;
         this.perfilService = perfilService;
         this.convocatoriaRepository = convocatoriaRepository;
         this.recomendacionRepository = recomendacionRepository;
@@ -50,11 +54,23 @@ public class BusquedaRapidaService {
 
         // 2. Construir filtros determinísticos
         FiltrosBdns filtros = BdnsFiltrosBuilder.construir(proyecto, perfil);
-        log.info("Búsqueda rápida: proyecto={} descripcion='{}' ccaa='{}'",
-                proyecto.getId(), filtros.descripcion(), filtros.nivel2());
+        log.info("Búsqueda rápida: proyecto={} descripcion='{}' regionId={} finalidadId={}",
+                proyecto.getId(), filtros.descripcion(), filtros.regionId(), filtros.finalidadId());
 
-        // 3. Buscar en BDNS
-        List<ConvocatoriaDTO> candidatasBdns = bdnsClientService.buscarPorFiltros(filtros);
+        // 3. Buscar según plan del usuario: BD local (gratuito) o API live (premium)
+        Plan plan = proyecto.getUsuario().getPlan();
+        List<ConvocatoriaDTO> candidatasBdns;
+        if (Plan.GRATUITO.equals(plan)) {
+            log.info("Búsqueda rápida: modo GRATUITO — usando BD local");
+            candidatasBdns = convocatoriaBdLocalService.buscar(proyecto, perfil);
+        } else {
+            log.info("Búsqueda rápida: modo PREMIUM — usando API live BDNS");
+            candidatasBdns = bdnsClientService.buscarPorFiltros(filtros);
+            // Enriquecer con datos del endpoint de detalle (sector real, presupuesto, fechas)
+            for (ConvocatoriaDTO dto : candidatasBdns) {
+                bdnsClientService.enriquecerConDetalle(dto);
+            }
+        }
 
         // 4. Deduplicar y filtrar caducadas
         Map<String, ConvocatoriaDTO> candidatasUnicas = deduplicarYFiltrar(candidatasBdns);
@@ -176,6 +192,15 @@ public class BusquedaRapidaService {
                                 .idBdns(dto.getIdBdns())
                                 .numeroConvocatoria(dto.getNumeroConvocatoria())
                                 .fechaCierre(dto.getFechaCierre())
+                                .mrr(Boolean.TRUE.equals(dto.getMrr()))
+                                .presupuesto(dto.getPresupuesto())
+                                .abierto(dto.getAbierto())
+                                .finalidad(dto.getFinalidad())
+                                .fechaInicio(dto.getFechaInicio())
+                                .organismo(dto.getOrganismo())
+                                .fechaPublicacion(dto.getFechaPublicacion())
+                                .descripcion(dto.getDescripcion())
+                                .textoCompleto(dto.getTextoCompleto())
                                 .build()));
     }
 }

@@ -41,20 +41,13 @@ public class CustomErrorController implements ErrorController {
      */
     @GetMapping("/error")
     public ResponseEntity<?> handleError(HttpServletRequest request) {
-
-        /** Mapa que representará el cuerpo JSON de salida.*/
         Map<String, Object> response = new HashMap<>();
-
-        /** Mensaje general para el cliente (evita exponer detalles internos sensibles).*/
         response.put("error", "Ha ocurrido un error inesperado");
 
-        /** Obtiene el código de estado HTTP almacenado por el contenedor.
-        * Puede ser Integer, String o null, según el flujo de error.*/
-        response.put("status", request.getAttribute("jakarta.servlet.error.status_code"));
+        Object statusAttr = request.getAttribute("jakarta.servlet.error.status_code");
+        int status = (statusAttr instanceof Integer) ? (Integer) statusAttr : 500;
+        response.put("status", status);
 
-        /** Responde con HTTP500 de forma explícita.
-        * Nota: aunque el body incluye "status" de la request, aquí la cabecera HTTP
-        * siempre será500 por diseño actual.*/
-        return ResponseEntity.status(500).body(response);
+        return ResponseEntity.status(status).body(response);
     }
 }

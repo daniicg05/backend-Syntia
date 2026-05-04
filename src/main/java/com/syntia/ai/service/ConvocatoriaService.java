@@ -1,10 +1,14 @@
-package com.syntia.mvp.service;
+package com.syntia.ai.service;
 
 import com.syntia.ai.model.Convocatoria;
 import com.syntia.ai.model.dto.ConvocatoriaDTO;
+import com.syntia.ai.model.dto.ResultadoPersistencia;
 import com.syntia.ai.repository.ConvocatoriaRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,11 +24,14 @@ public class ConvocatoriaService {
 
     private final ConvocatoriaRepository convocatoriaRepository;
     private final BdnsClientService bdnsClientService;
+    private final ConvocatoriaValidador validador;
 
     public ConvocatoriaService(ConvocatoriaRepository convocatoriaRepository,
-                               BdnsClientService bdnsClientService) {
+                               BdnsClientService bdnsClientService,
+                               ConvocatoriaValidador validador) {
         this.convocatoriaRepository = convocatoriaRepository;
         this.bdnsClientService = bdnsClientService;
+        this.validador = validador;
     }
 
     /** Corrige URLs antiguas /convocatoria/ → /convocatorias/ en toda la BD. Retorna el número de registros actualizados. */
@@ -42,6 +49,32 @@ public class ConvocatoriaService {
             }
         }
         return corregidas;
+    }
+
+    /** Obtiene una pagina de convocatorias para listados de admin. */
+    public Page<Convocatoria> obtenerPagina(int page, int size) {
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.max(size, 1);
+        PageRequest pageRequest = PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id"));
+        return convocatoriaRepository.findAll(pageRequest);
+    }
+
+    /** Búsqueda paginada para admin con filtros de texto y sector. */
+    public Page<Convocatoria> obtenerPaginaFiltrada(int page, int size, String q, String sector) {
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.max(size, 1);
+        PageRequest pageRequest = PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id"));
+        String qParam = (q == null || q.isBlank()) ? null : q.trim();
+        String sectorParam = (sector == null || sector.isBlank()) ? null : sector.trim();
+        if (qParam == null && sectorParam == null) {
+            return convocatoriaRepository.findAll(pageRequest);
+        }
+        return convocatoriaRepository.buscarAdmin(qParam, sectorParam, pageRequest);
+    }
+
+    /** Cuenta total de convocatorias sin cargar entidades en memoria. */
+    public long contarTodas() {
+        return convocatoriaRepository.count();
     }
 
     /** Obtiene todas las convocatorias registradas. */
@@ -69,6 +102,19 @@ public class ConvocatoriaService {
         c.setUrlOficial(dto.getUrlOficial());
         c.setFuente(dto.getFuente());
         c.setFechaCierre(dto.getFechaCierre());
+        c.setIdBdns(dto.getIdBdns());
+        c.setNumeroConvocatoria(dto.getNumeroConvocatoria());
+        c.setOrganismo(dto.getOrganismo());
+        c.setFechaPublicacion(dto.getFechaPublicacion());
+        c.setDescripcion(dto.getDescripcion());
+        c.setTextoCompleto(dto.getTextoCompleto());
+        c.setMrr(Boolean.TRUE.equals(dto.getMrr()));
+        c.setPresupuesto(dto.getPresupuesto());
+        c.setAbierto(dto.getAbierto());
+        c.setFinalidad(dto.getFinalidad());
+        c.setFechaInicio(dto.getFechaInicio());
+        c.setRegionId(dto.getRegionId());
+        c.setProvinciaId(dto.getProvinciaId());
         return convocatoriaRepository.save(c);
     }
 
@@ -103,23 +149,106 @@ public class ConvocatoriaService {
     @Transactional
     public int importarDesdeBdns(int pagina, int tamano) {
         List<ConvocatoriaDTO> importadas = bdnsClientService.importar(pagina, tamano);
-        return persistirNuevas(importadas);
+        return persistirNuevas(importadas).nuevas();
     }
 
 
-    private int persistirNuevas(List<ConvocatoriaDTO> importadas) {
+    @Transactional
+    public ResultadoPersistencia persistirNuevas(List<ConvocatoriaDTO> importadas) {
         int nuevas = 0;
+        int duplicadas = 0;
+        int rechazadas = 0;
+        int actualizados = 0;
+
         for (ConvocatoriaDTO dto : importadas) {
-            boolean existe = convocatoriaRepository.existsByTituloIgnoreCaseAndFuente(dto.getTitulo(), dto.getFuente());
-            if (!existe) {
-                crear(dto);
-                nuevas++;
+            // Validar antes de intentar persistir
+            ConvocatoriaValidador.ResultadoValidacion validacion = validador.validar(dto);
+            if (!validacion.valida()) {
+                log.debug("Convocatoria rechazada ({}): idBdns={}", validacion.razon(), dto.getIdBdns());
+                rechazadas++;
+                continue;
+            }
+
+            // Deduplicar por idBdns (clave oficial) si está disponible, si no por título+fuente
+            if (dto.getIdBdns() != null && !dto.getIdBdns().isBlank()) {
+                if (!convocatoriaRepository.existsByIdBdns(dto.getIdBdns())) {
+                    crear(dto);
+                    nuevas++;
+                } else {
+                    boolean actualizado = actualizarCamposNulos(dto);
+                    if (actualizado) actualizados++;
+                    else duplicadas++;
+                }
+            } else {
+                boolean existe = convocatoriaRepository
+                        .existsByTituloIgnoreCaseAndFuente(dto.getTitulo(), dto.getFuente());
+                if (!existe) {
+                    crear(dto);
+                    nuevas++;
+                } else {
+                    duplicadas++;
+                }
             }
         }
 
-        log.info("BDNS import: {} importadas, {} nuevas, {} duplicadas omitidas",
-                importadas.size(), nuevas, importadas.size() - nuevas);
-        return nuevas;
+        log.info("BDNS import: {} procesadas — {} nuevas, {} actualizadas, {} duplicadas, {} rechazadas",
+                importadas.size(), nuevas, actualizados, duplicadas, rechazadas);
+        return new ResultadoPersistencia(nuevas, duplicadas, rechazadas, actualizados);
+    }
+
+    public Long obtenerMaxNumeroConvocatoriaNumerico() {
+        return convocatoriaRepository.findMaxNumeroConvocatoriaNumerico();
+    }
+
+    /**
+     * Rellena solo los campos que están a null en un registro existente.
+     * No sobreescribe datos ya presentes (protege ediciones manuales).
+     * @return true si se modificó algún campo
+     */
+    private boolean actualizarCamposNulos(ConvocatoriaDTO dto) {
+        return convocatoriaRepository.findByIdBdns(dto.getIdBdns()).map(c -> {
+            boolean cambios = false;
+            if (c.getOrganismo() == null && dto.getOrganismo() != null) {
+                c.setOrganismo(dto.getOrganismo()); cambios = true;
+            }
+            // Siempre actualizar fechaPublicacion si el DTO trae una distinta
+            // (corrige importaciones previas que usaban fechaRecepcion en vez de la fecha real del diario oficial)
+            if (dto.getFechaPublicacion() != null && !dto.getFechaPublicacion().equals(c.getFechaPublicacion())) {
+                c.setFechaPublicacion(dto.getFechaPublicacion()); cambios = true;
+            }
+            if (c.getDescripcion() == null && dto.getDescripcion() != null) {
+                c.setDescripcion(dto.getDescripcion()); cambios = true;
+            }
+            if (c.getTextoCompleto() == null && dto.getTextoCompleto() != null) {
+                c.setTextoCompleto(dto.getTextoCompleto()); cambios = true;
+            }
+            if (c.getFechaCierre() == null && dto.getFechaCierre() != null) {
+                c.setFechaCierre(dto.getFechaCierre()); cambios = true;
+            }
+            if (c.getMrr() == null && dto.getMrr() != null) {
+                c.setMrr(dto.getMrr()); cambios = true;
+            }
+            if (c.getPresupuesto() == null && dto.getPresupuesto() != null) {
+                c.setPresupuesto(dto.getPresupuesto()); cambios = true;
+            }
+            if (c.getAbierto() == null && dto.getAbierto() != null) {
+                c.setAbierto(dto.getAbierto()); cambios = true;
+            }
+            if (c.getFinalidad() == null && dto.getFinalidad() != null) {
+                c.setFinalidad(dto.getFinalidad()); cambios = true;
+            }
+            if (c.getFechaInicio() == null && dto.getFechaInicio() != null) {
+                c.setFechaInicio(dto.getFechaInicio()); cambios = true;
+            }
+            if (c.getRegionId() == null && dto.getRegionId() != null) {
+                c.setRegionId(dto.getRegionId()); cambios = true;
+            }
+            if (c.getProvinciaId() == null && dto.getProvinciaId() != null) {
+                c.setProvinciaId(dto.getProvinciaId()); cambios = true;
+            }
+            if (cambios) convocatoriaRepository.save(c);
+            return cambios;
+        }).orElse(false);
     }
 
     /** Convierte una entidad a DTO para precargar formularios de edición. */
@@ -133,6 +262,10 @@ public class ConvocatoriaService {
         dto.setFechaCierre(c.getFechaCierre());
         dto.setIdBdns(c.getIdBdns());
         dto.setNumeroConvocatoria(c.getNumeroConvocatoria());
+        dto.setOrganismo(c.getOrganismo());
+        dto.setFechaPublicacion(c.getFechaPublicacion());
+        dto.setDescripcion(c.getDescripcion());
+        dto.setTextoCompleto(c.getTextoCompleto());
         // Construir URL fiable: numConv > idBdns > url guardada
         String url;
         if (c.getNumeroConvocatoria() != null && !c.getNumeroConvocatoria().isBlank()) {
@@ -144,6 +277,8 @@ public class ConvocatoriaService {
             if (url != null) url = url.replace("/bdnstrans/GE/es/convocatoria/", "/bdnstrans/GE/es/convocatorias/");
         }
         dto.setUrlOficial(url);
+        dto.setRegionId(c.getRegionId());
+        dto.setProvinciaId(c.getProvinciaId());
         return dto;
     }
 }

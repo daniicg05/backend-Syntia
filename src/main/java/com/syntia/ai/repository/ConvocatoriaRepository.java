@@ -1,0 +1,237 @@
+package com.syntia.ai.repository;
+
+import com.syntia.ai.model.Convocatoria;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+import java.time.LocalDate;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
+
+/**
+ * Repositorio JPA para la entidad Convocatoria.
+ */
+@Repository
+public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long> {
+
+    List<Convocatoria> findBySector(String sector);
+
+    List<Convocatoria> findByUbicacion(String ubicacion);
+
+    List<Convocatoria> findByTipo(String tipo);
+
+    /**
+     * Verifica si ya existe una convocatoria con el mismo titulo (ignorando mayusculas) y fuente.
+     * Usado para evitar duplicados al importar desde BDNS.
+     */
+    boolean existsByTituloIgnoreCaseAndFuente(String titulo, String fuente);
+
+    boolean existsByIdBdns(String idBdns);
+
+    Optional<Convocatoria> findByIdBdns(String idBdns);
+
+    /**
+     * Busca una convocatoria por título (ignorando mayúsculas) y fuente.
+     * Usado por el motor de matching para no duplicar convocatorias al persistir.
+     */
+    Optional<Convocatoria> findByTituloIgnoreCaseAndFuente(String titulo, String fuente);
+
+    /**
+     * Filtra convocatorias por sector y/o ubicación y/o tipo.
+     * Los parámetros nulos o vacíos se ignoran.
+     */
+    @Query("SELECT c FROM Convocatoria c WHERE " +
+            "(:sector IS NULL OR :sector = '' OR c.sector = :sector) AND " +
+            "(:ubicacion IS NULL OR :ubicacion = '' OR c.ubicacion = :ubicacion) AND " +
+            "(:tipo IS NULL OR :tipo = '' OR c.tipo = :tipo)")
+    List<Convocatoria> filtrar(@Param("sector") String sector,
+                               @Param("ubicacion") String ubicacion,
+                               @Param("tipo") String tipo);
+
+    /**
+     * Devuelve los sectores distintos registrados (para el selector de filtros).
+     */
+    @Query("SELECT DISTINCT c.sector FROM Convocatoria c WHERE c.sector IS NOT NULL ORDER BY c.sector")
+    List<String> findSectoresDistintos();
+
+    /**
+     * Devuelve los tipos distintos registrados (para el selector de filtros).
+     */
+    @Query("SELECT DISTINCT c.tipo FROM Convocatoria c WHERE c.tipo IS NOT NULL ORDER BY c.tipo")
+    List<String> findTiposDistintos();
+
+    /**
+     * Devuelve las convocatorias cuyos títulos estén en la lista dada.
+     * Usado por buscarEImportarDesdeBdns para devolver solo las relevantes a una búsqueda.
+     */
+    @Query("SELECT c FROM Convocatoria c WHERE c.titulo IN :titulos")
+    List<Convocatoria> buscarPorTitulos(@Param("titulos") List<String> titulos);
+
+    /**
+     * Búsqueda local para modo gratuito: filtra por palabra clave en título/sector
+     * y por ubicación (Nacional siempre incluido).
+     * Usado por ConvocatoriaBdLocalService como alternativa a la API live de BDNS.
+     */
+    /**
+     * Búsqueda local para modo gratuito.
+     * IMPORTANTE: :keyword y :ubicacion deben llegar ya en minúsculas y envueltos en '%'
+     * (ej: "%tecnología%") para evitar el bug lower(bytea) de Hibernate 6 + PostgreSQL.
+     */
+    @Query("SELECT c FROM Convocatoria c WHERE " +
+            "(:keyword IS NULL OR LOWER(c.titulo) LIKE :keyword " +
+            "   OR LOWER(c.sector) LIKE :keyword" +
+            "   OR (c.descripcion IS NOT NULL AND LOWER(c.descripcion) LIKE :keyword)" +
+            "   OR (c.finalidad IS NOT NULL AND LOWER(c.finalidad) LIKE :keyword)) AND " +
+            "(:ubicacion IS NULL OR LOWER(c.ubicacion) = 'nacional' " +
+            "   OR LOWER(c.ubicacion) LIKE :ubicacion)")
+    List<Convocatoria> buscarParaModoGratuito(@Param("keyword") String keyword,
+                                              @Param("ubicacion") String ubicacion);
+
+    /**
+     * Búsqueda local con filtro de región jerárquico.
+     * IMPORTANTE: :keyword y :ubicacionTexto deben llegar ya en minúsculas y envueltos en '%'
+     * (ej: "%tecnología%") para evitar el bug lower(bytea) de Hibernate 6 + PostgreSQL.
+     */
+    @Query("SELECT c FROM Convocatoria c WHERE " +
+            "(:keyword IS NULL OR LOWER(c.titulo) LIKE :keyword " +
+            "   OR LOWER(c.sector) LIKE :keyword" +
+            "   OR (c.descripcion IS NOT NULL AND LOWER(c.descripcion) LIKE :keyword)" +
+            "   OR (c.finalidad IS NOT NULL AND LOWER(c.finalidad) LIKE :keyword)) AND " +
+            "(:filtrarRegion = false OR (c.regionId IN :regionIds OR c.provinciaId IN :regionIds) OR LOWER(c.ubicacion) = 'nacional' OR LOWER(c.ubicacion) LIKE :ubicacionTexto)")
+    List<Convocatoria> buscarParaModoGratuitoConRegion(@Param("keyword") String keyword,
+                                                       @Param("filtrarRegion") boolean filtrarRegion,
+                                                       @Param("regionIds") Collection<Integer> regionIds,
+                                                       @Param("ubicacionTexto") String ubicacionTexto);
+
+    // ── Queries de cobertura de campos ──────────────────────────────────────
+
+    long countByOrganismoIsNotNull();
+
+    long countByFechaPublicacionIsNotNull();
+
+    long countByDescripcionIsNotNull();
+
+    long countByTextoCompletoIsNotNull();
+
+    long countBySectorIsNotNull();
+
+    long countByFechaCierreIsNotNull();
+
+    long countByUbicacionIsNotNull();
+
+    long countByPresupuestoIsNotNull();
+
+    long countByAbiertoIsNotNull();
+
+    long countByFinalidadIsNotNull();
+
+    long countByFechaInicioIsNotNull();
+
+    long countByMrrIsNotNull();
+
+    @Query("SELECT c FROM Convocatoria c WHERE c.id > :lastId AND c.numeroConvocatoria IS NOT NULL ORDER BY c.id ASC")
+    List<Convocatoria> findEnriquecimientoBatch(@Param("lastId") Long lastId, Pageable pageable);
+
+    long countByNumeroConvocatoriaIsNotNull();
+
+    @Query(value = """
+            SELECT MAX(CAST(numero_convocatoria AS BIGINT))
+            FROM convocatorias
+            WHERE numero_convocatoria ~ '^[0-9]+$'
+            """, nativeQuery = true)
+    Long findMaxNumeroConvocatoriaNumerico();
+
+    /**
+     * Búsqueda pública full-text: filtra por keyword en título/descripción/sector
+     * y opcionalmente por sector (LIKE). Usado por el endpoint público de búsqueda.
+     */
+    @Query("SELECT c FROM Convocatoria c WHERE " +
+            "(:q IS NULL OR :q = '' OR " +
+            "   LOWER(c.titulo) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
+            "   (c.descripcion IS NOT NULL AND LOWER(c.descripcion) LIKE LOWER(CONCAT('%', :q, '%'))) OR " +
+            "   (c.finalidad IS NOT NULL AND LOWER(c.finalidad) LIKE LOWER(CONCAT('%', :q, '%')))) AND " +
+            "(:sector IS NULL OR :sector = '' OR " +
+            "   (c.finalidad IS NOT NULL AND LOWER(c.finalidad) = LOWER(:sector))) AND " +
+            "(:tipo IS NULL OR :tipo = '' OR " +
+            "   (c.tipo IS NOT NULL AND LOWER(c.tipo) = LOWER(:tipo))) AND " +
+            "(:incluirCerradas = true OR c.abierto = true)")
+    Page<Convocatoria> buscarPublico(@Param("q") String q,
+                                     @Param("sector") String sector,
+                                     @Param("tipo") String tipo,
+                                     @Param("incluirCerradas") boolean incluirCerradas,
+                                     Pageable pageable);
+
+    /**
+     * Búsqueda pública con filtro de región jerárquico.
+     * regionIds debe contener el ID seleccionado y todos sus descendientes.
+     * Si la colección está vacía se ignora el filtro de región.
+     */
+    @Query("SELECT c FROM Convocatoria c WHERE " +
+            "(:q IS NULL OR :q = '' OR " +
+            "   LOWER(c.titulo) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
+            "   (c.descripcion IS NOT NULL AND LOWER(c.descripcion) LIKE LOWER(CONCAT('%', :q, '%'))) OR " +
+            "   (c.finalidad IS NOT NULL AND LOWER(c.finalidad) LIKE LOWER(CONCAT('%', :q, '%')))) AND " +
+            "(:sector IS NULL OR :sector = '' OR " +
+            "   (c.finalidad IS NOT NULL AND LOWER(c.finalidad) = LOWER(:sector))) AND " +
+            "(:tipo IS NULL OR :tipo = '' OR " +
+            "   (c.tipo IS NOT NULL AND LOWER(c.tipo) = LOWER(:tipo))) AND " +
+            "(:incluirCerradas = true OR c.abierto = true) AND " +
+            "(:filtrarRegion = false OR (c.regionId IN :regionIds OR c.provinciaId IN :regionIds OR LOWER(c.ubicacion) = 'nacional')) AND " +
+            "(:presupuestoMin IS NULL OR (c.presupuesto IS NOT NULL AND c.presupuesto >= :presupuestoMin)) AND " +
+            "(:fechaCierreHasta IS NULL OR (c.fechaCierre IS NOT NULL AND c.fechaCierre >= CURRENT_DATE AND c.fechaCierre <= :fechaCierreHasta)) AND " +
+            "(:tipoBeneficiario IS NULL OR :tipoBeneficiario = '' OR EXISTS (" +
+            "   SELECT 1 FROM IdxConvocatoriaBeneficiario ib JOIN CatBeneficiario b ON ib.beneficiarioId = b.id " +
+            "   WHERE ib.numeroConvocatoria = c.numeroConvocatoria " +
+            "   AND LOWER(b.descripcion) LIKE LOWER(CONCAT('%', :tipoBeneficiario, '%'))))")
+    Page<Convocatoria> buscarPublicoConRegion(@Param("q") String q,
+                                              @Param("sector") String sector,
+                                              @Param("tipo") String tipo,
+                                              @Param("incluirCerradas") boolean incluirCerradas,
+                                              @Param("filtrarRegion") boolean filtrarRegion,
+                                              @Param("regionIds") Collection<Integer> regionIds,
+                                              @Param("presupuestoMin") Double presupuestoMin,
+                                              @Param("fechaCierreHasta") LocalDate fechaCierreHasta,
+                                              @Param("tipoBeneficiario") String tipoBeneficiario,
+                                              Pageable pageable);
+
+    /** Devuelve los valores distintos de finalidad no nulos, ordenados alfabéticamente. */
+    @Query("SELECT DISTINCT c.finalidad FROM Convocatoria c WHERE c.finalidad IS NOT NULL AND c.finalidad <> '' ORDER BY c.finalidad ASC")
+    List<String> findFinalidadesDistintas();
+
+    /** Búsqueda paginada para el panel de admin: filtra por keyword en título y sector. */
+    @Query("SELECT c FROM Convocatoria c WHERE " +
+            "(:q IS NULL OR :q = '' OR LOWER(c.titulo) LIKE LOWER(CONCAT('%', :q, '%'))) AND " +
+            "(:sector IS NULL OR :sector = '' OR " +
+            "   (c.finalidad IS NOT NULL AND LOWER(c.finalidad) LIKE LOWER(CONCAT('%', :sector, '%'))))")
+    Page<Convocatoria> buscarAdmin(@Param("q") String q,
+                                   @Param("sector") String sector,
+                                   Pageable pageable);
+
+    long countByAbiertoTrue();
+
+    /** Últimas convocatorias abiertas para la sección destacadas del Home. */
+    List<Convocatoria> findTop16ByAbiertoTrueOrderByIdDesc();
+
+    /** Sin filtro de estado, usado internamente (pool de candidatos). */
+    List<Convocatoria> findTop16ByOrderByIdDesc();
+
+    /**
+     * Pool de candidatos para recomendaciones personalizadas.
+     * Pasa siempre los 3 parámetros; usa "" como centinela para "sin keyword".
+     * En JPQL no se puede usar :param IS NOT NULL en OR, se usa <> '' en su lugar.
+     */
+    @Query("SELECT c FROM Convocatoria c WHERE " +
+            "(:kw1 <> '' AND (LOWER(c.sector) LIKE LOWER(CONCAT('%',:kw1,'%')) OR LOWER(c.titulo) LIKE LOWER(CONCAT('%',:kw1,'%')))) OR " +
+            "(:kw2 <> '' AND (LOWER(c.sector) LIKE LOWER(CONCAT('%',:kw2,'%')) OR LOWER(c.titulo) LIKE LOWER(CONCAT('%',:kw2,'%')))) OR " +
+            "(:kw3 <> '' AND (LOWER(c.sector) LIKE LOWER(CONCAT('%',:kw3,'%')) OR LOWER(c.titulo) LIKE LOWER(CONCAT('%',:kw3,'%')))) " +
+            "ORDER BY c.id DESC")
+    List<Convocatoria> buscarCandidatosPorKeywords(@Param("kw1") String kw1,
+                                                    @Param("kw2") String kw2,
+                                                    @Param("kw3") String kw3,
+                                                    Pageable pageable);
+}
+

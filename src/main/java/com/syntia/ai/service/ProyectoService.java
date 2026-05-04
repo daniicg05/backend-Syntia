@@ -3,7 +3,9 @@ package com.syntia.ai.service;
 import com.syntia.ai.model.Proyecto;
 import com.syntia.ai.model.Usuario;
 import com.syntia.ai.model.dto.ProyectoDTO;
+import com.syntia.ai.repository.AnalisisConvocatoriaRepository;
 import com.syntia.ai.repository.ProyectoRepository;
+import com.syntia.ai.repository.RecomendacionRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -23,10 +25,15 @@ public class ProyectoService {
 
     /** Repositorio para acceso y persistencia de proyectos. */
     private final ProyectoRepository proyectoRepository;
+    private final RecomendacionRepository recomendacionRepository;
+    private final AnalisisConvocatoriaRepository analisisConvocatoriaRepository;
 
-    /** Inyección por constructor para asegurar dependencia obligatoria. */
-    public ProyectoService(ProyectoRepository proyectoRepository) {
+    public ProyectoService(ProyectoRepository proyectoRepository,
+                           RecomendacionRepository recomendacionRepository,
+                           AnalisisConvocatoriaRepository analisisConvocatoriaRepository) {
         this.proyectoRepository = proyectoRepository;
+        this.recomendacionRepository = recomendacionRepository;
+        this.analisisConvocatoriaRepository = analisisConvocatoriaRepository;
     }
 
     /**
@@ -119,11 +126,9 @@ public class ProyectoService {
      */
     @Transactional
     public void eliminar(Long id, Long usuarioId) {
-
-        /** Verifica permisos sobre el recurso antes de eliminarlo. */
         Proyecto proyecto = obtenerPorId(id, usuarioId);
-
-        /** Elimina la entidad ya validada. */
+        analisisConvocatoriaRepository.deleteByProyectoId(id);
+        recomendacionRepository.deleteByProyectoId(id);
         proyectoRepository.delete(proyecto);
     }
 
@@ -138,10 +143,12 @@ public class ProyectoService {
 
         /** Mapeo manual para transferir solo datos necesarios hacia capa web. */
         ProyectoDTO dto = new ProyectoDTO();
+        dto.setId(proyecto.getId());
         dto.setNombre(proyecto.getNombre());
         dto.setSector(proyecto.getSector());
         dto.setUbicacion(proyecto.getUbicacion());
         dto.setDescripcion(proyecto.getDescripcion());
+        dto.setCreadoEn(proyecto.getCreadoEn());
         return dto;
     }
 
@@ -157,3 +164,4 @@ public class ProyectoService {
         }
     }
 }
+

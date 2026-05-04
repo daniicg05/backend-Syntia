@@ -1,0 +1,297 @@
+package com.syntia.ai.service;
+
+
+
+import com.syntia.ai.model.HistorialCorreo;
+import com.syntia.ai.model.Rol;
+import com.syntia.ai.model.Usuario;
+import com.syntia.ai.repository.HistorialCorreoRepository;
+import com.syntia.ai.repository.PerfilRepository;
+import com.syntia.ai.repository.ProyectoRepository;
+import com.syntia.ai.repository.RecomendacionRepository;
+import com.syntia.ai.repository.UsuarioRepository;
+import jakarta.persistence.EntityNotFoundException;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Optional;
+
+/**
+ * Servicio de lógica de negocio para la gestión de usuarios.
+ * Adaptado para API REST.
+ */
+@Service
+@Transactional
+public class UsuarioService {
+
+    private final UsuarioRepository usuarioRepository;
+    private final HistorialCorreoRepository historialCorreoRepository;
+    private final PerfilRepository perfilRepository;
+    private final ProyectoRepository proyectoRepository;
+    private final RecomendacionRepository recomendacionRepository;
+    private final PasswordEncoder passwordEncoder;
+
+    /**
+     * Email reservado para la cuenta superadministradora protegida.
+     * Esta protección es lógica de negocio de backend y no depende del frontend.
+     */
+    private static final String SUPERADMIN_EMAIL = "admin@syntia.com";
+
+    /**
+     * Determina si el usuario objetivo corresponde al superadmin protegido.
+     */
+    private boolean isSuperAdmin(Usuario usuario) {
+        return usuario != null
+                && usuario.getEmail() != null
+                && usuario.getEmail().equalsIgnoreCase(SUPERADMIN_EMAIL);
+    }
+
+    /**
+     * Bloquea operaciones sensibles sobre la cuenta superadministradora.
+     *
+     * @throws IllegalStateException cuando se intenta modificar/eliminar superadmin
+     */
+    private void validarNoEsSuperAdminProtegido(Usuario usuario) {
+        if (isSuperAdmin(usuario)) {
+            throw new IllegalStateException(
+                    "No se puede modificar ni eliminar el usuario superadministrador."
+            );
+        }
+    }
+
+    public UsuarioService(UsuarioRepository usuarioRepository,
+                          HistorialCorreoRepository historialCorreoRepository,
+                          PerfilRepository perfilRepository,
+                          ProyectoRepository proyectoRepository,
+                          RecomendacionRepository recomendacionRepository,
+                          PasswordEncoder passwordEncoder) {
+        this.usuarioRepository = usuarioRepository;
+        this.historialCorreoRepository = historialCorreoRepository;
+        this.perfilRepository = perfilRepository;
+        this.proyectoRepository = proyectoRepository;
+        this.recomendacionRepository = recomendacionRepository;
+        this.passwordEncoder = passwordEncoder;
+    }
+
+    /**
+     * Registra un nuevo usuario con la contraseña cifrada.
+     *
+     * @param email email del usuario
+     * @param password contraseña en texto plano
+     * @param rol rol del usuario
+     * @return usuario creado
+     * @throws IllegalStateException si el email ya está registrado
+     */
+    public Usuario registrar(String email, String password, Rol rol) {
+        String emailNormalizado = email.toLowerCase().strip();
+        if (usuarioRepository.existsByEmailIgnoreCase(emailNormalizado)) {
+            throw new IllegalStateException("El email ya está registrado: " + emailNormalizado);
+        }
+
+        Usuario usuario = Usuario.builder()
+                .email(emailNormalizado)
+                .password(passwordEncoder.encode(password))
+                .rol(rol)
+                .build();
+
+        return usuarioRepository.save(usuario);
+    }
+
+    /**
+     * Busca un usuario por email.
+     *
+     * @param email email del usuario
+     * @return Optional con el usuario
+     */
+    @Transactional(readOnly = true)
+    public Optional<Usuario> buscarPorEmail(String email) {
+        return usuarioRepository.findByEmail(email);
+    }
+
+    /**
+     * Obtiene todos los usuarios registrados.
+     *
+     * @return lista de usuarios
+     */
+    @Transactional(readOnly = true)
+    public List<Usuario> obtenerTodos() {
+        return usuarioRepository.findAll();
+    }
+
+    /**
+     * Busca un usuario por ID.
+     *
+     * @param id ID del usuario
+     * @return Optional con el usuario
+     */
+    @Transactional(readOnly = true)
+    public Optional<Usuario> buscarPorId(Long id) {
+        return usuarioRepository.findById(id);
+    }
+
+    /**
+     * Obtiene un usuario por ID o lanza excepción si no existe.
+     *
+     * @param id ID del usuario
+     * @return usuario encontrado
+     */
+    @Transactional(readOnly = true)
+    public Usuario obtenerPorId(Long id) {
+        return usuarioRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Usuario no encontrado: " + id));
+    }
+
+    /**
+     * Elimina un usuario por ID.
+     * Aplica protección para impedir borrar la cuenta superadministradora.
+     *
+     * @param id ID del usuario a eliminar
+     * @throws EntityNotFoundException si el usuario no existe
+     * @throws IllegalStateException si el usuario es superadmin protegido
+     */
+    public void eliminar(Long id) {
+        Usuario usuario = usuarioRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Usuario no encontrado: " + id));
+
+        validarNoEsSuperAdminProtegido(usuario);
+
+        // Orden importante para respetar FKs: recomendaciones -> proyectos -> perfil/historial -> usuario.
+        recomendacionRepository.deleteByProyectoUsuarioId(id);
+        proyectoRepository.deleteByUsuarioId(id);
+        perfilRepository.deleteByUsuarioId(id);
+        historialCorreoRepository.deleteByUsuarioId(id);
+        usuarioRepository.deleteById(id);
+    }
+
+    /**
+     * Cambia el rol de un usuario.
+     * Aplica protección para impedir cambiar el rol del superadmin.
+     *
+     * @param id ID del usuario
+     * @param nuevoRol nuevo rol a asignar
+     * @return usuario actualizado
+     * @throws EntityNotFoundException si el usuario no existe
+     * @throws IllegalStateException si el usuario es superadmin protegido
+     */
+    public Usuario cambiarRol(Long id, Rol nuevoRol) {
+        Usuario usuario = usuarioRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Usuario no encontrado: " + id));
+
+        validarNoEsSuperAdminProtegido(usuario);
+
+        usuario.setRol(nuevoRol);
+        return usuarioRepository.save(usuario);
+    }
+
+    /**
+     * Cambia la contraseña de un usuario.
+     *
+     * @param id ID del usuario
+     * @param nuevaPassword nueva contraseña en texto plano
+     * @return usuario actualizado
+     * @throws EntityNotFoundException si el usuario no existe
+     */
+    public Usuario cambiarPassword(Long id, String nuevaPassword) {
+        Usuario usuario = usuarioRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Usuario no encontrado: " + id));
+
+        usuario.setPassword(passwordEncoder.encode(nuevaPassword));
+        return usuarioRepository.save(usuario);
+    }
+
+    /**
+     * Cambia el email de un usuario tras verificar su contraseña actual.
+     *
+     * @param id ID del usuario
+     * @param passwordActual contraseña actual en texto plano (para verificación)
+     * @param nuevoEmail nuevo email a asignar
+     * @return usuario actualizado
+     * @throws EntityNotFoundException si el usuario no existe
+     * @throws IllegalArgumentException si la contraseña es incorrecta o el email es igual al actual
+     * @throws IllegalStateException si el nuevo email ya está registrado
+     */
+    public Usuario cambiarEmail(Long id, String passwordActual, String nuevoEmail) {
+        return cambiarEmail(id, passwordActual, nuevoEmail, null);
+    }
+
+    public Usuario cambiarEmail(Long id, String passwordActual, String nuevoEmail, String actorEmail) {
+        Usuario usuario = usuarioRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Usuario no encontrado: " + id));
+
+        if (!passwordEncoder.matches(passwordActual, usuario.getPassword())) {
+            throw new IllegalArgumentException("La contraseña actual es incorrecta");
+        }
+
+        String nuevoEmailNormalizado = nuevoEmail.toLowerCase().strip();
+
+        if (usuario.getEmail().equalsIgnoreCase(nuevoEmailNormalizado)) {
+            throw new IllegalArgumentException("El nuevo email es igual al actual");
+        }
+
+        if (usuarioRepository.existsByEmailIgnoreCase(nuevoEmailNormalizado)) {
+            throw new IllegalStateException("El email ya está registrado: " + nuevoEmailNormalizado);
+        }
+
+        String emailAnterior = usuario.getEmail();
+        usuario.setEmail(nuevoEmailNormalizado);
+        Usuario actualizado = usuarioRepository.save(usuario);
+
+        historialCorreoRepository.save(HistorialCorreo.builder()
+                .usuario(actualizado)
+                .anterior(emailAnterior)
+                .nuevo(nuevoEmailNormalizado)
+                .actor(actorEmail != null && !actorEmail.isBlank() ? actorEmail : emailAnterior)
+                .build());
+
+        return actualizado;
+    }
+
+    @Transactional(readOnly = true)
+    public boolean emailCambiado(Long usuarioId) {
+        return historialCorreoRepository.existsByUsuarioId(usuarioId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<HistorialCorreo> obtenerHistorialCorreo(Long usuarioId) {
+        return historialCorreoRepository.findByUsuarioIdOrderByFechaDesc(usuarioId);
+    }
+
+    /**
+     * Cambia la contraseña de un usuario autenticado.
+     *
+     * @param usuarioId ID del usuario
+     * @param passwordActual contraseña actual en texto plano (para verificación)
+     * @param nuevaPassword nueva contraseña en texto plano
+     * @param confirmarPassword confirmación de la nueva contraseña
+     * @return usuario actualizado
+     * @throws EntityNotFoundException si el usuario no existe
+     * @throws BadCredentialsException si la contraseña actual es incorrecta
+     * @throws IllegalArgumentException si la nueva contraseña y su confirmación no coinciden
+     */
+    public Usuario cambiarPasswordAutenticado(Long usuarioId,
+                                              String passwordActual,
+                                              String nuevaPassword,
+                                              String confirmarPassword) {
+
+        Usuario usuario = usuarioRepository.findById(usuarioId)
+                .orElseThrow(() -> new EntityNotFoundException("Usuario no encontrado: " + usuarioId));
+
+        if (!passwordEncoder.matches(passwordActual, usuario.getPassword())) {
+            throw new BadCredentialsException("La contraseña actual es incorrecta");
+        }
+
+        if (!nuevaPassword.equals(confirmarPassword)) {
+            throw new IllegalArgumentException("La nueva contraseña y su confirmación no coinciden");
+        }
+
+        if (passwordEncoder.matches(nuevaPassword, usuario.getPassword())) {
+            throw new IllegalArgumentException("La nueva contraseña no puede ser igual a la actual");
+        }
+
+        usuario.setPassword(passwordEncoder.encode(nuevaPassword));
+        return usuarioRepository.save(usuario);
+    }
+}

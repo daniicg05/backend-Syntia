@@ -1,0 +1,1 @@
+public class TestNormalizador {     public static void main(String[] args) {         System.out.println(com.syntia.ai.service.UbicacionNormalizador.normalizarARegionId("Cataluña"));         System.out.println(com.syntia.ai.service.UbicacionNormalizador.normalizarARegionId("catalunya"));     } }

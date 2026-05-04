@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+
+<html class="light" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Manrope:wght@600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-primary-fixed": "#001f29",
+                        "on-tertiary-fixed-variant": "#005236",
+                        "secondary-container": "#d5e0f8",
+                        "primary": "#005a71",
+                        "surface-tint": "#006781",
+                        "surface-container-high": "#e6e8ea",
+                        "outline-variant": "#bec8cd",
+                        "surface-container-highest": "#e0e3e5",
+                        "primary-fixed-dim": "#81d1f0",
+                        "on-error-container": "#93000a",
+                        "outline": "#6f787d",
+                        "on-secondary-container": "#586377",
+                        "error": "#ba1a1a",
+                        "tertiary-container": "#007a53",
+                        "tertiary-fixed-dim": "#4edea3",
+                        "on-tertiary-fixed": "#002113",
+                        "on-primary-container": "#d3f1ff",
+                        "secondary-fixed-dim": "#bcc7de",
+                        "on-secondary-fixed-variant": "#3c475a",
+                        "surface-dim": "#d8dadc",
+                        "on-tertiary-container": "#a3ffd0",
+                        "on-surface": "#191c1e",
+                        "primary-container": "#0e7490",
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary": "#ffffff",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-low": "#f2f4f6",
+                        "background": "#f7f9fb",
+                        "surface": "#f7f9fb",
+                        "primary-fixed": "#b9eaff",
+                        "tertiary-fixed": "#6ffbbe",
+                        "surface-container": "#eceef0",
+                        "secondary": "#545f73",
+                        "error-container": "#ffdad6",
+                        "on-background": "#191c1e",
+                        "inverse-primary": "#81d1f0",
+                        "on-secondary-fixed": "#111c2d",
+                        "on-error": "#ffffff",
+                        "secondary-fixed": "#d8e3fb",
+                        "on-surface-variant": "#3f484c",
+                        "on-primary-fixed-variant": "#004d62",
+                        "surface-bright": "#f7f9fb",
+                        "surface-variant": "#e0e3e5",
+                        "on-primary": "#ffffff",
+                        "inverse-on-surface": "#eff1f3",
+                        "inverse-surface": "#2d3133",
+                        "tertiary": "#005f40"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "2xl": "1rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-effect {
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+    </style>
+</head>
+<body class="bg-background font-body text-on-surface">
+<!-- SideNavBar -->
+<aside class="h-screen w-64 fixed left-0 top-0 hidden lg:flex flex-col bg-cyan-950 dark:bg-slate-950 shadow-2xl z-50 font-['Manrope'] text-sm tracking-tight overflow-y-auto">
+<div class="flex flex-col p-6 h-full">
+<div class="mb-8">
+<span class="text-2xl font-bold tracking-tighter text-white">Syntia</span>
+</div>
+<div class="flex items-center gap-3 mb-10 px-2">
+<div class="w-10 h-10 rounded-full bg-cyan-800 flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="professional portrait of a senior financial strategist with a confident expression in a clean studio setting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC05w6tyPX75K5Yodb9lvPwM2Y-j2tHNSTguEFezqO-B4OMrJ2aqoorXpfi6cnleJC3JXjC-ihyI5AEmE6TDIE5HWSOrwHrW1ohTVBJrIO4YCr40UO4AP2ejTBgwDA2Z2NlV9eth6mUxlDebfVa2lk_7DAlIqpeYlxcgvHlYyVICh12hbdmHQKuWO8ktDTTrdZswYY2wnICEQPvEJuMaYexyIq6MGXIjEPGEWvWNLyJXmVmZhu8h6bfKjXxEtg1-BrznH4j-RXzR9o"/>
+</div>
+<div>
+<p class="text-white font-semibold leading-none">Estratega Lúcido</p>
+<p class="text-cyan-400 text-xs mt-1 uppercase tracking-widest font-bold">Premium</p>
+</div>
+</div>
+<nav class="space-y-1 flex-grow">
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 text-cyan-200/60 hover:text-white hover:bg-cyan-900/30" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span>Panel</span>
+</a>
+<!-- ACTIVE STATE: Subvenciones -->
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 text-white font-semibold border-r-4 border-cyan-500 bg-cyan-900/50" href="#">
+<span class="material-symbols-outlined">payments</span>
+<span>Subvenciones</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 text-cyan-200/60 hover:text-white hover:bg-cyan-900/30" href="#">
+<span class="material-symbols-outlined">gavel</span>
+<span>Licitaciones</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 text-cyan-200/60 hover:text-white hover:bg-cyan-900/30" href="#">
+<span class="material-symbols-outlined">star</span>
+<span>Favoritos</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 text-cyan-200/60 hover:text-white hover:bg-cyan-900/30" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span>Ajustes</span>
+</a>
+</nav>
+<div class="mt-auto pt-6 border-t border-cyan-900/20">
+<button class="w-full bg-cyan-500 hover:bg-cyan-400 text-cyan-950 font-bold py-3 rounded-xl transition-transform active:scale-95 duration-150 flex items-center justify-center gap-2">
+<span class="material-symbols-outlined">add</span>
+                    Nueva Búsqueda
+                </button>
+</div>
+</div>
+</aside>
+<!-- TopNavBar -->
+<header class="fixed top-0 right-0 w-full lg:w-[calc(100%-16rem)] h-16 z-40 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-xl flex items-center justify-between px-8 py-2">
+<div class="flex items-center flex-1">
+<div class="relative w-full max-w-md group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-cyan-700">search</span>
+<input class="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl pl-10 pr-4 py-2 text-sm focus:ring-2 ring-cyan-500/20 outline-none transition-all" placeholder="Buscar subvenciones..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 text-slate-500 hover:text-cyan-600 transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 text-slate-500 hover:text-cyan-600 transition-colors">
+<span class="material-symbols-outlined">history</span>
+</button>
+<span class="h-6 w-px bg-slate-200 dark:bg-slate-700"></span>
+<button class="text-slate-500 hover:text-cyan-600 transition-colors font-['Inter'] text-sm">Ayuda</button>
+<div class="flex items-center gap-2 px-2 py-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+<img class="w-8 h-8 rounded-full object-cover" data-alt="avatar of a user with glasses" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAVdmn7sYkSg2N5pzNg_k3kCvpfpymnvaXiC71mSBGq8czI9cMlBffxFzgqu7HeMeP_LBNq3SwfIPBGBNMhk3vRYwg8kwznMQ-HBHy_URgz-UTCl9Xm9FM_fjpcuE7TkJwk1cAvVxys8SLqssYIZtWw7u-YFa-lF1Dw9borp-k7h9H-JunqeNia14EOqBq7mlnbFR0snzeSqz1U6hkXBGHY9LWNQkewfNFM4dplpYYyVOhX3n7Mj51-AZARlElZ1Flp4qt7HJeDMiw"/>
+<span class="text-cyan-700 dark:text-cyan-500 font-bold text-sm">Perfil</span>
+</div>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="pt-16 lg:ml-64 min-h-screen">
+<div class="p-8">
+<div class="flex flex-col lg:flex-row gap-8">
+<!-- Filters Sidebar -->
+<aside class="w-full lg:w-72 flex-shrink-0">
+<div class="bg-surface-container-low rounded-2xl p-6 sticky top-24">
+<div class="flex items-center justify-between mb-6">
+<h2 class="font-headline font-bold text-on-surface">Filtros Avanzados</h2>
+<button class="text-xs text-primary font-semibold hover:underline">Limpiar</button>
+</div>
+<div class="space-y-8">
+<!-- CCAA -->
+<div class="space-y-3">
+<label class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Comunidad Autónoma</label>
+<select class="w-full bg-surface-container-highest border-none rounded-xl text-sm py-3 px-4 focus:ring-2 ring-primary/20">
+<option>Todas las CCAA</option>
+<option>Madrid</option>
+<option>Cataluña</option>
+<option>Andalucía</option>
+<option>País Vasco</option>
+</select>
+</div>
+<!-- Sector -->
+<div class="space-y-3">
+<label class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Sector de Actividad</label>
+<div class="space-y-2">
+<label class="flex items-center gap-3 cursor-pointer group">
+<input checked="" class="rounded border-outline-variant text-primary focus:ring-primary/20 h-4 w-4" type="checkbox"/>
+<span class="text-sm text-on-surface-variant group-hover:text-on-surface transition-colors">Tecnología e Innovación</span>
+</label>
+<label class="flex items-center gap-3 cursor-pointer group">
+<input class="rounded border-outline-variant text-primary focus:ring-primary/20 h-4 w-4" type="checkbox"/>
+<span class="text-sm text-on-surface-variant group-hover:text-on-surface transition-colors">Sostenibilidad</span>
+</label>
+<label class="flex items-center gap-3 cursor-pointer group">
+<input class="rounded border-outline-variant text-primary focus:ring-primary/20 h-4 w-4" type="checkbox"/>
+<span class="text-sm text-on-surface-variant group-hover:text-on-surface transition-colors">Turismo</span>
+</label>
+<label class="flex items-center gap-3 cursor-pointer group">
+<input class="rounded border-outline-variant text-primary focus:ring-primary/20 h-4 w-4" type="checkbox"/>
+<span class="text-sm text-on-surface-variant group-hover:text-on-surface transition-colors">Industria 4.0</span>
+</label>
+</div>
+</div>
+<!-- Budget Range -->
+<div class="space-y-3">
+<label class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Presupuesto Mínimo</label>
+<div class="relative">
+<input class="w-full accent-primary h-1.5 bg-surface-container-highest rounded-full" max="1000000" min="0" step="10000" type="range"/>
+<div class="flex justify-between mt-2">
+<span class="text-[10px] font-bold text-on-surface-variant">0€</span>
+<span class="text-[10px] font-bold text-on-surface-variant">1M€+</span>
+</div>
+</div>
+</div>
+<!-- Beneficiary Type -->
+<div class="space-y-3">
+<label class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Tipo de Beneficiario</label>
+<select class="w-full bg-surface-container-highest border-none rounded-xl text-sm py-3 px-4 focus:ring-2 ring-primary/20">
+<option>Pyme</option>
+<option>Autónomo</option>
+<option>Gran Empresa</option>
+<option>Startup</option>
+</select>
+</div>
+</div>
+<div class="mt-8">
+<button class="w-full bg-primary text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-primary/20 transition-all">
+                                Aplicar Filtros
+                            </button>
+</div>
+</div>
+</aside>
+<!-- List Area -->
+<div class="flex-1 space-y-6">
+<!-- Sorting & Search Stats -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low p-4 rounded-2xl">
+<div class="flex items-center gap-3">
+<span class="text-sm text-on-surface-variant"><strong class="text-on-surface">128</strong> subvenciones encontradas</span>
+<span class="w-1.5 h-1.5 rounded-full bg-outline-variant"></span>
+<span class="text-xs font-bold text-tertiary uppercase tracking-wider">Actualizado hace 2 min</span>
+</div>
+<div class="flex items-center gap-4">
+<span class="text-xs font-bold text-on-surface-variant uppercase tracking-widest">Ordenar por:</span>
+<div class="flex bg-surface-container-highest p-1 rounded-lg">
+<button class="px-3 py-1.5 text-xs font-bold bg-white shadow-sm rounded-md text-primary">Relevancia</button>
+<button class="px-3 py-1.5 text-xs font-bold text-on-surface-variant hover:text-on-surface">Plazo</button>
+<button class="px-3 py-1.5 text-xs font-bold text-on-surface-variant hover:text-on-surface">Cuantía</button>
+</div>
+</div>
+</div>
+<!-- Grants List -->
+<div class="grid grid-cols-1 gap-4">
+<!-- Card 1: Critical Deadline -->
+<div class="bg-surface-container-lowest hover:shadow-xl hover:shadow-black/[0.02] transition-all p-6 rounded-2xl group relative overflow-hidden">
+<div class="absolute top-0 left-0 w-1 h-full bg-error"></div>
+<div class="flex flex-col md:flex-row justify-between gap-6">
+<div class="flex-1 space-y-4">
+<div class="flex items-start justify-between">
+<div class="space-y-1">
+<div class="flex items-center gap-2">
+<span class="px-2.5 py-0.5 rounded-full bg-error-container text-on-error-container text-[10px] font-black uppercase tracking-tighter">Cierre Próximo</span>
+<span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">ID: #SP2024-042</span>
+</div>
+<h3 class="text-xl font-headline font-bold text-on-surface leading-tight group-hover:text-primary transition-colors">Kit Digital: Ayudas para la digitalización de pequeñas empresas y autónomos</h3>
+</div>
+<button class="p-2 rounded-full hover:bg-surface-container-low transition-colors text-on-surface-variant">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">star</span>
+</button>
+</div>
+<div class="flex flex-wrap gap-2">
+<span class="px-3 py-1 rounded-full bg-surface-container text-on-surface-variant text-xs font-semibold">Tecnología</span>
+<span class="px-3 py-1 rounded-full bg-surface-container text-on-surface-variant text-xs font-semibold">Nacional</span>
+<span class="px-3 py-1 rounded-full bg-surface-container text-on-surface-variant text-xs font-semibold">Pyme</span>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-xs font-bold">
+<span class="text-on-surface-variant">Progreso del Plazo</span>
+<span class="text-error">Quedan 4 días (92%)</span>
+</div>
+<div class="w-full h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-error rounded-full" style="width: 92%"></div>
+</div>
+</div>
+</div>
+<div class="md:w-56 flex flex-col justify-between border-l border-surface-container-high md:pl-6">
+<div class="space-y-1">
+<p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Cuantía Máxima</p>
+<p class="text-3xl font-headline font-bold text-primary">12.000€</p>
+</div>
+<div class="space-y-1">
+<p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Fecha Límite</p>
+<p class="text-sm font-bold text-on-surface">31 Oct, 2024</p>
+</div>
+<button class="w-full py-2.5 rounded-xl bg-primary-container text-on-primary-container font-bold text-sm hover:brightness-110 transition-all">
+                                        Ver Detalles
+                                    </button>
+</div>
+</div>
+</div>
+<!-- Card 2: High Success -->
+<div class="bg-surface-container-lowest hover:shadow-xl transition-all p-6 rounded-2xl group relative overflow-hidden">
+<div class="absolute top-0 left-0 w-1 h-full bg-tertiary"></div>
+<div class="flex flex-col md:flex-row justify-between gap-6">
+<div class="flex-1 space-y-4">
+<div class="flex items-start justify-between">
+<div class="space-y-1">
+<div class="flex items-center gap-2">
+<span class="px-2.5 py-0.5 rounded-full bg-tertiary-container text-on-tertiary-container text-[10px] font-black uppercase tracking-tighter">Alta Compatibilidad</span>
+<span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">ID: #MDR-2024-11</span>
+</div>
+<h3 class="text-xl font-headline font-bold text-on-surface leading-tight group-hover:text-primary transition-colors">Subvenciones para el Fomento del Emprendimiento y Autoempleo (Madrid)</h3>
+</div>
+<button class="p-2 rounded-full hover:bg-surface-container-low transition-colors text-outline">
+<span class="material-symbols-outlined">star</span>
+</button>
+</div>
+<div class="flex flex-wrap gap-2">
+<span class="px-3 py-1 rounded-full bg-surface-container text-on-surface-variant text-xs font-semibold">Emprendimiento</span>
+<span class="px-3 py-1 rounded-full bg-surface-container text-on-surface-variant text-xs font-semibold">Madrid</span>
+<span class="px-3 py-1 rounded-full bg-surface-container text-on-surface-variant text-xs font-semibold">Autónomo</span>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-xs font-bold">
+<span class="text-on-surface-variant">Progreso del Plazo</span>
+<span class="text-on-surface-variant">Quedan 45 días (15%)</span>
+</div>
+<div class="w-full h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full" style="width: 15%"></div>
+</div>
+</div>
+</div>
+<div class="md:w-56 flex flex-col justify-between border-l border-surface-container-high md:pl-6">
+<div class="space-y-1">
+<p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Cuantía Media</p>
+<p class="text-3xl font-headline font-bold text-primary">4.500€</p>
+</div>
+<div class="space-y-1">
+<p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Fecha Límite</p>
+<p class="text-sm font-bold text-on-surface">15 Dic, 2024</p>
+</div>
+<button class="w-full py-2.5 rounded-xl bg-primary-container text-on-primary-container font-bold text-sm hover:brightness-110 transition-all">
+                                        Ver Detalles
+                                    </button>
+</div>
+</div>
+</div>
+<!-- Card 3: Large Budget -->
+<div class="bg-surface-container-lowest hover:shadow-xl transition-all p-6 rounded-2xl group relative overflow-hidden">
+<div class="flex flex-col md:flex-row justify-between gap-6">
+<div class="flex-1 space-y-4">
+<div class="flex items-start justify-between">
+<div class="space-y-1">
+<div class="flex items-center gap-2">
+<span class="px-2.5 py-0.5 rounded-full bg-primary-fixed text-on-primary-fixed-variant text-[10px] font-black uppercase tracking-tighter">I+D Estratégico</span>
+<span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">ID: #PERTE-08-AA</span>
+</div>
+<h3 class="text-xl font-headline font-bold text-on-surface leading-tight group-hover:text-primary transition-colors">Proyectos de I+D para la Transformación de la Industria Agroalimentaria</h3>
+</div>
+<button class="p-2 rounded-full hover:bg-surface-container-low transition-colors text-outline">
+<span class="material-symbols-outlined">star</span>
+</button>
+</div>
+<div class="flex flex-wrap gap-2">
+<span class="px-3 py-1 rounded-full bg-surface-container text-on-surface-variant text-xs font-semibold">Agroindustria</span>
+<span class="px-3 py-1 rounded-full bg-surface-container text-on-surface-variant text-xs font-semibold">I+D</span>
+<span class="px-3 py-1 rounded-full bg-surface-container text-on-surface-variant text-xs font-semibold">Consorcio</span>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-xs font-bold">
+<span class="text-on-surface-variant">Progreso del Plazo</span>
+<span class="text-on-surface-variant">Quedan 90 días (5%)</span>
+</div>
+<div class="w-full h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full" style="width: 5%"></div>
+</div>
+</div>
+</div>
+<div class="md:w-56 flex flex-col justify-between border-l border-surface-container-high md:pl-6">
+<div class="space-y-1">
+<p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Presupuesto Total</p>
+<p class="text-3xl font-headline font-bold text-primary">850k€</p>
+</div>
+<div class="space-y-1">
+<p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Fecha Límite</p>
+<p class="text-sm font-bold text-on-surface">30 Ene, 2025</p>
+</div>
+<button class="w-full py-2.5 rounded-xl bg-primary-container text-on-primary-container font-bold text-sm hover:brightness-110 transition-all">
+                                        Ver Detalles
+                                    </button>
+</div>
+</div>
+</div>
+<!-- Skeleton Loader Preview -->
+<div class="opacity-40 pointer-events-none select-none bg-surface-container-lowest p-6 rounded-2xl flex flex-col md:flex-row justify-between gap-6">
+<div class="flex-1 space-y-4">
+<div class="space-y-2">
+<div class="h-3 w-24 bg-surface-container-highest rounded-full animate-pulse"></div>
+<div class="h-6 w-3/4 bg-surface-container-highest rounded-lg animate-pulse"></div>
+</div>
+<div class="flex gap-2">
+<div class="h-6 w-16 bg-surface-container-highest rounded-full animate-pulse"></div>
+<div class="h-6 w-16 bg-surface-container-highest rounded-full animate-pulse"></div>
+</div>
+<div class="h-1.5 w-full bg-surface-container-highest rounded-full overflow-hidden"></div>
+</div>
+<div class="md:w-56 space-y-4 border-l border-surface-container-high md:pl-6">
+<div class="h-10 w-24 bg-surface-container-highest rounded-lg animate-pulse"></div>
+<div class="h-4 w-16 bg-surface-container-highest rounded-full animate-pulse"></div>
+<div class="h-10 w-full bg-surface-container-highest rounded-xl animate-pulse"></div>
+</div>
+</div>
+</div>
+<!-- Pagination -->
+<div class="flex items-center justify-center gap-2 pt-8">
+<button class="w-10 h-10 flex items-center justify-center rounded-xl bg-surface-container-low text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-all">
+<span class="material-symbols-outlined">chevron_left</span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-xl bg-primary text-white font-bold">1</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-xl bg-surface-container-low text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-all">2</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-xl bg-surface-container-low text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-all">3</button>
+<span class="px-2 text-on-surface-variant">...</span>
+<button class="w-10 h-10 flex items-center justify-center rounded-xl bg-surface-container-low text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-all">12</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-xl bg-surface-container-low text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-all">
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="lg:ml-64 bg-white dark:bg-slate-950 w-full py-12 px-8 border-t border-slate-100 dark:border-slate-800">
+<div class="flex flex-col md:flex-row justify-between items-center gap-4">
+<div class="font-black text-cyan-900 dark:text-white font-headline text-lg">Syntia Intelligence</div>
+<p class="font-['Inter'] text-xs uppercase tracking-widest text-slate-400">© 2024 Syntia Intelligence. Todos los derechos reservados.</p>
+<div class="flex gap-8">
+<a class="font-['Inter'] text-xs uppercase tracking-widest text-slate-400 hover:text-cyan-500 transition-colors" href="#">Privacidad</a>
+<a class="font-['Inter'] text-xs uppercase tracking-widest text-slate-400 hover:text-cyan-500 transition-colors" href="#">Términos</a>
+<a class="font-['Inter'] text-xs uppercase tracking-widest text-slate-400 hover:text-cyan-500 transition-colors" href="#">Contacto</a>
+</div>
+</div>
+</footer>
+</body></html>

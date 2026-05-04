@@ -1,8 +1,11 @@
 package com.syntia.ai.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.syntia.ai.model.ErrorResponse;
 import com.syntia.ai.model.Rol;
 import com.syntia.ai.security.JwtAuthenticationFilter;
-import com.syntia.ai.service.CustomUserDetailsService;
+import com.syntia.ai.service.CustomUserDetailService;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -17,6 +20,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import java.time.LocalDateTime;
+
 /**
  * Seguridad para backend API REST (React + Spring Boot).
  */
@@ -24,13 +29,16 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    private final CustomUserDetailsService userDetailsService;
+    private final CustomUserDetailService userDetailsService;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final ObjectMapper objectMapper;
 
-    public SecurityConfig(CustomUserDetailsService userDetailsService,
-                          JwtAuthenticationFilter jwtAuthenticationFilter) {
+    public SecurityConfig(CustomUserDetailService userDetailsService,
+                          JwtAuthenticationFilter jwtAuthenticationFilter,
+                          ObjectMapper objectMapper) {
         this.userDetailsService = userDetailsService;
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.objectMapper = objectMapper;
     }
 
     @Bean
@@ -39,8 +47,40 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            ErrorResponse error = new ErrorResponse(
+                                    HttpServletResponse.SC_UNAUTHORIZED,
+                                    "No autenticado o token inválido",
+                                    LocalDateTime.now(),
+                                    request.getRequestURI()
+                            );
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            response.setContentType("application/json");
+                            objectMapper.writeValue(response.getOutputStream(), error);
+                        })
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            ErrorResponse error = new ErrorResponse(
+                                    HttpServletResponse.SC_FORBIDDEN,
+                                    "Acceso denegado",
+                                    LocalDateTime.now(),
+                                    request.getRequestURI()
+                            );
+                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            response.setContentType("application/json");
+                            objectMapper.writeValue(response.getOutputStream(), error);
+                        })
+                )
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**", "/error", "/actuator/health").permitAll()
+                        .requestMatchers(
+                                "/api/auth/**",
+                                "/api/convocatorias/publicas/**",
+                                "/error",
+                                "/actuator/health",
+                                "/v3/api-docs/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html"
+                        ).permitAll()
                         .requestMatchers("/api/admin/**").hasRole(Rol.ADMIN.name())
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().permitAll()

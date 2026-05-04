@@ -86,8 +86,8 @@ public class MotorMatchingService {
             Recomendacion recExistente = candidatasBd.get(i);
             ConvocatoriaDTO dto = aEvaluar.get(i);
             try {
-                String detalleTexto = dto.getIdBdns() != null
-                        ? detallesPorId.get(dto.getIdBdns())
+                String detalleTexto = dto.getNumeroConvocatoria() != null
+                        ? detallesPorId.get(dto.getNumeroConvocatoria())
                         : null;
 
                 Convocatoria temporal = recExistente.getConvocatoria();
@@ -160,11 +160,11 @@ public class MotorMatchingService {
         ExecutorService executor = Executors.newFixedThreadPool(nHilos);
         try {
             List<CompletableFuture<Void>> futuros = candidatas.stream()
-                    .filter(dto -> dto.getIdBdns() != null && !dto.getIdBdns().isBlank())
+                    .filter(dto -> dto.getNumeroConvocatoria() != null && !dto.getNumeroConvocatoria().isBlank())
                     .map(dto -> CompletableFuture.runAsync(() -> {
-                        String texto = bdnsClientService.obtenerDetalleTexto(dto.getIdBdns());
+                        String texto = bdnsClientService.obtenerDetalleTexto(dto.getNumeroConvocatoria());
                         if (texto != null && !texto.isBlank()) {
-                            detalles.put(dto.getIdBdns(), texto);
+                            detalles.put(dto.getNumeroConvocatoria(), texto);
                         }
                     }, executor))
                     .toList();
@@ -191,6 +191,15 @@ public class MotorMatchingService {
                 .idBdns(dto.getIdBdns())
                 .numeroConvocatoria(dto.getNumeroConvocatoria())
                 .fechaCierre(dto.getFechaCierre())
+                .mrr(Boolean.TRUE.equals(dto.getMrr()))
+                .presupuesto(dto.getPresupuesto())
+                .abierto(dto.getAbierto())
+                .finalidad(dto.getFinalidad())
+                .fechaInicio(dto.getFechaInicio())
+                .organismo(dto.getOrganismo())
+                .fechaPublicacion(dto.getFechaPublicacion())
+                .descripcion(dto.getDescripcion())
+                .textoCompleto(dto.getTextoCompleto())
                 .build();
     }
 
@@ -208,6 +217,15 @@ public class MotorMatchingService {
         dto.setIdBdns(conv.getIdBdns());
         dto.setNumeroConvocatoria(conv.getNumeroConvocatoria());
         dto.setFechaCierre(conv.getFechaCierre());
+        dto.setMrr(conv.getMrr());
+        dto.setPresupuesto(conv.getPresupuesto());
+        dto.setAbierto(conv.getAbierto());
+        dto.setFinalidad(conv.getFinalidad());
+        dto.setFechaInicio(conv.getFechaInicio());
+        dto.setOrganismo(conv.getOrganismo());
+        dto.setFechaPublicacion(conv.getFechaPublicacion());
+        dto.setDescripcion(conv.getDescripcion());
+        dto.setTextoCompleto(conv.getTextoCompleto());
         return dto;
     }
 
@@ -274,8 +292,8 @@ public class MotorMatchingService {
                 ));
 
                 try {
-                    String detalleTexto = dto.getIdBdns() != null
-                            ? detallesPorId.get(dto.getIdBdns())
+                    String detalleTexto = dto.getNumeroConvocatoria() != null
+                            ? detallesPorId.get(dto.getNumeroConvocatoria())
                             : null;
 
                     // Evaluar con OpenAI

@@ -27,6 +27,30 @@ public class ConvocatoriaDTO {
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDate fechaCierre;
 
+    private String organismo;
+
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+    private LocalDate fechaPublicacion;
+
+    private String descripcion;
+
+    private String textoCompleto;
+
+    private Boolean mrr;
+
+    private Double presupuesto;
+
+    private Boolean abierto;
+
+    private String finalidad;
+
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+    private LocalDate fechaInicio;
+
+    private Integer regionId;
+
+    private Integer provinciaId;
+
     public ConvocatoriaDTO() {
     }
 
@@ -100,5 +124,93 @@ public class ConvocatoriaDTO {
 
     public void setFechaCierre(LocalDate fechaCierre) {
         this.fechaCierre = fechaCierre;
+    }
+
+    public String getOrganismo() {
+        return organismo;
+    }
+
+    public void setOrganismo(String organismo) {
+        this.organismo = organismo;
+    }
+
+    public LocalDate getFechaPublicacion() {
+        return fechaPublicacion;
+    }
+
+    public void setFechaPublicacion(LocalDate fechaPublicacion) {
+        this.fechaPublicacion = fechaPublicacion;
+    }
+
+    public String getDescripcion() {
+        return descripcion;
+    }
+
+    public void setDescripcion(String descripcion) {
+        this.descripcion = descripcion;
+    }
+
+    public String getTextoCompleto() {
+        return textoCompleto;
+    }
+
+    public void setTextoCompleto(String textoCompleto) {
+        this.textoCompleto = textoCompleto;
+    }
+
+    public Boolean getMrr() {
+        return mrr;
+    }
+
+    public void setMrr(Boolean mrr) {
+        this.mrr = mrr;
+    }
+
+    public Double getPresupuesto() {
+        return presupuesto;
+    }
+
+    public void setPresupuesto(Double presupuesto) {
+        this.presupuesto = presupuesto;
+    }
+
+    public Boolean getAbierto() {
+        return abierto;
+    }
+
+    public void setAbierto(Boolean abierto) {
+        this.abierto = abierto;
+    }
+
+    public String getFinalidad() {
+        return finalidad;
+    }
+
+    public void setFinalidad(String finalidad) {
+        this.finalidad = finalidad;
+    }
+
+    public LocalDate getFechaInicio() {
+        return fechaInicio;
+    }
+
+    public void setFechaInicio(LocalDate fechaInicio) {
+        this.fechaInicio = fechaInicio;
+    }
+
+    public Integer getRegionId() {
+        return regionId;
+    }
+
+    public void setRegionId(Integer regionId) {
+        this.regionId = regionId;
+    }
+
+    public Integer getProvinciaId() {
+        return provinciaId;
+    }
+
+    public void setProvinciaId(Integer provinciaId) {
+        this.provinciaId = provinciaId;
     }
 }

@@ -1,17 +1,36 @@
 package com.syntia.ai.controller.api;
 
+import com.syntia.ai.model.Perfil;
 import com.syntia.ai.model.Proyecto;
 import com.syntia.ai.model.Rol;
+import com.syntia.ai.model.SyncState;
 import com.syntia.ai.model.Usuario;
+import com.syntia.ai.repository.SyncStateRepository;
+import com.syntia.ai.model.dto.AdminDetalleUsuarioResponseDTO;
+import com.syntia.ai.model.dto.AdminUsuarioDetalleDTO;
 import com.syntia.ai.model.dto.ConvocatoriaDTO;
+import com.syntia.ai.model.dto.HistorialCorreoDTO;
+import com.syntia.ai.model.dto.ImportacionBdnsEstadoDTO;
+import com.syntia.ai.repository.ConvocatoriaRepository;
+import com.syntia.ai.repository.PerfilRepository;
 import com.syntia.ai.repository.ProyectoRepository;
 import com.syntia.ai.repository.RecomendacionRepository;
+import com.syntia.ai.service.BdnsEnrichmentService;
+import com.syntia.ai.service.BdnsEtlPanelService;
+import com.syntia.ai.service.BdnsImportJobService;
+import com.syntia.ai.service.ModoImportacion;
+import com.syntia.ai.service.CatalogoImportService;
+import com.syntia.ai.service.CatalogoJobService;
+import com.syntia.ai.service.IndiceConvocatoriaService;
+import com.syntia.ai.service.IndiceJobService;
 import com.syntia.ai.service.ConvocatoriaService;
+import com.syntia.ai.service.PerfilService;
 import com.syntia.ai.service.ProyectoService;
 import com.syntia.ai.service.RecomendacionService;
 import com.syntia.ai.service.UsuarioService;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -19,6 +38,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.security.access.AccessDeniedException;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -32,25 +52,63 @@ import java.util.stream.Collectors;
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminController {
 
+    private static final int CONVOCATORIAS_POR_PAGINA = 50;
+
     private final UsuarioService usuarioService;
+    private final PerfilService perfilService;
     private final ConvocatoriaService convocatoriaService;
     private final ProyectoService proyectoService;
     private final RecomendacionService recomendacionService;
     private final ProyectoRepository proyectoRepository;
     private final RecomendacionRepository recomendacionRepository;
+    private final BdnsImportJobService bdnsImportJobService;
+    private final BdnsEtlPanelService bdnsEtlPanelService;
+    private final SyncStateRepository syncStateRepository;
+    private final BdnsEnrichmentService bdnsEnrichmentService;
+    private final ConvocatoriaRepository convocatoriaRepository;
+    private final PerfilRepository perfilRepository;
+    private final com.syntia.ai.service.RegionService regionService;
+    private final CatalogoImportService catalogoImportService;
+    private final CatalogoJobService catalogoJobService;
+    private final IndiceConvocatoriaService indiceConvocatoriaService;
+    private final IndiceJobService indiceJobService;
 
     public AdminController(UsuarioService usuarioService,
+                           PerfilService perfilService,
                            ConvocatoriaService convocatoriaService,
                            ProyectoService proyectoService,
                            RecomendacionService recomendacionService,
                            ProyectoRepository proyectoRepository,
-                           RecomendacionRepository recomendacionRepository) {
+                           RecomendacionRepository recomendacionRepository,
+                           BdnsImportJobService bdnsImportJobService,
+                           BdnsEtlPanelService bdnsEtlPanelService,
+                           SyncStateRepository syncStateRepository,
+                           BdnsEnrichmentService bdnsEnrichmentService,
+                           ConvocatoriaRepository convocatoriaRepository,
+                           PerfilRepository perfilRepository,
+                           com.syntia.ai.service.RegionService regionService,
+                           CatalogoImportService catalogoImportService,
+                           CatalogoJobService catalogoJobService,
+                           IndiceConvocatoriaService indiceConvocatoriaService,
+                           IndiceJobService indiceJobService) {
         this.usuarioService = usuarioService;
+        this.perfilService = perfilService;
         this.convocatoriaService = convocatoriaService;
         this.proyectoService = proyectoService;
         this.recomendacionService = recomendacionService;
         this.proyectoRepository = proyectoRepository;
         this.recomendacionRepository = recomendacionRepository;
+        this.bdnsImportJobService = bdnsImportJobService;
+        this.bdnsEtlPanelService = bdnsEtlPanelService;
+        this.syncStateRepository = syncStateRepository;
+        this.bdnsEnrichmentService = bdnsEnrichmentService;
+        this.convocatoriaRepository = convocatoriaRepository;
+        this.perfilRepository = perfilRepository;
+        this.regionService = regionService;
+        this.catalogoImportService = catalogoImportService;
+        this.catalogoJobService = catalogoJobService;
+        this.indiceConvocatoriaService = indiceConvocatoriaService;
+        this.indiceJobService = indiceJobService;
     }
 
     // ─────────────────────────────────────────────
@@ -58,13 +116,21 @@ public class AdminController {
     // ─────────────────────────────────────────────
     @GetMapping("/dashboard")
     public ResponseEntity<?> dashboard(Authentication authentication) {
-        Map<String, Object> data = Map.of(
-                "adminEmail", authentication.getName(),
-                "totalUsuarios", usuarioService.obtenerTodos().size(),
-                "totalConvocatorias", convocatoriaService.obtenerTodas().size(),
-                "totalProyectos", proyectoRepository.countAll(),
-                "totalRecomendaciones", recomendacionRepository.countAll()
-        );
+        long totalUsuarios = usuarioService.obtenerTodos().size();
+        long totalConvocatorias = convocatoriaService.contarTodas();
+        long totalProyectos = proyectoRepository.countAll();
+        long totalRecomendaciones = recomendacionRepository.countAll();
+        long convocatoriasAbiertas = convocatoriaRepository.countByAbiertoTrue();
+        long usuariosConPerfil = perfilRepository.count();
+
+        Map<String, Object> data = new java.util.LinkedHashMap<>();
+        data.put("adminEmail", authentication.getName());
+        data.put("totalUsuarios", totalUsuarios);
+        data.put("totalConvocatorias", totalConvocatorias);
+        data.put("totalProyectos", totalProyectos);
+        data.put("totalRecomendaciones", totalRecomendaciones);
+        data.put("convocatoriasAbiertas", convocatoriasAbiertas);
+        data.put("usuariosConPerfil", usuariosConPerfil);
         return ResponseEntity.ok(data);
     }
 
@@ -84,40 +150,89 @@ public class AdminController {
     public ResponseEntity<?> detalleUsuario(@PathVariable Long id) {
         Usuario usuario = usuarioService.buscarPorId(id)
                 .orElseThrow(() -> new EntityNotFoundException("Usuario no encontrado: " + id));
+
+        Perfil perfil = perfilService.obtenerPerfil(id).orElse(null);
         List<Proyecto> proyectos = proyectoService.obtenerProyectos(id);
         Map<Long, Long> recsPerProyecto = proyectos.stream()
                 .collect(Collectors.toMap(
                         Proyecto::getId,
                         p -> recomendacionService.contarPorProyecto(p.getId())
                 ));
-        return ResponseEntity.ok(Map.of(
-                "usuarioDetalle", usuario,
-                "proyectos", proyectos,
-                "recsPerProyecto", recsPerProyecto
-        ));
+
+        AdminUsuarioDetalleDTO usuarioDto = AdminUsuarioDetalleDTO.builder()
+                .id(usuario.getId())
+                .email(usuario.getEmail())
+                .rol(usuario.getRol().name())
+                .creadoEn(usuario.getCreadoEn())
+                .empresa(perfil != null ? perfil.getEmpresa() : null)
+                .provincia(perfil != null ? perfil.getProvincia() : null)
+                .telefono(perfil != null ? perfil.getTelefono() : null)
+                .build();
+
+        List<Map<String, Object>> proyectosDto = proyectos.stream()
+                .map(p -> {
+                    Map<String, Object> proyectoMap = new java.util.HashMap<>();
+                    proyectoMap.put("id", p.getId());
+                    proyectoMap.put("nombre", p.getNombre() != null ? p.getNombre() : "");
+                    proyectoMap.put("sector", p.getSector() != null ? p.getSector() : "");
+                    return proyectoMap;
+                })
+                .toList();
+
+        List<HistorialCorreoDTO> historialDto = usuarioService.obtenerHistorialCorreo(id).stream()
+                .map(h -> HistorialCorreoDTO.builder()
+                        .anterior(h.getAnterior())
+                        .nuevo(h.getNuevo())
+                        .fecha(h.getFecha())
+                        .actor(h.getActor())
+                        .build())
+                .toList();
+
+        AdminDetalleUsuarioResponseDTO response = AdminDetalleUsuarioResponseDTO.builder()
+                .usuario(usuarioDto)
+                .proyectos(proyectosDto)
+                .recsPerProyecto(recsPerProyecto)
+                .emailCambiado(usuarioService.emailCambiado(id))
+                .historialCorreo(historialDto)
+                .build();
+
+        return ResponseEntity.ok(response);
     }
 
-    @PostMapping("/usuarios/{id}/rol")
+    /**
+     * Cambia el rol de un usuario administrado.
+     * Regla local: el admin autenticado no puede cambiar su propio rol.
+     * Regla de superadmin protegido: se aplica en UsuarioService.
+     */
+    @PutMapping("/usuarios/{id}/rol")
     public ResponseEntity<?> cambiarRol(@PathVariable Long id,
-                                        @RequestParam Rol rol,
+                                        @RequestBody Map<String, String> body,
                                         Authentication authentication) {
+        Rol rol = Rol.valueOf(body.get("rol"));
         Usuario admin = resolverUsuario(authentication);
+
         if (admin.getId().equals(id)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("error", "No puedes cambiar tu propio rol."));
+            throw new AccessDeniedException("No puedes cambiar tu propio rol.");
         }
+
         usuarioService.cambiarRol(id, rol);
         return ResponseEntity.ok(Map.of("message", "Rol actualizado correctamente."));
     }
 
-    @PostMapping("/usuarios/{id}/eliminar")
+    /**
+     * Elimina un usuario administrado.
+     * Regla local: el admin autenticado no puede eliminarse a sí mismo.
+     * Regla de superadmin protegido: se aplica en UsuarioService.
+     */
+    @DeleteMapping("/usuarios/{id}")
     public ResponseEntity<?> eliminarUsuario(@PathVariable Long id,
                                              Authentication authentication) {
         Usuario admin = resolverUsuario(authentication);
+
         if (admin.getId().equals(id)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("error", "No puedes eliminarte a ti mismo."));
+            throw new AccessDeniedException("No puedes eliminarte a ti mismo.");
         }
+
         usuarioService.eliminar(id);
         return ResponseEntity.ok(Map.of("message", "Usuario eliminado correctamente."));
     }
@@ -127,8 +242,19 @@ public class AdminController {
     // ─────────────────────────────────────────────
 
     @GetMapping("/convocatorias")
-    public ResponseEntity<?> listarConvocatorias() {
-        return ResponseEntity.ok(convocatoriaService.obtenerTodas());
+    public ResponseEntity<?> listarConvocatorias(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(required = false, defaultValue = "") String q,
+            @RequestParam(required = false, defaultValue = "") String sector) {
+        Page<?> convocatoriasPage = convocatoriaService.obtenerPaginaFiltrada(page, CONVOCATORIAS_POR_PAGINA, q, sector);
+        return ResponseEntity.ok(Map.of(
+                "convocatorias", convocatoriasPage.getContent(),
+                "page", convocatoriasPage.getNumber(),
+                "size", convocatoriasPage.getSize(),
+                "totalElements", convocatoriasPage.getTotalElements(),
+                "totalPages", convocatoriasPage.getTotalPages(),
+                "hasNext", convocatoriasPage.hasNext()
+        ));
     }
 
     @PostMapping("/convocatorias")
@@ -174,6 +300,260 @@ public class AdminController {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                     .body(Map.of("error", "No se pudo conectar con la API de BDNS: " + e.getMessage()));
         }
+    }
+
+    // ─────────────────────────────────────────────
+    // IMPORTACIÓN MASIVA BDNS
+    // ─────────────────────────────────────────────
+
+    @PostMapping("/bdns/importar")
+    public ResponseEntity<?> lanzarImportacionBdns(
+            @RequestParam(defaultValue = "FULL") String modo,
+            @RequestParam(defaultValue = "-1") long delayMs,
+            @RequestParam(required = false) Integer limite) {
+        ModoImportacion modoImportacion;
+        try {
+            modoImportacion = ModoImportacion.valueOf(modo.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Modo invalido. Valores permitidos: FULL, NUEVAS, INCREMENTAL"));
+        }
+        if (limite != null && limite < 1) {
+            return ResponseEntity.badRequest().body(Map.of("error", "El limite debe ser mayor que 0"));
+        }
+        boolean iniciado = bdnsImportJobService.iniciar(modoImportacion, delayMs, limite);
+        if (!iniciado) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("error", "Ya hay una importación BDNS en curso."));
+        }
+        return ResponseEntity.accepted()
+                .body(Map.of("message", "Importación masiva BDNS iniciada en segundo plano.",
+                             "modo", modoImportacion.name(),
+                             "delayMs", delayMs < 0 ? "configuración por defecto" : delayMs));
+    }
+
+    /**
+     * Permite saltar directamente a una página concreta sin esperar a procesarlas todas.
+     * Útil para recuperarse de reinicios inesperados cuando ya se sabe hasta qué página
+     * se llegó. Fuerza el estado a ERROR para que el modo INCREMENTAL retome desde ahí.
+     */
+    @PutMapping("/bdns/sync-state/pagina")
+    public ResponseEntity<?> establecerPaginaInicio(@RequestParam int pagina) {
+        if (pagina < 0) {
+            return ResponseEntity.badRequest().body(Map.of("error", "La página debe ser >= 0"));
+        }
+        SyncState state = syncStateRepository.findByEje("GLOBAL")
+                .orElse(SyncState.builder().eje("GLOBAL").build());
+        state.setUltimaPaginaOk(pagina);
+        state.setEstado(SyncState.Estado.ERROR);
+        syncStateRepository.save(state);
+        return ResponseEntity.ok(Map.of(
+                "message", "Punto de reanudación establecido. La próxima importación INCREMENTAL empezará desde la página " + (pagina + 1),
+                "ultimaPaginaOk", pagina,
+                "siguientePagina", pagina + 1
+        ));
+    }
+
+    @DeleteMapping("/bdns/importar")
+    public ResponseEntity<?> cancelarImportacionBdns() {
+        boolean cancelado = bdnsImportJobService.cancelar();
+        if (!cancelado) return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("error", "No hay importación en curso"));
+        return ResponseEntity.ok(Map.of("mensaje", "Cancelación solicitada"));
+    }
+
+    @GetMapping("/bdns/estado")
+    public ResponseEntity<ImportacionBdnsEstadoDTO> estadoImportacionBdns() {
+        BdnsImportJobService.EstadoJob job = bdnsImportJobService.obtenerEstado();
+        return ResponseEntity.ok(new ImportacionBdnsEstadoDTO(
+                job.estado().name(),
+                job.registrosImportados(),
+                job.ejeActual(),
+                job.iniciadoEn(),
+                job.finalizadoEn(),
+                job.error(),
+                job.modo() != null ? job.modo().name() : null
+        ));
+    }
+
+    /**
+     * Lista el estado actual de los 23 ejes territoriales desde la tabla sync_state.
+     * Devuelve solo los ejes que han sido procesados al menos una vez.
+     */
+    @GetMapping("/bdns/ejes")
+    public ResponseEntity<?> estadoEjesBdns() {
+        return ResponseEntity.ok(bdnsEtlPanelService.obtenerEstadoEjes());
+    }
+
+    /**
+     * Historial de ejecuciones resumido: una entrada por ejecucionId con stats agregadas.
+     * Ordenado de más reciente a más antiguo.
+     */
+    @GetMapping("/bdns/historial")
+    public ResponseEntity<?> historialImportaciones() {
+        return ResponseEntity.ok(bdnsEtlPanelService.obtenerHistorial());
+    }
+
+    /**
+     * Detalle página a página de una ejecución concreta.
+     */
+    @GetMapping("/bdns/historial/{ejecucionId}")
+    public ResponseEntity<?> detalleEjecucion(@PathVariable String ejecucionId) {
+        return ResponseEntity.ok(bdnsEtlPanelService.obtenerLogsEjecucion(ejecucionId));
+    }
+
+    /**
+     * Métricas de cobertura: qué % de convocatorias en BD tiene cada campo relleno.
+     */
+    @GetMapping("/bdns/cobertura")
+    public ResponseEntity<?> coberturaDatos() {
+        return ResponseEntity.ok(bdnsEtlPanelService.obtenerCobertura());
+    }
+
+    @PostMapping("/bdns/enriquecer")
+    public ResponseEntity<?> iniciarEnriquecimiento() {
+        boolean iniciado = bdnsEnrichmentService.iniciar();
+        if (!iniciado) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("error", "Ya hay un enriquecimiento en curso."));
+        }
+        return ResponseEntity.accepted()
+                .body(Map.of("message", "Enriquecimiento iniciado en segundo plano.",
+                             "nota", "Llama a GET /admin/bdns/enriquecer/estado para ver el progreso."));
+    }
+
+    @GetMapping("/bdns/enriquecer/estado")
+    public ResponseEntity<?> estadoEnriquecimiento() {
+        BdnsEnrichmentService.EstadoJob estado = bdnsEnrichmentService.obtenerEstado();
+        return ResponseEntity.ok(Map.of(
+                "estado", estado.estado().name(),
+                "procesados", estado.procesados(),
+                "enriquecidos", estado.enriquecidos(),
+                "errores", estado.errores(),
+                "total", estado.total(),
+                "iniciadoEn", estado.iniciadoEn() != null ? estado.iniciadoEn().toString() : null,
+                "finalizadoEn", estado.finalizadoEn() != null ? estado.finalizadoEn().toString() : null
+        ));
+    }
+
+
+    @DeleteMapping("/bdns/enriquecer")
+    public ResponseEntity<?> cancelarEnriquecimiento() {
+        boolean cancelado = bdnsEnrichmentService.cancelar();
+        if (!cancelado) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("error", "No hay enriquecimiento en curso."));
+        }
+        return ResponseEntity.ok(Map.of("mensaje", "Cancelación de enriquecimiento solicitada."));
+    }
+
+    @GetMapping("/bdns/ultima-importacion")
+    public ResponseEntity<?> ultimaImportacionBdns() {
+        BdnsImportJobService.EstadoJob job = bdnsImportJobService.obtenerEstado();
+        if (job.estado() == BdnsImportJobService.EstadoImportacion.INACTIVO) {
+            return ResponseEntity.ok(Map.of("message", "Nunca se ha realizado una importación masiva."));
+        }
+        return ResponseEntity.ok(Map.of(
+                "estado", job.estado().name(),
+                "registrosImportados", job.registrosImportados(),
+                "finalizadoEn", job.finalizadoEn() != null ? job.finalizadoEn().toString() : "en curso"
+        ));
+    }
+
+    // ─────────────────────────────────────────────
+    // REGIONES BDNS
+    // ─────────────────────────────────────────────
+
+    /** Sincroniza el catálogo de regiones desde la API BDNS. */
+    @PostMapping("/regiones/sync")
+    public ResponseEntity<?> sincronizarRegiones() {
+        int total = regionService.sincronizarRegiones();
+        return ResponseEntity.ok(Map.of("mensaje", "Regiones sincronizadas", "total", total));
+    }
+
+    /** Devuelve el número de regiones en BD. */
+    @GetMapping("/regiones/count")
+    public ResponseEntity<?> contarRegiones() {
+        return ResponseEntity.ok(Map.of("total", regionService.count()));
+    }
+
+    // ── ETL Fase 1: Catálogos ──────────────────────────────────────────────────
+
+    /** Devuelve los conteos actuales de las tablas cat_*. */
+    @GetMapping("/etl/catalogos")
+    public ResponseEntity<?> conteoCatalogos() {
+        CatalogoImportService.ConteoCatalogos conteos = catalogoImportService.contarTodos();
+        return ResponseEntity.ok(Map.of(
+                "job", catalogoJobService.obtenerEstado(),
+                "conteos", conteos,
+                "finalidades", conteos.finalidades(),
+                "instrumentos", conteos.instrumentos(),
+                "beneficiarios", conteos.beneficiarios(),
+                "actividades", conteos.actividades(),
+                "reglamentos", conteos.reglamentos(),
+                "objetivos", conteos.objetivos(),
+                "sectores", conteos.sectores(),
+                "organos", conteos.organos()
+        ));
+    }
+
+    /** Importa (o reimporta) todos los catálogos BDNS. Operación rápida, síncrona. */
+    @PostMapping("/etl/catalogos")
+    public ResponseEntity<?> importarCatalogos() {
+        try {
+            if (indiceJobService.estaEnCurso()) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body(Map.of("error", "No se pueden importar catalogos mientras hay un job de indices en curso"));
+            }
+            boolean iniciado = catalogoJobService.iniciar();
+            if (!iniciado) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body(Map.of("error", "Ya hay un job de catalogos en curso"));
+            }
+            return ResponseEntity.accepted()
+                    .body(Map.of("mensaje", "Importacion de catalogos iniciada en segundo plano"));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "Error importando catálogos: " + e.getMessage()));
+        }
+    }
+
+    // ── ETL Fase 2: Índices ────────────────────────────────────────────────────
+
+    /** Cancela el job de catalogos en curso. */
+    @DeleteMapping("/etl/catalogos")
+    public ResponseEntity<?> cancelarCatalogos() {
+        boolean cancelado = catalogoJobService.cancelar();
+        return ResponseEntity.ok(Map.of("cancelado", cancelado));
+    }
+
+    /** Devuelve el estado actual del job de construcción de índices y los conteos. */
+    @GetMapping("/etl/indices")
+    public ResponseEntity<?> estadoIndices() {
+        IndiceJobService.EstadoJob estado = indiceJobService.obtenerEstado();
+        IndiceConvocatoriaService.ConteoIndices conteos = indiceConvocatoriaService.contarTodos();
+        return ResponseEntity.ok(Map.of("job", estado, "conteos", conteos));
+    }
+
+    /** Lanza la construcción de índices en segundo plano. */
+    @PostMapping("/etl/indices")
+    public ResponseEntity<?> construirIndices(@RequestParam(required = false) Integer limite) {
+        if (catalogoJobService.estaEnCurso()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("error", "No se pueden construir indices mientras hay un job de catalogos en curso"));
+        }
+        boolean iniciado = indiceJobService.iniciar(limite);
+        if (!iniciado) {
+            return ResponseEntity.status(409).body(Map.of("error", "Ya hay un job de índices en curso"));
+        }
+        return ResponseEntity.accepted().body(Map.of("mensaje", "Construcción de índices iniciada en segundo plano"));
+    }
+
+    /** Cancela el job de índices en curso. */
+    @DeleteMapping("/etl/indices")
+    public ResponseEntity<?> cancelarIndices() {
+        boolean cancelado = indiceJobService.cancelar();
+        return ResponseEntity.ok(Map.of("cancelado", cancelado));
     }
 
     // ─────────────────────────────────────────────

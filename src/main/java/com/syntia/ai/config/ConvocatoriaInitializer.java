@@ -1,6 +1,6 @@
 package com.syntia.ai.config;
 
-import com.syntia.mvp.service.ConvocatoriaService;
+import com.syntia.ai.service.ConvocatoriaService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
@@ -28,24 +28,12 @@ public class ConvocatoriaInitializer {
         }
 
         // 2. Importar si la tabla está vacía
-        long total = convocatoriaService.obtenerTodas().size();
+        long total = convocatoriaService.contarTodas();
         if (total > 0) {
             log.info("Ya existen {} convocatorias en BD — no se importan nuevas al arrancar.", total);
             return;
         }
 
-        log.info("Tabla de convocatorias vacía — importando desde la API real de BDNS...");
-        int totalNuevas = 0;
-        try {
-            for (int pag = 0; pag < PAGINAS_INICIALES; pag++) {
-                int nuevas = convocatoriaService.importarDesdeBdns(pag, TAM_PAGINA);
-                totalNuevas += nuevas;
-                log.info("BDNS página {}: {} convocatorias nuevas importadas", pag, nuevas);
-            }
-            log.info("Importación inicial completada: {} convocatorias reales cargadas desde BDNS.", totalNuevas);
-        } catch (Exception e) {
-            log.warn("Error importando desde BDNS (se importaron {} antes del error): {}",
-                    totalNuevas, e.getMessage());
-        }
+        log.info("Tabla de convocatorias vacía — importación automática desactivada. Usa el panel de administración para lanzar el ETL.");
     }
 }

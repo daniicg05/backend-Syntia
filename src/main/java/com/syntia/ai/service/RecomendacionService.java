@@ -4,11 +4,13 @@ import com.syntia.ai.model.Recomendacion;
 import com.syntia.ai.model.dto.RecomendacionDTO;
 import com.syntia.ai.repository.RecomendacionRepository;
 import jakarta.persistence.EntityNotFoundException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -16,16 +18,23 @@ import java.util.stream.Collectors;
  * La generación de recomendaciones se delega a {@link MotorMatchingService}.
  * Este servicio se ocupa de la lectura y conversión a DTO para las vistas.
  */
+@Slf4j
 @Service
 @Transactional(readOnly = true)
 public class RecomendacionService {
 
     /** Repositorio para operaciones de lectura y actualización de recomendaciones. */
     private final RecomendacionRepository recomendacionRepository;
+    private final MotorMatchingService motorMatchingService;
+    private final RegionService regionService;
 
     /** Inyección por constructor para asegurar dependencia obligatoria e inmutable. */
-    public RecomendacionService(RecomendacionRepository recomendacionRepository) {
+    public RecomendacionService(RecomendacionRepository recomendacionRepository,
+                                MotorMatchingService motorMatchingService,
+                                RegionService regionService) {
         this.recomendacionRepository = recomendacionRepository;
+        this.motorMatchingService = motorMatchingService;
+        this.regionService = regionService;
     }
 
     /**
@@ -65,15 +74,23 @@ public class RecomendacionService {
      * @return lista de RecomendacionDTO ordenada por puntuacion desc
      */
     public List<RecomendacionDTO> filtrar(Long proyectoId, String tipo, String sector, String ubicacion) {
+        log.info("Filtrando recomendaciones: proyectoId={} tipo='{}' sector='{}' ubicacion='{}'",
+                proyectoId, tipo, sector, ubicacion);
 
-        /** Normaliza filtros opcionales para delegar la lógica condicional al repositorio. */
-        return recomendacionRepository.filtrar(proyectoId,
+        Integer regionIdMapped = UbicacionNormalizador.normalizarARegionId(ubicacion);
+        boolean filtrarRegion = regionIdMapped != null;
+        Set<Integer> regionIds = filtrarRegion ? regionService.obtenerDescendientesIds(regionIdMapped.longValue()) : Set.of();
+
+        /** Normaliza filtros opcionales para delegar la lgica condicional al repositorio. */
+        return recomendacionRepository.filtrarConRegion(proyectoId,
                          (tipo      != null && !tipo.isBlank())      ? tipo      : null,
                          (sector    != null && !sector.isBlank())    ? sector    : null,
+                         filtrarRegion,
+                         regionIds,
                          (ubicacion != null && !ubicacion.isBlank()) ? ubicacion : "")
-                .stream()
-                .map(this::toDTO)
-                .collect(Collectors.toList());
+                 .stream()
+                 .map(this::toDTO)
+                 .collect(Collectors.toList());
     }
 
     /**
@@ -117,6 +134,11 @@ public class RecomendacionService {
         dto.setUbicacion(rec.getConvocatoria().getUbicacion());
         dto.setFuente(rec.getConvocatoria().getFuente());
         dto.setFechaCierre(rec.getConvocatoria().getFechaCierre());
+        dto.setOrganismo(rec.getConvocatoria().getOrganismo());
+        dto.setPresupuesto(rec.getConvocatoria().getPresupuesto());
+        dto.setFechaPublicacion(rec.getConvocatoria().getFechaPublicacion());
+        dto.setNumeroConvocatoria(rec.getConvocatoria().getNumeroConvocatoria());
+        dto.setAbierto(rec.getConvocatoria().getAbierto());
 
         /** Construir URL fiable del portal BDNS — ficha individual de la convocatoria
          * La SPA Angular del portal usa el numeroConvocatoria en la URL, NO el id interno de la API

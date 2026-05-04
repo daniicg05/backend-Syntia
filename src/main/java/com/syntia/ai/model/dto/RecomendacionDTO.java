@@ -3,6 +3,8 @@ package com.syntia.ai.model.dto;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.LocalDate;
+
 @Getter
 @Setter
 public class RecomendacionDTO {
@@ -11,7 +13,7 @@ public class RecomendacionDTO {
     private String explicacion;
     private String guia;
     private String guiaEnriquecida;
-    private String usadaIa;
+    private Boolean usadaIa;
 
     private Long convocatoriaId;
     private String titulo;
@@ -20,7 +22,12 @@ public class RecomendacionDTO {
     private String ubicacion;
     private String urlOficial;
     private String fuente;
-    private String fechaCierre;
+    private LocalDate fechaCierre;
+    private String organismo;
+    private Double presupuesto;
+    private LocalDate fechaPublicacion;
+    private String numeroConvocatoria;
+    private Boolean abierto;
 
     private boolean vigente;
 }

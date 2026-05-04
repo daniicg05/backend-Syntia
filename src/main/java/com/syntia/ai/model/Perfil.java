@@ -20,6 +20,9 @@ public class Perfil {
     @JoinColumn(name = "usuario_id", nullable = false, unique = true)
     private Usuario usuario;
 
+    @Column(length = 100)
+    private String nombre;
+
     @NotBlank(message = "El sector es obligatorio")
     @Column(nullable = false)
     private String sector;
@@ -27,6 +30,15 @@ public class Perfil {
     @NotBlank(message = "La ubicación es obligatoria")
     @Column(nullable = false)
     private String ubicacion;
+
+    @Column(length = 255)
+    private String empresa;
+
+    @Column(length = 100)
+    private String provincia;
+
+    @Column(length = 30)
+    private String telefono;
 
     @Column(name = "tipo_entidad")
     private String tipoEntidad;

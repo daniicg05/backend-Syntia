@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+
+<html class="light" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Syntia | Inteligencia Estratégica en Licitaciones</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@300;400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-primary-fixed": "#001f29",
+                        "on-tertiary-fixed-variant": "#005236",
+                        "secondary-container": "#d5e0f8",
+                        "primary": "#005a71",
+                        "surface-tint": "#006781",
+                        "surface-container-high": "#e6e8ea",
+                        "outline-variant": "#bec8cd",
+                        "surface-container-highest": "#e0e3e5",
+                        "primary-fixed-dim": "#81d1f0",
+                        "on-error-container": "#93000a",
+                        "outline": "#6f787d",
+                        "on-secondary-container": "#586377",
+                        "error": "#ba1a1a",
+                        "tertiary-container": "#007a53",
+                        "tertiary-fixed-dim": "#4edea3",
+                        "on-tertiary-fixed": "#002113",
+                        "on-primary-container": "#d3f1ff",
+                        "secondary-fixed-dim": "#bcc7de",
+                        "on-secondary-fixed-variant": "#3c475a",
+                        "surface-dim": "#d8dadc",
+                        "on-tertiary-container": "#a3ffd0",
+                        "on-surface": "#191c1e",
+                        "primary-container": "#0e7490",
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary": "#ffffff",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-low": "#f2f4f6",
+                        "background": "#f7f9fb",
+                        "surface": "#f7f9fb",
+                        "primary-fixed": "#b9eaff",
+                        "tertiary-fixed": "#6ffbbe",
+                        "surface-container": "#eceef0",
+                        "secondary": "#545f73",
+                        "error-container": "#ffdad6",
+                        "on-background": "#191c1e",
+                        "inverse-primary": "#81d1f0",
+                        "on-secondary-fixed": "#111c2d",
+                        "on-error": "#ffffff",
+                        "secondary-fixed": "#d8e3fb",
+                        "on-surface-variant": "#3f484c",
+                        "on-primary-fixed-variant": "#004d62",
+                        "surface-bright": "#f7f9fb",
+                        "surface-variant": "#e0e3e5",
+                        "on-primary": "#ffffff",
+                        "inverse-on-surface": "#eff1f3",
+                        "inverse-surface": "#2d3133",
+                        "tertiary": "#005f40"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "2xl": "1rem",
+                        "3xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Manrope", "sans-serif"],
+                        "body": ["Inter", "sans-serif"],
+                        "label": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #f7f9fb; }
+        .font-headline { font-family: 'Manrope', sans-serif; }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        .text-gradient {
+            background: linear-gradient(135deg, #005a71 0%, #0e7490 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="text-on-surface">
+<nav class="fixed top-0 right-0 w-full h-16 z-50 bg-slate-50/80 backdrop-blur-xl flex items-center justify-between px-8 py-2">
+<div class="flex items-center gap-2">
+<span class="text-2xl font-bold tracking-tighter text-primary font-headline">Syntia</span>
+</div>
+<div class="hidden md:flex items-center gap-8 text-sm font-medium text-slate-500">
+<a class="hover:text-primary transition-colors" href="#features">Características</a>
+<a class="hover:text-primary transition-colors" href="#how-it-works">Cómo funciona</a>
+<a class="hover:text-primary transition-colors" href="#use-cases">Casos de uso</a>
+<a class="hover:text-primary transition-colors" href="#pricing">Precios</a>
+</div>
+<div class="flex items-center gap-4">
+<button class="text-primary font-semibold text-sm hover:opacity-80 transition-opacity px-4 py-2">Acceso</button>
+<button class="bg-primary hover:bg-primary-container text-white px-6 py-2.5 rounded-2xl text-sm font-bold shadow-lg shadow-primary/20 transition-all">Nueva Búsqueda</button>
+</div>
+</nav>
+<main class="pt-32 pb-20">
+<!-- Hero Section -->
+<section class="max-w-7xl mx-auto px-8 mb-32 grid lg:grid-cols-12 gap-12 items-center">
+<div class="lg:col-span-7 space-y-8">
+<div class="inline-flex items-center gap-2 px-3 py-1 bg-primary-fixed text-on-primary-fixed-variant rounded-full text-xs font-bold uppercase tracking-widest">
+<span class="material-symbols-outlined text-sm">auto_awesome</span>
+                    Inteligencia Artificial para Empresas
+                </div>
+<h1 class="text-5xl lg:text-7xl font-extrabold font-headline leading-tight tracking-tight text-on-surface">
+                    Encuentra y analiza <span class="text-gradient">subvenciones</span> públicas en segundos.
+                </h1>
+<p class="text-xl text-on-surface-variant leading-relaxed max-w-2xl">
+                    La plataforma de inteligencia de datos que transforma la búsqueda de oportunidades públicas en una ventaja competitiva para tu empresa.
+                </p>
+<div class="flex flex-wrap gap-4">
+<button class="bg-primary text-white px-8 py-4 rounded-2xl font-bold text-lg shadow-xl shadow-primary/30 hover:scale-[1.02] active:scale-95 transition-all">Empieza Gratis</button>
+<button class="bg-surface-container-high text-on-surface px-8 py-4 rounded-2xl font-bold text-lg hover:bg-surface-container-highest transition-all flex items-center gap-2">
+<span class="material-symbols-outlined">play_circle</span>
+                        Ver Demo
+                    </button>
+</div>
+</div>
+<div class="lg:col-span-5 relative">
+<div class="absolute -top-10 -right-10 w-64 h-64 bg-primary/10 rounded-full blur-3xl"></div>
+<div class="absolute -bottom-10 -left-10 w-48 h-48 bg-tertiary/10 rounded-full blur-3xl"></div>
+<div class="relative bg-white p-4 rounded-3xl shadow-2xl shadow-slate-200/50 border border-white/40 overflow-hidden">
+<img alt="Syntia Dashboard Preview" class="w-full h-auto rounded-2xl" data-alt="Modern high-tech data dashboard with clean minimalist interface showing blue charts and strategic financial insights for public tenders" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDMRavA4Xr7tZ-qgNHfNRX12YADp0_TNAx_F7AIvXTKfuE34z5qvEvxsL61TTMvQjHnszHnLK7FVzBlIITMjdFyU7E_l8OAWfvBCgvD-Wft1rLSzG_wnbcE0xyU69vLbOYHfv_2EB4rf7kDp2hT4k3r2CQc4mE9vFXgIaCKGY83xsd53zBDoeu9iXS2fKBHzDRwgZEoHt6yRzHMtWitfVp4kAvVW2ijVQXbenUsh8MF5ijgzgA_JtXTtNgQjGndslu-Nz6O1DyHvbQ"/>
+</div>
+</div>
+</section>
+<!-- Features Bento Grid -->
+<section class="max-w-7xl mx-auto px-8 mb-40" id="features">
+<div class="text-center mb-20 space-y-4">
+<h2 class="text-4xl font-bold font-headline text-on-surface">Potencia tu estrategia con IA</h2>
+<p class="text-on-surface-variant max-w-xl mx-auto">Tecnología de vanguardia para que nunca pierdas una oportunidad de financiación pública.</p>
+</div>
+<div class="grid md:grid-cols-3 gap-6">
+<!-- Feature 1: AI Summaries -->
+<div class="md:col-span-2 bg-white p-10 rounded-3xl shadow-sm border border-slate-100 flex flex-col justify-between group">
+<div class="space-y-4">
+<div class="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-3xl">summarize</span>
+</div>
+<h3 class="text-2xl font-bold font-headline">Resúmenes con IA</h3>
+<p class="text-on-surface-variant text-lg">Nuestros algoritmos analizan pliegos técnicos de cientos de páginas en segundos, extrayendo requisitos clave, presupuestos y criterios de adjudicación.</p>
+</div>
+<div class="mt-12 bg-surface-container-low p-6 rounded-2xl">
+<div class="flex items-center gap-4 mb-4">
+<div class="w-2 h-2 rounded-full bg-tertiary animate-pulse"></div>
+<span class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Análisis en tiempo real</span>
+</div>
+<div class="space-y-2">
+<div class="h-2 w-full bg-slate-200 rounded-full"></div>
+<div class="h-2 w-3/4 bg-slate-200 rounded-full"></div>
+<div class="h-2 w-5/6 bg-primary/30 rounded-full"></div>
+</div>
+</div>
+</div>
+<!-- Feature 2: Real-time Alerts -->
+<div class="bg-cyan-950 text-white p-10 rounded-3xl shadow-xl flex flex-col justify-between">
+<div class="space-y-4">
+<div class="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-3xl text-cyan-400">notifications_active</span>
+</div>
+<h3 class="text-2xl font-bold font-headline text-white">Alertas en tiempo real</h3>
+<p class="text-cyan-100/70">Sé el primero en saberlo. Configura alertas personalizadas por sector, región o cuantía económica.</p>
+</div>
+<div class="mt-8">
+<div class="flex flex-col gap-2">
+<div class="bg-white/5 p-3 rounded-xl border border-white/10 flex items-center gap-3">
+<span class="material-symbols-outlined text-cyan-400">mail</span>
+<span class="text-sm">Nueva licitación: Smart Cities</span>
+</div>
+<div class="bg-white/5 p-3 rounded-xl border border-white/10 flex items-center gap-3">
+<span class="material-symbols-outlined text-cyan-400">chat_bubble</span>
+<span class="text-sm">Subvención I+D+i aprobada</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Feature 3: Advanced Filtering -->
+<div class="bg-white p-10 rounded-3xl shadow-sm border border-slate-100">
+<div class="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-6">
+<span class="material-symbols-outlined text-3xl">filter_list</span>
+</div>
+<h3 class="text-2xl font-bold font-headline mb-4">Filtrado Avanzado</h3>
+<p class="text-on-surface-variant">Encuentra exactamente lo que buscas con filtros por CPV, organismo contratante o estado de tramitación.</p>
+</div>
+<!-- Feature 4: Deadline Tracking -->
+<div class="md:col-span-2 bg-surface-container text-on-surface p-10 rounded-3xl flex flex-col md:flex-row gap-10 items-center">
+<div class="flex-1 space-y-4">
+<div class="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-primary shadow-sm">
+<span class="material-symbols-outlined text-3xl">event_upcoming</span>
+</div>
+<h3 class="text-2xl font-bold font-headline">Control de Plazos</h3>
+<p class="text-on-surface-variant text-lg">Nunca vuelvas a perder una oportunidad por un error de calendario. Seguimiento automatizado de hitos y cierres.</p>
+</div>
+<div class="w-full md:w-64 bg-white rounded-2xl p-6 shadow-lg rotate-2">
+<div class="text-center">
+<span class="text-4xl font-black text-error">12</span>
+<p class="text-xs font-bold uppercase text-on-surface-variant mt-1">Días restantes</p>
+<div class="mt-4 h-1 w-full bg-slate-100 rounded-full overflow-hidden">
+<div class="h-full w-2/3 bg-error rounded-full"></div>
+</div>
+<p class="text-[10px] mt-4 text-slate-400">Licitación: Infraestructuras 5G</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Use Cases -->
+<section class="bg-white py-32" id="use-cases">
+<div class="max-w-7xl mx-auto px-8">
+<div class="flex flex-col md:flex-row justify-between items-end mb-16 gap-8">
+<div class="max-w-2xl">
+<h2 class="text-4xl font-bold font-headline mb-6">Diseñado para cada perfil estratégico</h2>
+<p class="text-on-surface-variant text-lg leading-relaxed">Syntia se adapta a tu estructura, proporcionando las herramientas precisas para que el tamaño de tu equipo no limite tu capacidad de adjudicación.</p>
+</div>
+<button class="bg-primary text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 group transition-all">
+                        Solicitar caso de éxito
+                        <span class="material-symbols-outlined group-hover:translate-x-1 transition-transform">arrow_forward</span>
+</button>
+</div>
+<div class="grid md:grid-cols-3 gap-8">
+<!-- Case 1 -->
+<div class="group cursor-pointer">
+<div class="aspect-video rounded-3xl overflow-hidden mb-6 relative">
+<img alt="Empresas" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" data-alt="Professional corporate office meeting room with clean glass walls and focused professionals collaborating" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDOiK-9aY5jKkmPIY_-HSO77msPvdysAi-xw-Yyymo1a0dCIRwtFpnzKeg3jmNQlNx7hFNLAliC2RQiexZwKHHkj_HaJCiHoxVS_h1Vrd8gHi2Qp8CM5UA1frtVHLWTQFJOcEiRap61-B8_NvgPkdAEBb-WpGVsC86b-9JhcURF7acchYFhrhT5fAxeFiBW6yNfQp1V1iLR_e9j0lQXfbmJ8clAmgK0hwMSM3FSM9_nzy2XkBZtU-z6hP8MaIlZVUcfuEqxV8H1jRM"/>
+<div class="absolute inset-0 bg-gradient-to-t from-cyan-950/60 to-transparent"></div>
+<div class="absolute bottom-6 left-6 text-white font-bold text-xl font-headline">Empresas</div>
+</div>
+<p class="text-on-surface-variant leading-relaxed">Optimiza tu departamento de ventas públicas y aumenta tu tasa de éxito en licitaciones nacionales e internacionales.</p>
+</div>
+<!-- Case 2 -->
+<div class="group cursor-pointer">
+<div class="aspect-video rounded-3xl overflow-hidden mb-6 relative">
+<img alt="Autónomos" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" data-alt="Modern workspace for a freelancer with laptop, premium stationery, and soft ambient morning light" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBrL6CKxNCfpn3vBbbxOLDNNZt3XE4zRl-ohh2ME5OTYX9NLH6_jgTtE2At17zgn8aJPsRobJWh_ZgzGyI21zAuwFj0DkG2l0ySM76KmXJeQJn2OewtReJ9-pdsWe-kRfBwDfaaxFvwlJHdPqIhwjLhYdHWacNEhybxNaFbnUhsRCLOM8gcKRYaVKXBn8vuKOjP53MMEKo887r-KlZgzlMWTxw0YCiGCgylQWdoGD72VaOB4uISpT7f8r9Z-SpX-J02M95q4oEHldo"/>
+<div class="absolute inset-0 bg-gradient-to-t from-cyan-950/60 to-transparent"></div>
+<div class="absolute bottom-6 left-6 text-white font-bold text-xl font-headline">Autónomos</div>
+</div>
+<p class="text-on-surface-variant leading-relaxed">Accede a contratos menores y subvenciones locales de forma ágil, sin necesidad de ser un experto en burocracia.</p>
+</div>
+<!-- Case 3 -->
+<div class="group cursor-pointer">
+<div class="aspect-video rounded-3xl overflow-hidden mb-6 relative">
+<img alt="Consultoras" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" data-alt="Consultant reviewing complex digital documents and strategy plans in a high-end financial environment" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC4OiywWskeHQgjstDploLpCGDaVyONCYIH-KdyEIDcZiSE1B922TI9sXEP5ZkGMaryGRIS67yf8mvlzFCBo7qUyt2HfeI69iEeX5wAJNYTQ5_E5O6ROay_tS3m_UM5onSnZWtOYPsD5uWNWEHX3CzXxIQYGfRGjH33j1VJ6NtoRwpoCY82UJTlk3ufQUSO4ewDSMLkqw0G-XbUJUSUyeNnddwoyZE5UgNdjNNIb5CvwhI8vGhuvSSccv2DgNn0pXktIzVnJM6D--Y"/>
+<div class="absolute inset-0 bg-gradient-to-t from-cyan-950/60 to-transparent"></div>
+<div class="absolute bottom-6 left-6 text-white font-bold text-xl font-headline">Consultoras</div>
+</div>
+<p class="text-on-surface-variant leading-relaxed">Multiplica el valor que ofreces a tus clientes encontrando oportunidades que otros pasan por alto.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Pricing / CTA -->
+<section class="max-w-5xl mx-auto px-8 mb-40" id="pricing">
+<div class="bg-primary-container rounded-[3rem] p-12 md:p-20 text-center text-white relative overflow-hidden">
+<div class="absolute top-0 right-0 w-96 h-96 bg-cyan-400/20 blur-[100px] -mr-48 -mt-48"></div>
+<div class="absolute bottom-0 left-0 w-96 h-96 bg-cyan-900/40 blur-[100px] -ml-48 -mb-48"></div>
+<div class="relative z-10 space-y-8">
+<h2 class="text-4xl md:text-6xl font-extrabold font-headline leading-tight">¿Listo para transformar tu búsqueda?</h2>
+<p class="text-xl text-primary-fixed leading-relaxed max-w-2xl mx-auto">Únete a cientos de empresas que ya están ganando licitaciones con la ventaja competitiva de Syntia Intelligence.</p>
+<div class="pt-8">
+<button class="bg-white text-primary px-10 py-5 rounded-2xl font-bold text-xl shadow-2xl hover:scale-105 active:scale-95 transition-all">Empieza tu prueba de 14 días</button>
+<p class="mt-6 text-sm font-medium text-cyan-200 uppercase tracking-widest">No requiere tarjeta de crédito</p>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="w-full py-12 px-8 bg-white border-t border-slate-100">
+<div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
+<div class="flex flex-col items-center md:items-start gap-4">
+<span class="font-black text-2xl text-cyan-900">Syntia</span>
+<p class="text-xs uppercase tracking-widest text-slate-400 font-label">© 2024 Syntia Intelligence. Todos los derechos reservados.</p>
+</div>
+<div class="flex gap-8">
+<a class="text-xs uppercase tracking-widest text-slate-400 hover:text-cyan-500 transition-colors font-label" href="#">Privacidad</a>
+<a class="text-xs uppercase tracking-widest text-slate-400 hover:text-cyan-500 transition-colors font-label" href="#">Términos</a>
+<a class="text-xs uppercase tracking-widest text-slate-400 hover:text-cyan-500 transition-colors font-label" href="#">Contacto</a>
+</div>
+<div class="flex gap-4">
+<a class="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:bg-primary/10 hover:text-primary transition-all" href="#">
+<span class="material-symbols-outlined text-xl">share</span>
+</a>
+<a class="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:bg-primary/10 hover:text-primary transition-all" href="#">
+<span class="material-symbols-outlined text-xl">public</span>
+</a>
+</div>
+</div>
+</footer>
+</body></html>

@@ -69,8 +69,12 @@ public class PerfilService {
         /** Construcción de la entidad a partir de los datos recibidos. */
         Perfil perfil = Perfil.builder()
                 .usuario(usuario)
+                .nombre(dto.getNombre())
                 .sector(dto.getSector())
                 .ubicacion(dto.getUbicacion())
+                .empresa(dto.getEmpresa())
+                .provincia(dto.getProvincia())
+                .telefono(dto.getTelefono())
                 .tipoEntidad(dto.getTipoEntidad())
                 .objetivos(dto.getObjetivos())
                 .necesidadesFinanciacion(dto.getNecesidadesFinanciacion())
@@ -97,8 +101,12 @@ public class PerfilService {
                 .orElseThrow(() -> new EntityNotFoundException("Perfil no encontrado para el usuario: " + usuarioId));
 
         /** Se aplican cambios campo por campo para mantener control explícito de actualización. */
+        perfil.setNombre(dto.getNombre());
         perfil.setSector(dto.getSector());
         perfil.setUbicacion(dto.getUbicacion());
+        perfil.setEmpresa(dto.getEmpresa());
+        perfil.setProvincia(dto.getProvincia());
+        perfil.setTelefono(dto.getTelefono());
         perfil.setTipoEntidad(dto.getTipoEntidad());
         perfil.setObjetivos(dto.getObjetivos());
         perfil.setNecesidadesFinanciacion(dto.getNecesidadesFinanciacion());
@@ -119,8 +127,12 @@ public class PerfilService {
 
         /** Mapeo manual de entidad a DTO para exponer solo los datos necesarios. */
         PerfilDTO dto = new PerfilDTO();
+        dto.setNombre(perfil.getNombre());
         dto.setSector(perfil.getSector());
         dto.setUbicacion(perfil.getUbicacion());
+        dto.setEmpresa(perfil.getEmpresa());
+        dto.setProvincia(perfil.getProvincia());
+        dto.setTelefono(perfil.getTelefono());
         dto.setTipoEntidad(perfil.getTipoEntidad());
         dto.setObjetivos(perfil.getObjetivos());
         dto.setNecesidadesFinanciacion(perfil.getNecesidadesFinanciacion());

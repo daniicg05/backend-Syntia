@@ -8,7 +8,182 @@ Formato de cada entrada:
 
 ---
 
+## [4.7.0] – 2026-04-14
+
+### UI/UX Redesign Stitch + Backend Phase 2/3 + Framer Motion (Fase 15)
+
+#### Backend – archivos modificados
+
+- `model/Usuario.java` — `@JsonIgnore` en campo `password` (evita fuga de hash bcrypt en `GET /admin/usuarios`)
+- `model/Proyecto.java` — campo `creadoEn LocalDateTime` + `@PrePersist`; columna `TIMESTAMP DEFAULT CURRENT_TIMESTAMP` (retrocompatible)
+- `model/dto/ProyectoDTO.java` — campo `creadoEn` añadido
+- `service/ProyectoService.java` — `toDTO()` mapea `creadoEn`
+- `model/dto/ConvocatoriaPublicaDTO.java` — campo `tipo` añadido
+- `controller/api/ConvocatoriaPublicaController.java` — `.tipo(c.getTipo())` en builder; parámetro `abierto` (`Boolean`) en `GET /buscar` — filtra a convocatorias abiertas cuando `abierto=true`
+- `service/MatchService.java` — `.tipo(c.getTipo())` en `toMatchDTO()`
+- `model/dto/RecomendacionDTO.java` — campos `organismo`, `presupuesto`, `fechaPublicacion`
+- `service/RecomendacionService.java` — `toDTO()` mapea los tres campos nuevos
+- `model/Perfil.java` — campo `nombre` nullable (`@Column(length=100)`) antes de `sector`
+- `model/dto/PerfilDTO.java` — campo `nombre` con `@Size(max=100)`
+- `service/PerfilService.java` — `crearPerfil()`, `actualizarPerfil()`, `toDTO()` incluyen `nombre`
+- `controller/api/PerfilController.java` — `GET /api/usuario/perfil/completo` (mapa fusionado perfil+usuario); `convertirADTO()` mapea `nombre`
+- `controller/api/ConvocatoriaPersonalizadaController.java` — `recomendadas()` devuelve paginación `{content, totalElements, totalPages, page, size}`; `buscar()` acepta `abierto` (`Boolean`)
+- `repository/ConvocatoriaRepository.java` — query `buscarPublico` añade `:abierto IS NULL OR c.abierto = :abierto`; nueva query `buscarAdmin(q, sector)`; `countByAbiertoTrue()`
+- `service/ConvocatoriaService.java` — método `obtenerPaginaFiltrada(page, size, q, sector)`: usa `buscarAdmin` cuando hay filtros activos
+- `controller/api/AdminController.java` — `GET /admin/convocatorias` acepta `q` y `sector`; `GET /admin/dashboard` añade `convocatoriasAbiertas` y `usuariosConPerfil`; inyecta `ConvocatoriaRepository` y `PerfilRepository`
+
+#### Frontend – archivos modificados
+
+- `src/app/globals.css` — Sistema completo de variables CSS: paleta teal `:root`, modo oscuro `.dark`, mapeo Tailwind v4 `@theme inline`; todos los verdes hardcoded eliminados
+- `src/app/layout.tsx` — Fuente `Fraunces` → `Manrope` (400/600/700/800); `themeColor: "#f7f9fb"`
+- `src/app/template.tsx` — `AnimatePresence mode="wait"` + `motion.div pageTransition` keyed por pathname
+- `src/styles/tokens.ts` — Tokens JS completos: colores HSL, sombras, radios, tipografía, espaciado, duraciones, easings
+- `src/lib/motion.ts` — 15 variantes Framer Motion nombradas: `fadeIn`, `slideUp`, `slideIn`, `slideInRight`, `springScale`, `staggerChildren`, `staggerItem`, `pageTransition`, `cardHover`, `buttonHover`, `buttonTap`, `inputFocus`, `skeletonShimmer`, `glassPanelSlide`, `streamLogItem` + `reduceMotionVariants()`
+- `src/hooks/useMotionVariants.ts` — Integración `useReducedMotion()`
+- `src/lib/types/` (9 archivos) — Tipos TypeScript canónicos para todos los contratos de API
+- `src/components/ui/Button.tsx` — `motion.button`, `whileTap scale:0.97`, `whileHover scale:1.02` (primary)
+- `src/components/ui/Badge.tsx` — Variantes success/error/warning/plan/score
+- `src/components/ui/Skeleton.tsx` — Shimmer con `motion.div`; `SkeletonKPIGrid` + `SkeletonTable`
+- `src/components/ui/Modal.tsx` — **Nuevo**: modal animado con focus trap y Escape
+- `src/components/ui/ErrorState.tsx` — **Nuevo**: estado de error animado con retry
+- `src/components/ConvocatoriaCard.tsx` — MatchBadge y badges sector → tokens success
+- `src/components/ui/Toast.tsx` — Verde hardcoded → tokens success
+- `src/app/home/page.tsx` — Tarjeta Sector Agrícola → tokens success
+- `src/app/dashboard/page.tsx` — **Fix B1**: tipo `topRecomendaciones` corregido; animaciones stagger stats, recs, roadmap
+- `src/app/proyectos/page.tsx` — Stagger grid + `AnimatePresence` delete + `cardHover`
+- `src/app/perfil/page.tsx` — `motion.form staggerChildren` secciones; `AnimatePresence` modales con spring
+- `src/app/admin/bdns/page.tsx` — `motion.div` progress bar; `AnimatePresence` job card + modal confirmación
+- `src/app/admin/usuarios/page.tsx` — `motion.tr` + `AnimatePresence mode="sync"` filas; exit slide derecha
+- `src/app/admin/dashboard/page.tsx` — 6 métricas (2 nuevas: abiertas, usuarios con perfil); porcentajes; stagger animation
+- `src/app/admin/convocatorias/page.tsx` — Barra de búsqueda por título + selector sector; caché keyed por `page:q:sector`
+- `src/app/buscar/BuscarContent.tsx` — Toggle "Solo convocatorias abiertas"; URL param `abierto=true`; `buildParams()` helper unificado
+- `src/lib/api.ts` — `buscar` acepta `abierto?: boolean`; admin `list` acepta `q?` y `sector?`
+
+#### Nuevo — branches
+- `feat/redesign-frontend` — todos los cambios de frontend
+- `feat/redesign-backend` — todos los cambios de backend
+
+---
+
+## [4.6.0] – 2026-04-10
+
+### ETL BDNS Masivo + Plan GRATUITO/PREMIUM + Mejoras admin y frontend (Fase 14)
+
+#### Backend – nuevos archivos
+
+- `Plan.java` — enum `GRATUITO` / `PREMIUM`; campo `plan` añadido a `Usuario` (default `GRATUITO`)
+- `ConvocatoriaBdLocalService.java` — busca en BD local extrayendo keyword + ubicación del proyecto/perfil; query flexible en `ConvocatoriaRepository.buscarParaModoGratuito`
+- `BdnsImportJobService.java` — gestiona el job async (start, cancel, estado); un solo job a la vez (HTTP 409 si ya hay uno en curso)
+- `BdnsImportExecutor.java` — bean `@Async` separado para resolver el problema de self-invocation; ejecuta el ETL completo
+- `BdnsImportEstrategiaService.java` — itera los 23 ejes (ESTADO + AUTONOMICA×19CCAA + LOCAL + OTROS), paginando hasta el fin con delay configurable
+- `BdnsScheduler.java` — `@Scheduled` que lanza importación FULL cada 1 ene y 1 jul a las 3 AM; omite si job en curso
+- `ConvocatoriaValidador.java` — rechaza DTOs con título blank o >500 chars antes de persistir
+- `ResultadoPersistencia.java` — record (nuevas, duplicadas, rechazadas) reemplaza `int` en `persistirNuevas()`
+- `CoberturaDTO.java` — record con `totalConvocatorias` + lista de `CampoCobertura(campo, conValor, %)`
+- `SyncStateDTO.java`, `ResumenEjecucionDTO.java` — records para respuestas del panel ETL admin
+
+#### Backend – archivos modificados
+
+- `BusquedaRapidaService.java` — enruta según plan: `GRATUITO → BD local`, `PREMIUM → API live BDNS`
+- `BdnsClientService.java` — `importarPorEje(nivel1, nivel2, pag, tam)` sin restricción de vigencia; `@Retryable` con backoff exponencial (1.5 → 3 → 6s), no reintenta en 4xx
+- `BdnsImportEstrategiaService.java` — usa `ResultadoPersistencia`; rechazadas → errores en `SyncLog`; importación incremental: eje COMPLETADO → omite; eje ERROR → reanuda desde `ultimaPaginaOk+1`
+- `ConvocatoriaRepository.java` — `existsByIdBdns`, `buscarParaModoGratuito`, 7 `countBy*IsNotNull()` para métricas de cobertura
+- `ConvocatoriaService.java` — `persistirNuevas` valida + deduplica por `idBdns`; guarda `organismo`, `fechaPublicacion`, `descripcion`, `textoCompleto`
+- `BdnsEtlPanelService.java` — `obtenerEstadoEjes()`, `obtenerHistorial()` (agrupado por ejecucionId), `obtenerLogsEjecucion()`, `obtenerCobertura()`
+- `AdminController.java` — 9 nuevos endpoints BDNS ETL; `GET /admin/usuarios/{id}` devuelve `AdminDetalleUsuarioResponseDTO` con historial de correo
+- `SyncStateRepository.java` — `findAllByOrderByEjeAsc()`, `countByEstado(Estado)`
+- `SyncLogRepository.java` — `findAllByOrderByTsDesc()`
+- `PerfilController.java` / `UsuarioService.java` — `PUT /perfil/email` con verificación de contraseña; devuelve nuevo `LoginResponseDTO` con JWT actualizado; persiste `HistorialCorreo`
+- `AsyncConfig.java` — añadido `@EnableRetry` + `@EnableScheduling`
+- `pom.xml` — añadidos `spring-retry` + `spring-boot-starter-aop`
+- `application.properties` — nuevas propiedades: `bdns.client.connect-timeout-ms`, `bdns.client.read-timeout-ms`, `bdns.client.max-reintentos`, `bdns.client.reintento-delay-ms`, `bdns.import.delay-ms`, `bdns.scheduler.cron`
+
+#### Frontend – nuevas páginas y componentes
+
+- `src/app/admin/bdns/page.tsx` — Panel ETL BDNS completo: estado job, barras de cobertura, historial de ejecuciones, modal de confirmación con selección FULL/INCREMENTAL, polling cada 5s
+- `src/app/guias/page.tsx` — Sección estática con guías informativas sobre tipos de subvenciones (Innovación, PYMEs, Sostenibilidad, Cultura, Startups)
+- `src/components/PageTransition.tsx` — Wrapper Framer Motion para transiciones suaves entre páginas
+
+#### Frontend – archivos modificados
+
+- `src/lib/api.ts` — endpoints BDNS admin (importar, cancelar, estado, ejes, historial, cobertura), cambio email/password
+- `src/app/perfil/page.tsx` — modales funcionales para cambio de email (devuelve nuevo JWT) y cambio de contraseña; sección preferencias de notificación en `localStorage`
+- `src/app/admin/usuarios/[id]/page.tsx` — vista detalle con email, teléfono, historial de cambios de correo
+- `src/app/layout.tsx` / `src/app/template.tsx` — integración de `PageTransition` con Framer Motion
+- Dark mode: correcciones en imports y tokens CSS en todos los componentes
+- `package.json` — Next.js 16.2.0, React 19.2.4, Tailwind CSS 4, Framer Motion 11, React Hook Form 7, Zod 4
+
+#### Bugs corregidos
+
+- `CustomErrorController` devolvía siempre HTTP 500 aunque el error real fuera 403/404 → usa `jakarta.servlet.error.status_code`
+- Middleware de Next.js en raíz ignorado con directorio `src/` → movido a `src/middleware.ts`
+- Password change: validaciones de confirmación corregidas en frontend
+- Dark mode: imports de tipos CSS incorrectos corregidos
+
+**Autor(es):** Equipo técnico
+
+---
+
+## [4.5.0] – 2026-03-27
+
+### Rate Limiting + Caché BDNS (Fase 13)
+
+#### Nuevos archivos creados
+- `RateLimitService.java` — Rate limiting stateful en memoria (`ConcurrentHashMap<String, Instant>`). Cooldowns: 30s para búsqueda BDNS, 60s para análisis IA. Claves: `usuarioId:proyectoId`. Métodos: `puedeBuscar`, `registrarBusqueda`, `segundosRestantesBusqueda`, `puedeAnalizar`, `registrarAnalisis`, `segundosRestantesAnalisis`.
+
+#### Archivos modificados
+- `RecomendacionController.java` — Inyectado `RateLimitService`. Endpoint `POST /buscar`: verifica cooldown 30s, devuelve HTTP 429 con `esperarSegundos` si bloqueado. Endpoint `GET /stream`: verifica cooldown 60s, emite evento SSE `error` con segundos restantes si bloqueado.
+- `BdnsClientService.java` — Caché en memoria para `obtenerDetalleTexto()`: `ConcurrentHashMap<String, CachedDetalle>` donde `CachedDetalle` es un record con `texto` e `Instant savedAt`. TTL: 1 hora. Si el resultado está en caché y no ha caducado, se devuelve directamente sin llamada HTTP.
+
+#### Impacto
+- **Coste OpenAI:** protegido contra análisis repetidos dentro del cooldown de 60s
+- **Carga API BDNS:** detalles de convocatorias cacheados 1h reducen llamadas HTTP repetidas hasta 0
+- **Abuso de búsqueda:** cooldown 30s por usuario+proyecto
+
+**Autor(es):** Equipo técnico
+
+---
+
+## [4.4.0] – 2026-03-23
+
+### Estabilización: Next.js + Flujo dos pasos + Correcciones críticas (Fase 12)
+
+#### Archivos modificados (backend)
+- `ProyectoService.java` — `eliminar()` ahora llama `recomendacionRepository.deleteByProyectoId(id)` antes de `proyectoRepository.delete(proyecto)`. Corrige error 500 por violación FK `recomendaciones.proyecto_id NOT NULL` al borrar un proyecto con recomendaciones asociadas.
+- `RecomendacionController.java` — Añadido endpoint `POST /buscar` (Fase 1: búsqueda BDNS sin IA). Modificado `GET /stream` (Fase 2: solo análisis IA de candidatas existentes, ya no invoca `BusquedaRapidaService`). Añadidas dependencias: `BusquedaRapidaService`, `RateLimitService`.
+
+#### Archivos modificados (frontend Next.js)
+- `src/middleware.ts` (movido desde raíz) — El middleware de Next.js debe estar en `src/middleware.ts` cuando se usa directorio `src/`. Corrige acceso libre a `/dashboard` sin autenticación. Añadido parámetro `?redirect=<ruta>` a la URL de redirección al login.
+- `src/app/login/page.tsx` — Tras login exitoso, redirige a `searchParams.get("redirect")` o `/dashboard`. Enlace a registro preserva parámetro `redirect`.
+- `src/app/registro/page.tsx` — Tras registro exitoso, redirige a `searchParams.get("redirect")` o `/dashboard`. Enlace a login preserva parámetro `redirect`.
+- `src/lib/api.ts` — Añadido `recomendacionesApi.buscar(proyectoId)`: `POST /usuario/proyectos/{id}/recomendaciones/buscar`.
+- `src/app/proyectos/[id]/recomendaciones/page.tsx` — Reescrito completo. Flujo dos pasos: sección "Convocatorias encontradas" (candidatas `usadaIa=false`) + sección "Recomendaciones IA" (analizadas `usadaIa=true`, puntuación ≥ 20). Dos botones: "Buscar convocatorias" + "Analizar con IA".
+
+#### Bugs corregidos
+- **DELETE proyecto 500:** FK constraint violado al borrar proyectos con recomendaciones → resuelto eliminando recs primero
+- **Dashboard sin auth:** middleware.ts en raíz ignorado por Next.js con `src/` → movido a `src/middleware.ts`
+- **Registro sin JWT:** endpoint de registro ya devuelve `LoginResponseDTO` con token
+
+**Autor(es):** Equipo técnico
+
+---
+
 ## [4.3.0] – 2026-03-13
+
+### Migración Frontend a Next.js 15 (Fase 11)
+
+#### Cambios arquitectónicos
+- Frontend migrado de Angular/SSR a **Next.js 15 + React 19 + TypeScript** (App Router).
+- Todas las rutas implementadas como componentes React con App Router.
+- Autenticación: JWT almacenado en cookie `syntia_token`, gestionado por middleware.
+- SSE: consumido via `fetch` + `ReadableStream` desde componentes cliente Next.js.
+- Proxy Next.js: rewrite `/api/*` → `http://localhost:8080/api/*` en `next.config.ts`.
+
+**Autor(es):** Equipo técnico
+
+---
+
+## [4.3.0-legacy] – 2026-03-13
 
 ### Alineación documental API-first (Angular + REST)
 

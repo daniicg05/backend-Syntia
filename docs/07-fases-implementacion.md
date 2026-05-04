@@ -1,9 +1,8 @@
 # Plan de Implementación por Fases: Syntia
 
-> Documento actualizado el **2026-03-12**. Refleja el estado real del código hasta v4.2.0.
-> Plan de implementación v4.0.0 completado en `docs/13-plan-fases-v4.md`.
-> Landing page documentada en `docs/14-plan-landing-page.md`.
-> Repositorio: https://github.com/daniicg05/Syntia.git
+> Documento actualizado el **2026-03-27**. Refleja el estado real del código hasta v4.5.0.
+> Plan de fases actual: `docs/15-plan-fases-v5.md`.
+> Repositorio backend: https://github.com/daniicg05/backend-Syntia
 
 ---
 
@@ -11,18 +10,20 @@
 
 Syntia es una plataforma web que permite a usuarios (emprendedores, autónomos, PYMEs) recibir recomendaciones personalizadas sobre subvenciones, ayudas y licitaciones públicas mediante un motor de matching con IA. La arquitectura es **monolítica modular** con Spring Boot, PostgreSQL y seguridad JWT.
 
-**Stack fijo:**
-- Backend: Java 17, Spring Boot 3.5.x, Spring Security 6.x
+**Stack actual (v4.5.0):**
+- Backend: Java 17, Spring Boot 3.3.x, Spring Security 6.x
 - Seguridad: JWT (jjwt 0.12.6) + BCrypt + CORS
 - Persistencia: Spring Data JPA + PostgreSQL 17.2 (`syntia_db`)
-- Frontend: Angular + API REST
+- **Frontend: Next.js 15 + React 19 + TypeScript** (App Router, Tailwind CSS)
 - **IA:** OpenAI Chat Completions API (`gpt-4.1`) con fallback rule-based automático
-- **Streaming:** Server-Sent Events (SSE) con `SseEmitter` + `CompletableFuture` + `TransactionTemplate`
+- **Streaming:** Server-Sent Events (SSE) con `SseEmitter` + `fetch` + `ReadableStream`
+- **Rate limiting:** `RateLimitService` (30s búsqueda, 60s análisis IA)
+- **Caché BDNS:** TTL 1h en memoria para detalles de convocatorias
 - Puerto: `8080` | BD usuario: `syntia` / pass: `syntia`
 
 ---
 
-## Estado Actual (2026-03-10) — v3.0.0
+## Estado Actual (2026-03-27) — v4.5.0
 
 | Componente | Estado |
 |------------|--------|
@@ -205,26 +206,25 @@ openai.temperature=0.1              # Determinismo alto
 
 ---
 
-## Próximas Mejoras (Backlog)
+## Backlog Técnico
 
-> **Nota:** La implementación BDNS-First (doc 13) eliminará la generación de keywords con IA,
-> por lo que B.1 (caché de keywords) ya no aplicará.
+> Ver plan completo actualizado en `docs/15-plan-fases-v5.md`.
 
 | # | Mejora | Prioridad | Estado |
 |---|--------|-----------|--------|
-| ~~B.1~~ | ~~Caché de keywords por proyecto (Caffeine, 24h TTL)~~ | ~~Alta~~ | ❌ Obsoleta (BDNS-First elimina keywords) |
-| B.2 | Caché de detalles BDNS (Caffeine, 1h TTL) | Alta | Pendiente |
-| B.3 | Paralelizar evaluaciones OpenAI con CompletableFuture.supplyAsync() | Alta | Pendiente |
-| B.4 | Rate limiting por usuario (cooldown 60s por proyecto) | Alta | Pendiente |
-| B.5 | Tests de integración automatizados (JUnit 5 + MockMvc) | Alta | Pendiente |
-| B.6 | System prompt compacto (~200 tokens en lugar de ~500) | Media | Pendiente |
-| B.7 | Pre-screening con gpt-4.1-mini (barato) antes de gpt-4.1 | Media | Pendiente |
-| B.8 | Batch evaluation (3 convocatorias por prompt) | Media | Pendiente |
-| B.9 | Alertas automáticas por email cuando aparezcan nuevas convocatorias | Media | Pendiente |
-| B.10 | Exportación de recomendaciones en PDF | Media | Pendiente |
-| B.11 | Reforzar estrategia CSRF/CORS para clientes web y API según entorno | Baja | Pendiente |
-| B.12 | Estimación de probabilidad de éxito según perfil histórico | Baja | Pendiente |
-| B.13 | Integración con fuentes europeas (Horizon Europe, FEDER) | Baja | Pendiente |
+| ~~B.1~~ | ~~Caché de keywords por proyecto~~ | ~~Alta~~ | ❌ Obsoleta (BDNS-First elimina keywords) |
+| B.2 | ~~Caché de detalles BDNS (TTL 1h)~~ | Alta | ✅ Implementado v4.5.0 |
+| B.3 | Paralelizar evaluaciones OpenAI con `CompletableFuture.supplyAsync()` | Alta | 🔲 Fase 14 |
+| B.4 | ~~Rate limiting por usuario/proyecto~~ | Alta | ✅ Implementado v4.5.0 |
+| B.5 | Tests de integración (JUnit 5 + MockMvc) | Alta | 🔲 Fase 15 |
+| B.6 | System prompt compacto (~200 tokens) | Media | 🔲 Fase 14 |
+| B.7 | Pre-screening con gpt-4.1-mini | Media | 🔲 Fase 14 |
+| B.8 | Batch evaluation (3 conv/prompt) | Media | 🔲 Fase 14 |
+| B.9 | Alertas por email (nuevas convocatorias) | Media | 🔲 Fase 16 |
+| B.10 | Exportación PDF recomendaciones | Media | 🔲 Fase 16 |
+| B.11 | CORS/CSRF hardening producción | Baja | 🔲 Fase 15 |
+| B.12 | Estimación probabilidad éxito | Baja | 🔲 Fase 16 |
+| B.13 | Fuentes europeas (Horizon, FEDER) | Baja | 🔲 Fase 16 |
 
 ---
 
@@ -289,23 +289,41 @@ http://localhost:8080/ → main.html → /login → /dashboard
 
 ---
 
-## Alineación Arquitectónica Vigente (2026-03-13)
-
-> Esta directriz prevalece sobre referencias históricas del documento en caso de conflicto.
-
-- Backend fijo: `Java 17 + Spring Boot + Maven + PostgreSQL + JWT + SSE`.
-- Frontend objetivo: `Angular + API REST`.
-- Capa de presentación server-side: fuera del alcance objetivo.
-- Prioridad de evolución: `controller/api/`, JWT, flujo `BDNS+IA`.
-- Restricción de diseño: mantener lógica en servicios; cambiar solo capa de presentación.
-
-## Fase 11 – Migración de Capa de Presentación a Angular (v5.x)
-> **Estado:** 🔲 PLANIFICADA
+## Fase 11 – Migración Frontend a Next.js (v4.3.x)
+> **Estado:** ✅ COMPLETADA
 
 | # | Funcionalidad | Estado |
 |---|--------------|--------|
-| 11.1 | Inventario de vistas SSR y equivalencia en rutas Angular | 🔲 |
-| 11.2 | Migrar autenticación cliente a flujo JWT API-first | 🔲 |
-| 11.3 | Consumir SSE desde cliente Angular para análisis BDNS+IA | 🔲 |
-| 11.4 | Mantener `controller/api/` como contrato único estable | 🔲 |
-| 11.5 | Retirar progresivamente dependencias de presentación legacy | 🔲 |
+| 11.1 | Next.js 15 + React 19 + TypeScript App Router | ✅ |
+| 11.2 | Autenticación JWT con cookie `syntia_token` | ✅ |
+| 11.3 | Middleware Next.js en `src/middleware.ts` (protección de rutas) | ✅ |
+| 11.4 | SSE consumido via `fetch` + `ReadableStream` | ✅ |
+| 11.5 | Proxy rewrite `/api/*` → `http://localhost:8080/api/*` | ✅ |
+| 11.6 | Todas las páginas: login, registro, dashboard, proyectos, recomendaciones, perfil, admin | ✅ |
+
+---
+
+## Fase 12 – Estabilización (v4.4.x)
+> **Estado:** ✅ COMPLETADA
+
+| # | Funcionalidad | Estado |
+|---|--------------|--------|
+| 12.1 | Fix FK: eliminar recomendaciones antes de borrar proyecto (DELETE 500) | ✅ |
+| 12.2 | Fix middleware: mover a `src/middleware.ts` (dashboard accesible sin auth) | ✅ |
+| 12.3 | `?redirect=` param en login/registro para volver a ruta original | ✅ |
+| 12.4 | Endpoint `POST /buscar` (Fase 1: BDNS sin IA, rate limit 30s) | ✅ |
+| 12.5 | Endpoint `GET /stream` solo analiza IA (Fase 2, rate limit 60s) | ✅ |
+| 12.6 | Frontend dos pasos: sección candidatas + sección recomendaciones IA | ✅ |
+| 12.7 | Registro devuelve `LoginResponseDTO` con JWT | ✅ |
+
+---
+
+## Fase 13 – Rate Limiting + Caché BDNS (v4.5.0)
+> **Estado:** ✅ COMPLETADA
+
+| # | Funcionalidad | Estado |
+|---|--------------|--------|
+| 13.1 | `RateLimitService`: cooldown 30s búsqueda, 60s análisis IA | ✅ |
+| 13.2 | Caché TTL 1h en `BdnsClientService.obtenerDetalleTexto()` | ✅ |
+| 13.3 | Respuesta HTTP 429 con `esperarSegundos` en `/buscar` | ✅ |
+| 13.4 | Evento SSE `error` con segundos restantes en `/stream` rate limited | ✅ |
