@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
  */
 @RestController
 @RequestMapping("/api/usuario/proyectos/{proyectoId}/recomendaciones")
-public class RecomendacionController {
+public class RecomendacionRestController {
 
     private final RecomendacionService recomendacionService;
     private final MotorMatchingService motorMatchingService;
@@ -35,7 +35,7 @@ public class RecomendacionController {
     private final PerfilService perfilService;
     private final BdnsClientService bdnsClientService;
 
-    public RecomendacionController(RecomendacionService recomendacionService,
+    public RecomendacionRestController(RecomendacionService recomendacionService,
                                        MotorMatchingService motorMatchingService,
                                        BusquedaRapidaService busquedaRapidaService,
                                        ProyectoService proyectoService,
