@@ -744,10 +744,6 @@ public class BdnsClientService {
             Object presObj = detalle.get("presupuestoTotal");
             if (presObj instanceof Number n) dto.setPresupuesto(n.doubleValue());
 
-            // Abierto (solicitud indefinida)
-            Object abiertoObj = detalle.get("abierto");
-            dto.setAbierto(Boolean.TRUE.equals(abiertoObj));
-
             // Fechas de solicitud
             String fechaInicio = getString(detalle, "fechaInicioSolicitud", null);
             if (fechaInicio != null) {
@@ -756,6 +752,20 @@ public class BdnsClientService {
             String fechaFin = getString(detalle, "fechaFinSolicitud", null);
             if (fechaFin != null) {
                 try { dto.setFechaCierre(LocalDate.parse(fechaFin.substring(0, 10))); } catch (Exception ignored) {}
+            }
+
+            // Abierto: calcular de forma fiable usando fechas + flag API
+            // La API devuelve abierto=true para solicitudes sin fecha fin (plazo indefinido)
+            // Pero no refleja si la fecha ya pasó — lo calculamos nosotros
+            Object abiertoObj = detalle.get("abierto");
+            if (Boolean.TRUE.equals(abiertoObj)) {
+                dto.setAbierto(true);
+            } else if (dto.getFechaCierre() == null) {
+                // Sin fecha cierre y sin flag = abierta por defecto
+                dto.setAbierto(true);
+            } else {
+                // Hay fecha cierre: abierta solo si no ha pasado
+                dto.setAbierto(!dto.getFechaCierre().isBefore(LocalDate.now()));
             }
 
             // Region ID desde el detalle usando el mapper robusto

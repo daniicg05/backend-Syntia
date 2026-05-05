@@ -1,7 +1,6 @@
 package com.syntia.ai.service;
 
 import com.syntia.ai.model.Convocatoria;
-import com.syntia.ai.model.Perfil;
 import com.syntia.ai.model.Proyecto;
 import com.syntia.ai.model.Recomendacion;
 import com.syntia.ai.model.dto.ConvocatoriaDTO;
@@ -35,7 +34,6 @@ public class MotorMatchingService {
 
     private final ConvocatoriaRepository convocatoriaRepository;
     private final RecomendacionRepository recomendacionRepository;
-    private final PerfilService perfilService;
     private final OpenAiMatchingService openAiMatchingService;
     private final BdnsClientService bdnsClientService;
     private final ObjectMapper objectMapper;
@@ -43,13 +41,11 @@ public class MotorMatchingService {
 
     public MotorMatchingService(ConvocatoriaRepository convocatoriaRepository,
                                 RecomendacionRepository recomendacionRepository,
-                                PerfilService perfilService,
                                 OpenAiMatchingService openAiMatchingService,
                                 BdnsClientService bdnsClientService,
                                 PlatformTransactionManager transactionManager) {
         this.convocatoriaRepository = convocatoriaRepository;
         this.recomendacionRepository = recomendacionRepository;
-        this.perfilService = perfilService;
         this.openAiMatchingService = openAiMatchingService;
         this.bdnsClientService = bdnsClientService;
         this.objectMapper = new ObjectMapper();
@@ -58,10 +54,7 @@ public class MotorMatchingService {
 
     @Transactional
     public List<Recomendacion> generarRecomendaciones(Proyecto proyecto) {
-        // 1. Cargar perfil del usuario
-        Perfil perfil = perfilService.obtenerPerfil(proyecto.getUsuario().getId()).orElse(null);
-
-        // 2. Obtener candidatas sin evaluar de la BD (guardadas previamente por BusquedaRapidaService)
+        // 1. Obtener candidatas sin evaluar de la BD (guardadas previamente por BusquedaRapidaService)
         List<Recomendacion> candidatasBd = recomendacionRepository.findByProyectoIdAndUsadaIaFalse(proyecto.getId());
         log.info("Candidatas sin evaluar en BD para proyecto {}: {}", proyecto.getId(), candidatasBd.size());
 
@@ -92,7 +85,7 @@ public class MotorMatchingService {
 
                 Convocatoria temporal = recExistente.getConvocatoria();
                 OpenAiMatchingService.ResultadoIA resultado =
-                        openAiMatchingService.analizar(proyecto, perfil, temporal, detalleTexto);
+                        openAiMatchingService.analizar(proyecto, null, temporal, detalleTexto);
 
                 if (resultado.puntuacion() >= UMBRAL_RECOMENDACION) {
                     // Enriquecer sector si la IA lo infirió
@@ -244,10 +237,7 @@ public class MotorMatchingService {
         try {
             enviarEvento(emitter, "estado", "🔍 Preparando análisis IA...");
 
-            // 1. Cargar perfil
-            Perfil perfil = perfilService.obtenerPerfil(proyecto.getUsuario().getId()).orElse(null);
-
-            // 2. Obtener candidatas sin evaluar de BD
+            // 1. Obtener candidatas sin evaluar de BD
             List<Recomendacion> candidatasBd = transactionTemplate.execute(status ->
                     recomendacionRepository.findByProyectoIdAndUsadaIaFalse(proyecto.getId()));
 
@@ -296,10 +286,10 @@ public class MotorMatchingService {
                             ? detallesPorId.get(dto.getNumeroConvocatoria())
                             : null;
 
-                    // Evaluar con OpenAI
+                    // Evaluar con OpenAI (basado únicamente en el proyecto)
                     Convocatoria convocatoria = recExistente.getConvocatoria();
                     OpenAiMatchingService.ResultadoIA resultado =
-                            openAiMatchingService.analizar(proyecto, perfil, convocatoria, detalleTexto);
+                            openAiMatchingService.analizar(proyecto, null, convocatoria, detalleTexto);
 
                     if (resultado.puntuacion() >= UMBRAL_RECOMENDACION) {
                         if (resultado.sector() != null && (convocatoria.getSector() == null || convocatoria.getSector().isBlank())) {
