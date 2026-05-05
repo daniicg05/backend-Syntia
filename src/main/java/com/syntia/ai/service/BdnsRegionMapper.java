@@ -102,6 +102,8 @@ public class BdnsRegionMapper {
     public Integer extraerRegionId(Map<String, Object> json) {
         if (json == null) return null;
 
+        ensureCacheLoaded();
+
         Integer n2Id = extraerDesdeRegiones(json, true);
         if (n2Id != null) return n2Id;
 
@@ -130,6 +132,8 @@ public class BdnsRegionMapper {
      */
     public Integer extraerProvinciaId(Map<String, Object> json) {
         if (json == null) return null;
+
+        ensureCacheLoaded();
 
         Integer n3Id = extraerDesdeRegiones(json, false);
         if (n3Id != null) return n3Id;
@@ -190,7 +194,7 @@ public class BdnsRegionMapper {
                 info = mapTextoAInfo(s);
             }
 
-            if (info != null && info.id() != 1) { // 1 is España general
+            if (info != null) {
                 if (asRegion) {
                     Integer regionId = ascendToRegion(info);
                     if (regionId != null) return regionId;
@@ -215,6 +219,17 @@ public class BdnsRegionMapper {
         return null;
     }
     
+    private void ensureCacheLoaded() {
+        if (!regionIdToInfoCache.isEmpty()) {
+            return;
+        }
+        synchronized (this) {
+            if (regionIdToInfoCache.isEmpty()) {
+                initCache();
+            }
+        }
+    }
+
     private boolean isProvincia(RegionInfo info) {
         // NUTS3: ej ES114 (Empieza por ES y tiene 5 caracteres en total) o similar
         // También podemos asumir que si no es nivel ES o ESX o ESXX, tiene más especificidad.

@@ -1,202 +1,217 @@
 package com.syntia.ai.controller.api;
 
-import com.syntia.ai.model.Convocatoria;
-import com.syntia.ai.model.Perfil;
 import com.syntia.ai.model.Proyecto;
 import com.syntia.ai.model.Recomendacion;
 import com.syntia.ai.model.Usuario;
 import com.syntia.ai.model.dto.GuiaSubvencionDTO;
 import com.syntia.ai.model.dto.RecomendacionDTO;
-import com.syntia.ai.service.BdnsClientService;
-import com.syntia.ai.service.BusquedaRapidaService;
-import com.syntia.ai.service.MotorMatchingService;
-import com.syntia.ai.service.OpenAiGuiaService;
-import com.syntia.ai.service.PerfilService;
-import com.syntia.ai.service.ProyectoService;
-import com.syntia.ai.service.RateLimitService;
-import com.syntia.ai.service.RecomendacionService;
-import com.syntia.ai.service.UsuarioService;
-import org.springframework.http.HttpStatus;
+import com.syntia.ai.service.*;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
+/**
+ * Controlador REST unificado para recomendaciones de proyectos.
+ * Rutas protegidas con JWT.
+ */
 @RestController
 @RequestMapping("/api/usuario/proyectos/{proyectoId}/recomendaciones")
-@PreAuthorize("hasRole('USUARIO')")
-public class RecomendacionController {
+public class RecomendacionRestController {
 
     private final RecomendacionService recomendacionService;
     private final MotorMatchingService motorMatchingService;
-    private final OpenAiGuiaService openAiGuiaService;
-    private final BdnsClientService bdnsClientService;
     private final BusquedaRapidaService busquedaRapidaService;
     private final ProyectoService proyectoService;
-    private final PerfilService perfilService;
     private final UsuarioService usuarioService;
-    private final RateLimitService rateLimitService;
+    private final OpenAiGuiaService openAiGuiaService;
+    private final PerfilService perfilService;
+    private final BdnsClientService bdnsClientService;
 
-    public RecomendacionController(RecomendacionService recomendacionService,
-                                   MotorMatchingService motorMatchingService,
-                                   OpenAiGuiaService openAiGuiaService,
-                                   BdnsClientService bdnsClientService,
-                                   BusquedaRapidaService busquedaRapidaService,
-                                   ProyectoService proyectoService,
-                                   PerfilService perfilService,
-                                   UsuarioService usuarioService,
-                                   RateLimitService rateLimitService) {
+    public RecomendacionRestController(RecomendacionService recomendacionService,
+                                       MotorMatchingService motorMatchingService,
+                                       BusquedaRapidaService busquedaRapidaService,
+                                       ProyectoService proyectoService,
+                                       UsuarioService usuarioService,
+                                       OpenAiGuiaService openAiGuiaService,
+                                       PerfilService perfilService,
+                                       BdnsClientService bdnsClientService) {
         this.recomendacionService = recomendacionService;
         this.motorMatchingService = motorMatchingService;
-        this.openAiGuiaService = openAiGuiaService;
-        this.bdnsClientService = bdnsClientService;
         this.busquedaRapidaService = busquedaRapidaService;
         this.proyectoService = proyectoService;
-        this.perfilService = perfilService;
         this.usuarioService = usuarioService;
-        this.rateLimitService = rateLimitService;
+        this.openAiGuiaService = openAiGuiaService;
+        this.perfilService = perfilService;
+        this.bdnsClientService = bdnsClientService;
     }
 
+    // ─────────────────────────────────────────────
+    // OBTENER RECOMENDACIONES CON FILTROS
+    // ─────────────────────────────────────────────
     @GetMapping
-    public ResponseEntity<List<RecomendacionDTO>> listar(@PathVariable Long proyectoId,
-                                                         Authentication authentication) {
+    public ResponseEntity<?> obtenerRecomendaciones(@PathVariable Long proyectoId,
+                                                    @RequestParam(required = false) String tipo,
+                                                    @RequestParam(required = false) String sector,
+                                                    @RequestParam(required = false) String ubicacion,
+                                                    Authentication authentication) {
+
         Usuario usuario = resolverUsuario(authentication);
-        proyectoService.obtenerPorId(proyectoId, usuario.getId());
-        return ResponseEntity.ok(recomendacionService.obtenerPorProyecto(proyectoId));
+        Proyecto proyecto = proyectoService.obtenerPorId(proyectoId, usuario.getId());
+
+        List<RecomendacionDTO> todas = recomendacionService.filtrar(proyectoId, tipo, sector, ubicacion);
+
+        List<RecomendacionDTO> vigentes = todas.stream()
+                .filter(RecomendacionDTO::isVigente)
+                .collect(Collectors.toList());
+        List<RecomendacionDTO> noVigentes = todas.stream()
+                .filter(r -> !r.isVigente())
+                .collect(Collectors.toList());
+
+        List<String> tipos    = recomendacionService.obtenerTiposDistintos(proyectoId);
+        List<String> sectores = recomendacionService.obtenerSectoresDistintos(proyectoId);
+        long total = recomendacionService.contarPorProyecto(proyectoId);
+
+        return ResponseEntity.ok(Map.of(
+                "recomendacionesVigentes", vigentes,
+                "recomendacionesNoVigentes", noVigentes,
+                "tipos", tipos,
+                "sectores", sectores,
+                "totalSinFiltro", total
+        ));
     }
 
+    // ─────────────────────────────────────────────
+    // BUSCAR CANDIDATAS EN BDNS
+    // ─────────────────────────────────────────────
+    @PostMapping("/buscar-candidatas")
+    public ResponseEntity<?> buscarCandidatas(@PathVariable Long proyectoId,
+                                              Authentication authentication) {
+        Usuario usuario = resolverUsuario(authentication);
+        Proyecto proyecto = proyectoService.obtenerPorId(proyectoId, usuario.getId());
+
+        try {
+            int encontradas = busquedaRapidaService.buscarYGuardarCandidatas(proyecto);
+            String mensaje = (encontradas == 0)
+                    ? "No se encontraron convocatorias vigentes para tu sector y ubicación."
+                    : "Se han encontrado " + encontradas + " convocatorias para tu perfil.";
+            return ResponseEntity.ok(Map.of("mensaje", mensaje, "total", encontradas));
+        } catch (BdnsClientService.BdnsException e) {
+            return ResponseEntity.status(503)
+                    .body(Map.of("error", "No se pudo conectar con BDNS: " + e.getMessage()));
+        }
+    }
+
+    // ─────────────────────────────────────────────
+    // GENERAR RECOMENDACIONES (SYNC)
+    // ─────────────────────────────────────────────
     @PostMapping("/generar")
     public ResponseEntity<?> generar(@PathVariable Long proyectoId,
                                      Authentication authentication) {
         Usuario usuario = resolverUsuario(authentication);
         Proyecto proyecto = proyectoService.obtenerPorId(proyectoId, usuario.getId());
 
-        List<Recomendacion> recomendaciones = motorMatchingService.generarRecomendaciones(proyecto);
-
-        if (recomendaciones.isEmpty()) {
-            return ResponseEntity.ok(Map.of(
-                    "message", "No se encontraron recomendaciones. Asegúrate de haber buscado convocatorias primero.",
-                    "recomendaciones", List.of()
-            ));
+        List<?> generadas;
+        try {
+            generadas = motorMatchingService.generarRecomendaciones(proyecto);
+        } catch (OpenAiClient.OpenAiUnavailableException e) {
+            return ResponseEntity.status(503).body(Map.of("error", "IA no disponible: " + e.getMessage()));
+        } catch (BdnsClientService.BdnsException e) {
+            return ResponseEntity.status(503).body(Map.of("error", "BDNS no disponible: " + e.getMessage()));
         }
 
-        List<RecomendacionDTO> dtos = recomendaciones.stream()
-                .map(recomendacionService::toDTO)
-                .toList();
+        long totalEnBd = recomendacionService.contarPorProyecto(proyectoId);
+        String mensaje = (generadas.isEmpty() && totalEnBd == 0)
+                ? "No hay candidatas para analizar. Usa primero 'buscar convocatorias'."
+                : (generadas.isEmpty()
+                ? "La IA no encontró convocatorias que superen el umbral de compatibilidad."
+                : "Se han analizado " + generadas.size() + " de un total de " + totalEnBd + " convocatorias.");
 
-        return ResponseEntity.ok(dtos);
+        return ResponseEntity.ok(Map.of(
+                "mensaje", mensaje,
+                "totalGeneradas", generadas.size()
+        ));
     }
 
-    @GetMapping("/{recId}/guia-enriquecida")
-    public ResponseEntity<?> guiaEnriquecida(@PathVariable Long proyectoId,
-                                             @PathVariable Long recId,
-                                             Authentication authentication) {
-        Usuario usuario = resolverUsuario(authentication);
-        Proyecto proyecto = proyectoService.obtenerPorId(proyectoId, usuario.getId());
-        Recomendacion rec = recomendacionService.obtenerEntidadPorId(recId, proyectoId);
+    // ─────────────────────────────────────────────
+    // GENERAR RECOMENDACIONES (SSE / STREAM)
+    // ─────────────────────────────────────────────
+    @GetMapping(value = "/generar-stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter generarStream(@PathVariable Long proyectoId,
+                                    Authentication authentication) {
 
-        if (rec.getGuiaEnriquecida() != null && !rec.getGuiaEnriquecida().isBlank()) {
-            GuiaSubvencionDTO cached = openAiGuiaService.deserializarGuia(rec.getGuiaEnriquecida());
-            if (cached != null) {
-                return ResponseEntity.ok(cached);
-            }
-        }
-
-        Perfil perfil = perfilService.obtenerPerfil(usuario.getId()).orElse(null);
-        Convocatoria convocatoria = rec.getConvocatoria();
-
-        String detalleTexto = convocatoria.getNumeroConvocatoria() != null
-                ? bdnsClientService.obtenerDetalleTexto(convocatoria.getNumeroConvocatoria())
-                : null;
-
-        String numConv = convocatoria.getNumeroConvocatoria();
-        String urlOficial = (numConv != null && !numConv.isBlank())
-                ? "https://www.infosubvenciones.es/bdnstrans/GE/es/convocatoria/" + numConv
-                : convocatoria.getUrlOficial();
-
-        GuiaSubvencionDTO guia = openAiGuiaService.generarGuia(proyecto, perfil, convocatoria, detalleTexto, urlOficial);
-        recomendacionService.actualizarGuiaEnriquecida(recId, openAiGuiaService.serializarGuia(guia));
-
-        return ResponseEntity.ok(guia);
-    }
-
-    /**
-     * Fase 1 (sin IA): busca convocatorias en BDNS y las guarda como candidatas (usadaIa=false).
-     * Rápido y sin coste de IA. El usuario puede revisar los resultados antes de analizar.
-     * Rate limit: 30s por proyecto para evitar abusos de la API BDNS.
-     */
-    @PostMapping("/buscar")
-    public ResponseEntity<?> buscar(@PathVariable Long proyectoId, Authentication authentication) {
-        Usuario usuario = resolverUsuario(authentication);
-
-        if (!rateLimitService.puedeBuscar(usuario.getId(), proyectoId)) {
-            long restantes = rateLimitService.segundosRestantesBusqueda(usuario.getId(), proyectoId);
-            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(Map.of(
-                    "error", "Espera " + restantes + " segundos antes de volver a buscar.",
-                    "esperarSegundos", restantes
-            ));
-        }
-
-        Proyecto proyecto = proyectoService.obtenerPorId(proyectoId, usuario.getId());
-        rateLimitService.registrarBusqueda(usuario.getId(), proyectoId);
-
-        int candidatas = busquedaRapidaService.buscarYGuardarCandidatas(proyecto);
-        String mensaje = candidatas > 0
-                ? candidatas + " convocatorias encontradas. Pulsa «Ver detalles» para ver información más detallada de la convocatoria."
-                : "No se encontraron convocatorias en BDNS para este proyecto. Prueba a ajustar el sector o la ubicación.";
-        return ResponseEntity.ok(Map.of("candidatas", candidatas, "mensaje", mensaje));
-    }
-
-    /**
-     * Fase 2 (con IA): analiza las candidatas guardadas por /buscar y emite resultados por SSE.
-     * Requiere haber ejecutado /buscar previamente para que existan candidatas (usadaIa=false).
-     * Rate limit: 60s por proyecto para controlar el coste de OpenAI.
-     */
-    @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter stream(@PathVariable Long proyectoId, Authentication authentication) {
+        SseEmitter emitter = new SseEmitter(180_000L);
         Usuario usuario = resolverUsuario(authentication);
         Proyecto proyecto = proyectoService.obtenerPorId(proyectoId, usuario.getId());
 
-        if (!rateLimitService.puedeAnalizar(usuario.getId(), proyectoId)) {
-            long restantes = rateLimitService.segundosRestantesAnalisis(usuario.getId(), proyectoId);
-            SseEmitter blocked = new SseEmitter();
-            try {
-                blocked.send(SseEmitter.event().name("error")
-                        .data("Demasiadas solicitudes. Espera " + restantes + "s antes de analizar de nuevo."));
-                blocked.complete();
-            } catch (Exception e) {
-                blocked.completeWithError(e);
-            }
-            return blocked;
-        }
-
-        rateLimitService.registrarAnalisis(usuario.getId(), proyectoId);
-
-        SseEmitter emitter = new SseEmitter(300_000L);
-        ExecutorService executor = Executors.newSingleThreadExecutor();
-        executor.submit(() -> {
+        CompletableFuture.runAsync(() -> {
             try {
                 motorMatchingService.generarRecomendacionesStream(proyecto, emitter);
                 emitter.complete();
             } catch (Exception e) {
+                try {
+                    emitter.send(SseEmitter.event()
+                            .name("error")
+                            .data(Map.of("error", e.getMessage())));
+                } catch (Exception ignored) {}
                 emitter.completeWithError(e);
-            } finally {
-                executor.shutdown();
             }
         });
+
+        emitter.onTimeout(emitter::complete);
+        emitter.onError(e -> {});
         return emitter;
+    }
+
+    // ─────────────────────────────────────────────
+    // GUIA ENRIQUECIDA
+    // ─────────────────────────────────────────────
+    @GetMapping("/{recomendacionId}/guia-enriquecida")
+    public ResponseEntity<?> obtenerGuiaEnriquecida(@PathVariable Long proyectoId,
+                                                    @PathVariable Long recomendacionId,
+                                                    Authentication authentication) {
+        Usuario usuario = resolverUsuario(authentication);
+        Proyecto proyecto = proyectoService.obtenerPorId(proyectoId, usuario.getId());
+
+        Recomendacion rec = recomendacionService.obtenerEntidadPorId(recomendacionId, proyectoId);
+
+        if (rec.getGuiaEnriquecida() != null && !rec.getGuiaEnriquecida().isBlank()) {
+            GuiaSubvencionDTO guia = openAiGuiaService.deserializarGuia(rec.getGuiaEnriquecida());
+            if (guia != null) return ResponseEntity.ok(guia);
+        }
+
+        try {
+            var perfil = perfilService.obtenerPerfil(usuario.getId()).orElse(null);
+            var convocatoria = rec.getConvocatoria();
+
+            String detalleTexto = convocatoria.getIdBdns() != null
+                    ? bdnsClientService.obtenerDetalleTexto(convocatoria.getIdBdns())
+                    : null;
+
+            String urlOficial = convocatoria.getNumeroConvocatoria() != null
+                    ? "https://www.infosubvenciones.es/bdnstrans/GE/es/convocatoria/" + convocatoria.getNumeroConvocatoria()
+                    : convocatoria.getUrlOficial();
+
+            GuiaSubvencionDTO guia = openAiGuiaService.generarGuia(
+                    proyecto, perfil, convocatoria, detalleTexto, urlOficial);
+
+            String guiaJson = openAiGuiaService.serializarGuia(guia);
+            recomendacionService.actualizarGuiaEnriquecida(recomendacionId, guiaJson);
+
+            return ResponseEntity.ok(guia);
+
+        } catch (OpenAiClient.OpenAiUnavailableException e) {
+            return ResponseEntity.status(503).body(Map.of("error", "IA no disponible: " + e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", "Error generando la guía: " + e.getMessage()));
+        }
     }
 
     private Usuario resolverUsuario(Authentication authentication) {

@@ -18,6 +18,8 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Fase 2 del ETL BDNS: construye las tablas de índice catálogo ↔ numero_convocatoria.
@@ -32,6 +34,7 @@ public class IndiceConvocatoriaService {
 
     private static final int DELAY_MS = 300;
     private static final String EJE_SYNC_INDICES_DETALLE = "INDICES_BDNS_DETALLE";
+    private static final Pattern REGLAMENTO_NUMERO_PATTERN = Pattern.compile("\\b\\d{3,4}/\\d{4}\\b");
 
     @Value("${bdns.indices.detalle.page-size:50}")
     private int detallePageSize;
@@ -44,6 +47,8 @@ public class IndiceConvocatoriaService {
 
     private final BdnsCatalogoClient bdnsCatalogoClient;
     private final BdnsClientService bdnsClientService;
+    private final BdnsRegionMapper bdnsRegionMapper;
+    private final RegionService regionService;
     private final SyncStateRepository syncStateRepo;
 
     private final CatFinalidadRepository finalidadRepo;
@@ -59,6 +64,7 @@ public class IndiceConvocatoriaService {
     private final IdxConvocatoriaInstrumentoRepository idxInstrumentoRepo;
     private final IdxConvocatoriaBeneficiarioRepository idxBeneficiarioRepo;
     private final IdxConvocatoriaOrganoRepository idxOrganoRepo;
+    private final IdxConvocatoriaRegionRepository idxRegionRepo;
     private final IdxConvocatoriaTipoAdminRepository idxTipoAdminRepo;
     private final IdxConvocatoriaActividadRepository idxActividadRepo;
     private final IdxConvocatoriaReglamentoRepository idxReglamentoRepo;
@@ -95,7 +101,7 @@ public class IndiceConvocatoriaService {
         int sectores      = cancelado.get() ? 0 : construirIndiceSectoresProducto(onProgreso, cancelado);
         log.info("=== FIN índices: finalidades={} instrumentos={} beneficiarios={} organos={} tiposAdmin={} actividades={} reglamentos={} objetivos={} sectores={}",
                 finalidades, instrumentos, beneficiarios, organos, tiposAdmin, actividades, reglamentos, objetivos, sectores);
-        return new ResultadoIndices(finalidades, instrumentos, beneficiarios, organos, tiposAdmin, actividades, reglamentos, objetivos, sectores);
+        return new ResultadoIndices(finalidades, instrumentos, beneficiarios, organos, 0, tiposAdmin, actividades, reglamentos, objetivos, sectores);
     }
 
     private ResultadoIndices construirPorDetallePaginado(Consumer<String> onProgreso, AtomicBoolean cancelado, Integer limiteConvocatorias) throws InterruptedException {
@@ -117,6 +123,7 @@ public class IndiceConvocatoriaService {
         syncState.setTsUltimaCarga(Instant.now());
         syncState = syncStateRepo.save(syncState);
 
+        asegurarCatalogoRegiones(onProgreso);
         notificar(onProgreso, "Cargando catalogos...");
         CatalogoMaps catalogos = cargarCatalogosNormalizados();
         AcumuladorIndices acumulado = new AcumuladorIndices();
@@ -438,6 +445,16 @@ public class IndiceConvocatoriaService {
             }
         }
 
+        Integer regionId = bdnsRegionMapper.extraerRegionId(detalle);
+        if (guardarRegion(numeroConvocatoria, regionId)) {
+            res.regiones++;
+        }
+
+        Integer provinciaId = bdnsRegionMapper.extraerProvinciaId(detalle);
+        if (!Objects.equals(regionId, provinciaId) && guardarRegion(numeroConvocatoria, provinciaId)) {
+            res.regiones++;
+        }
+
         for (String descripcion : descripciones(detalle.get("sectores"))) {
             Integer id = catalogos.actividades.get(normalizar(descripcion));
             if (id != null && !idxActividadRepo.existsByNumeroConvocatoriaAndActividadId(numeroConvocatoria, id)) {
@@ -446,8 +463,8 @@ public class IndiceConvocatoriaService {
             }
         }
 
-        for (String descripcion : descripciones(detalle.get("reglamento"))) {
-            Integer id = catalogos.reglamentos.get(normalizar(descripcion));
+        for (String descripcion : bdnsClientService.extraerReglamentosDelDetalle(detalle)) {
+            Integer id = resolverReglamento(catalogos, descripcion);
             if (id != null && !idxReglamentoRepo.existsByNumeroConvocatoriaAndReglamentoId(numeroConvocatoria, id)) {
                 idxReglamentoRepo.save(IdxConvocatoriaReglamento.builder().numeroConvocatoria(numeroConvocatoria).reglamentoId(id).build());
                 res.reglamentos++;
@@ -479,7 +496,14 @@ public class IndiceConvocatoriaService {
         instrumentoRepo.findAll().forEach(c -> maps.instrumentos.putIfAbsent(normalizar(c.getDescripcion()), c.getId()));
         beneficiarioRepo.findAll().forEach(c -> maps.beneficiarios.putIfAbsent(normalizar(c.getDescripcion()), c.getId()));
         actividadRepo.findAll().forEach(c -> maps.actividades.putIfAbsent(normalizar(c.getDescripcion()), c.getId()));
-        reglamentoRepo.findAll().forEach(c -> maps.reglamentos.putIfAbsent(normalizar(c.getDescripcion()), c.getId()));
+        reglamentoRepo.findAll().forEach(c -> {
+            String descripcion = normalizar(c.getDescripcion());
+            maps.reglamentos.putIfAbsent(descripcion, c.getId());
+            String numero = extraerNumeroReglamento(descripcion);
+            if (numero != null && c.getId() != null && c.getId() != 0) {
+                maps.reglamentosPorNumero.putIfAbsent(numero, c.getId());
+            }
+        });
         objetivoRepo.findAll().forEach(c -> maps.objetivos.putIfAbsent(normalizar(c.getDescripcion()), c.getId()));
         sectorProductoRepo.findAll().forEach(c -> maps.sectores.putIfAbsent(normalizar(c.getDescripcion()), c.getId()));
         organoRepo.findAll().forEach(c -> {
@@ -490,6 +514,23 @@ public class IndiceConvocatoriaService {
             }
         });
         return maps;
+    }
+
+    private void asegurarCatalogoRegiones(Consumer<String> onProgreso) {
+        if (regionService.count() > 0) return;
+        notificar(onProgreso, "Sincronizando catalogo de regiones...");
+        int total = regionService.sincronizarRegiones();
+        log.info("Catalogo de regiones sincronizado antes de construir indices: {} registros", total);
+    }
+
+    private boolean guardarRegion(String numeroConvocatoria, Integer regionId) {
+        if (regionId == null || regionId <= 0) return false;
+        if (idxRegionRepo.existsByNumeroConvocatoriaAndRegionId(numeroConvocatoria, regionId)) return false;
+        idxRegionRepo.save(IdxConvocatoriaRegion.builder()
+                .numeroConvocatoria(numeroConvocatoria)
+                .regionId(regionId)
+                .build());
+        return true;
     }
 
     private Integer resolverOrgano(CatalogoMaps catalogos, String tipoAdmin, String... descripciones) {
@@ -506,12 +547,43 @@ public class IndiceConvocatoriaService {
         return null;
     }
 
+    private Integer resolverReglamento(CatalogoMaps catalogos, String descripcion) {
+        String key = normalizar(descripcion);
+        if (key.isBlank()) return null;
+
+        Integer exacto = catalogos.reglamentos.get(key);
+        if (exacto != null && exacto != 0) return exacto;
+
+        String numero = extraerNumeroReglamento(key);
+        if (numero == null) return null;
+
+        Integer porNumero = catalogos.reglamentosPorNumero.get(numero);
+        return porNumero != null && porNumero != 0 ? porNumero : null;
+    }
+
+    private String extraerNumeroReglamento(String value) {
+        if (value == null) return null;
+        Matcher matcher = REGLAMENTO_NUMERO_PATTERN.matcher(value);
+        return matcher.find() ? matcher.group() : null;
+    }
+
     private List<String> descripciones(Object obj) {
         if (obj instanceof List<?> list) {
             return list.stream().map(this::descripcion).filter(Objects::nonNull).filter(s -> !s.isBlank()).toList();
         }
         String descripcion = descripcion(obj);
         return descripcion == null || descripcion.isBlank() ? List.of() : List.of(descripcion);
+    }
+
+    /**
+     * Extrae una lista de descripciones desde un objeto que puede ser: String, List, Map, o nada.
+     * Devuelve la primera lista no vacía encontrada.
+     * DEPRECATED: Usar BdnsClientService.extraerReglamentosDelDetalle() en su lugar.
+     */
+    @Deprecated
+    @SuppressWarnings("unchecked")
+    private List<String> extraerReglamentosDesdeDetalle(Map<String, Object> detalle) {
+        return bdnsClientService.extraerReglamentosDelDetalle(detalle);
     }
 
     private String descripcion(Object obj) {
@@ -562,6 +634,7 @@ public class IndiceConvocatoriaService {
                 idxInstrumentoRepo.count(),
                 idxBeneficiarioRepo.count(),
                 idxOrganoRepo.count(),
+                idxRegionRepo.count(),
                 idxTipoAdminRepo.count(),
                 idxActividadRepo.count(),
                 idxReglamentoRepo.count(),
@@ -571,7 +644,7 @@ public class IndiceConvocatoriaService {
     }
 
     public record ConteoIndices(long finalidades, long instrumentos, long beneficiarios,
-                                long organos, long tiposAdmin, long actividades,
+                                long organos, long regiones, long tiposAdmin, long actividades,
                                 long reglamentos, long objetivos, long sectores) {}
 
     @FunctionalInterface
@@ -602,6 +675,7 @@ public class IndiceConvocatoriaService {
         final Map<String, Integer> organosPorTipo = new HashMap<>();
         final Map<String, Integer> actividades = new HashMap<>();
         final Map<String, Integer> reglamentos = new HashMap<>();
+        final Map<String, Integer> reglamentosPorNumero = new HashMap<>();
         final Map<String, Integer> objetivos = new HashMap<>();
         final Map<String, Integer> sectores = new HashMap<>();
     }
@@ -611,6 +685,7 @@ public class IndiceConvocatoriaService {
         int instrumentos;
         int beneficiarios;
         int organos;
+        int regiones;
         int tiposAdmin;
         int actividades;
         int reglamentos;
@@ -622,6 +697,7 @@ public class IndiceConvocatoriaService {
             instrumentos += other.instrumentos;
             beneficiarios += other.beneficiarios;
             organos += other.organos;
+            regiones += other.regiones;
             tiposAdmin += other.tiposAdmin;
             actividades += other.actividades;
             reglamentos += other.reglamentos;
@@ -630,17 +706,17 @@ public class IndiceConvocatoriaService {
         }
 
         int total() {
-            return finalidades + instrumentos + beneficiarios + organos + tiposAdmin
+            return finalidades + instrumentos + beneficiarios + organos + regiones + tiposAdmin
                     + actividades + reglamentos + objetivos + sectores;
         }
 
         ResultadoIndices toResultado() {
-            return new ResultadoIndices(finalidades, instrumentos, beneficiarios, organos, tiposAdmin,
+            return new ResultadoIndices(finalidades, instrumentos, beneficiarios, organos, regiones, tiposAdmin,
                     actividades, reglamentos, objetivos, sectores);
         }
     }
 
     public record ResultadoIndices(int finalidades, int instrumentos, int beneficiarios,
-                                   int organos, int tiposAdmin, int actividades,
+                                   int organos, int regiones, int tiposAdmin, int actividades,
                                    int reglamentos, int objetivos, int sectores) {}
 }
