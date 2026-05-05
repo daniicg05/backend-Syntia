@@ -195,10 +195,13 @@ public class ConvocatoriaPersonalizadaController {
         boolean filtrarRegion = regionId != null;
         Set<Integer> regionIds = filtrarRegion
                 ? regionService.obtenerDescendientesIds(regionId)
-                : Set.of();
-        LocalDate fechaCierreHasta = plazoCierreDias != null && plazoCierreDias > 0
+                : Set.of(-1);
+        boolean filtrarFechaCierre = plazoCierreDias != null && plazoCierreDias > 0;
+        LocalDate fechaCierreHasta = filtrarFechaCierre
                 ? LocalDate.now().plusDays(plazoCierreDias)
-                : null;
+                : LocalDate.of(2099, 12, 31);
+        boolean filtrarPresupuesto = presupuestoMin != null && presupuestoMin > 0;
+        Double presupuestoMinEfectivo = filtrarPresupuesto ? presupuestoMin : 0.0;
 
         // Pool grande para re-ordenar por score/criterio
         PageRequest pageRequest = PageRequest.of(0, 200);
@@ -209,7 +212,9 @@ public class ConvocatoriaPersonalizadaController {
                 abierto == null || !abierto,
                 filtrarRegion,
                 regionIds,
-                presupuestoMin != null && presupuestoMin > 0 ? presupuestoMin : null,
+                filtrarPresupuesto,
+                presupuestoMinEfectivo,
+                filtrarFechaCierre,
                 fechaCierreHasta,
                 tipoBeneficiario.isBlank() ? null : tipoBeneficiario,
                 pageRequest

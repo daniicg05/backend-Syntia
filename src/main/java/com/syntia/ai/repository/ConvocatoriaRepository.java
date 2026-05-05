@@ -158,7 +158,7 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
             "   (c.finalidad IS NOT NULL AND LOWER(c.finalidad) = LOWER(:sector))) AND " +
             "(:tipo IS NULL OR :tipo = '' OR " +
             "   (c.tipo IS NOT NULL AND LOWER(c.tipo) = LOWER(:tipo))) AND " +
-            "(:incluirCerradas = true OR c.abierto = true)")
+            "(:incluirCerradas = true OR c.abierto = true OR (c.abierto IS NULL AND (c.fechaCierre IS NULL OR c.fechaCierre >= CURRENT_DATE)))")
     Page<Convocatoria> buscarPublico(@Param("q") String q,
                                      @Param("sector") String sector,
                                      @Param("tipo") String tipo,
@@ -179,10 +179,10 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
             "   (c.finalidad IS NOT NULL AND LOWER(c.finalidad) = LOWER(:sector))) AND " +
             "(:tipo IS NULL OR :tipo = '' OR " +
             "   (c.tipo IS NOT NULL AND LOWER(c.tipo) = LOWER(:tipo))) AND " +
-            "(:incluirCerradas = true OR c.abierto = true) AND " +
+            "(:incluirCerradas = true OR c.abierto = true OR (c.abierto IS NULL AND (c.fechaCierre IS NULL OR c.fechaCierre >= CURRENT_DATE))) AND " +
             "(:filtrarRegion = false OR (c.regionId IN :regionIds OR c.provinciaId IN :regionIds OR LOWER(c.ubicacion) = 'nacional')) AND " +
-            "(:presupuestoMin IS NULL OR (c.presupuesto IS NOT NULL AND c.presupuesto >= :presupuestoMin)) AND " +
-            "(:fechaCierreHasta IS NULL OR (c.fechaCierre IS NOT NULL AND c.fechaCierre >= CURRENT_DATE AND c.fechaCierre <= :fechaCierreHasta)) AND " +
+            "(:filtrarPresupuesto = false OR (c.presupuesto IS NOT NULL AND c.presupuesto >= :presupuestoMin)) AND " +
+            "(:filtrarFechaCierre = false OR (c.fechaCierre IS NOT NULL AND c.fechaCierre >= CURRENT_DATE AND c.fechaCierre <= :fechaCierreHasta)) AND " +
             "(:tipoBeneficiario IS NULL OR :tipoBeneficiario = '' OR EXISTS (" +
             "   SELECT 1 FROM IdxConvocatoriaBeneficiario ib JOIN CatBeneficiario b ON ib.beneficiarioId = b.id " +
             "   WHERE ib.numeroConvocatoria = c.numeroConvocatoria " +
@@ -193,7 +193,9 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
                                               @Param("incluirCerradas") boolean incluirCerradas,
                                               @Param("filtrarRegion") boolean filtrarRegion,
                                               @Param("regionIds") Collection<Integer> regionIds,
+                                              @Param("filtrarPresupuesto") boolean filtrarPresupuesto,
                                               @Param("presupuestoMin") Double presupuestoMin,
+                                              @Param("filtrarFechaCierre") boolean filtrarFechaCierre,
                                               @Param("fechaCierreHasta") LocalDate fechaCierreHasta,
                                               @Param("tipoBeneficiario") String tipoBeneficiario,
                                               Pageable pageable);
@@ -211,10 +213,16 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
                                    @Param("sector") String sector,
                                    Pageable pageable);
 
+    @Query("SELECT COUNT(c) FROM Convocatoria c WHERE " +
+            "c.abierto = true OR (c.abierto IS NULL AND (c.fechaCierre IS NULL OR c.fechaCierre >= CURRENT_DATE))")
     long countByAbiertoTrue();
 
-    /** Últimas convocatorias abiertas para la sección destacadas del Home. */
-    List<Convocatoria> findTop16ByAbiertoTrueOrderByIdDesc();
+    /** Últimas convocatorias abiertas para la sección destacadas del Home.
+     *  Considera abierta si: abierto=true, O abierto IS NULL sin fechaCierre pasada. */
+    @Query("SELECT c FROM Convocatoria c WHERE " +
+            "(c.abierto = true OR (c.abierto IS NULL AND (c.fechaCierre IS NULL OR c.fechaCierre >= CURRENT_DATE))) " +
+            "ORDER BY c.id DESC")
+    List<Convocatoria> findTop16ByAbiertoTrueOrderByIdDesc(Pageable pageable);
 
     /** Sin filtro de estado, usado internamente (pool de candidatos). */
     List<Convocatoria> findTop16ByOrderByIdDesc();

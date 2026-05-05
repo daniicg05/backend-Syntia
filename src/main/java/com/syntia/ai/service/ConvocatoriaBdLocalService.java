@@ -50,7 +50,7 @@ public class ConvocatoriaBdLocalService {
 
         Integer regionIdMapped = UbicacionNormalizador.normalizarARegionId(ubicacionRaw);
         boolean filtrarRegion = regionIdMapped != null;
-        Set<Integer> regionIds = filtrarRegion ? regionService.obtenerDescendientesIds(regionIdMapped.longValue()) : Set.of();
+        Set<Integer> regionIds = filtrarRegion ? regionService.obtenerDescendientesIds(regionIdMapped.longValue()) : Set.of(-1);
         String ubicacionTexto = ubicacionRaw != null ? ubicacionRaw : "";
 
         // Preparar parámetros LIKE ya en minúsculas con comodines
