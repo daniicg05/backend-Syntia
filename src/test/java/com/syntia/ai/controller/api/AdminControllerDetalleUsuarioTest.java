@@ -82,6 +82,20 @@ class AdminControllerDetalleUsuarioTest {
     private SyncStateRepository syncStateRepository;
     @MockBean
     private BdnsEnrichmentService bdnsEnrichmentService;
+    @MockBean
+    private com.syntia.ai.repository.ConvocatoriaRepository convocatoriaRepository;
+    @MockBean
+    private com.syntia.ai.repository.PerfilRepository perfilRepository2;
+    @MockBean
+    private com.syntia.ai.service.RegionService regionService;
+    @MockBean
+    private com.syntia.ai.service.CatalogoImportService catalogoImportService;
+    @MockBean
+    private com.syntia.ai.service.CatalogoJobService catalogoJobService;
+    @MockBean
+    private com.syntia.ai.service.IndiceConvocatoriaService indiceConvocatoriaService;
+    @MockBean
+    private com.syntia.ai.service.IndiceJobService indiceJobService;
 
     @Test
     @WithMockUser(roles = "ADMIN")

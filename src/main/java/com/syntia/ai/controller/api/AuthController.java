@@ -1,5 +1,6 @@
 package com.syntia.ai.controller.api;
 
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.syntia.ai.model.Rol;
 import com.syntia.ai.model.Usuario;
 import com.syntia.ai.model.dto.LoginRequestDTO;
@@ -7,6 +8,8 @@ import com.syntia.ai.model.dto.LoginResponseDTO;
 import com.syntia.ai.model.dto.RegistroDTO;
 import com.syntia.ai.security.JwtService;
 import com.syntia.ai.service.DashboardService;
+import com.syntia.ai.service.EmailService;
+import com.syntia.ai.service.GoogleAuthService;
 import com.syntia.ai.service.UsuarioService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Value;
@@ -35,6 +38,8 @@ public class AuthController {
     private final JwtService jwtService;
     private final UsuarioService usuarioService;
     private final DashboardService dashboardService;
+    private final EmailService emailService;
+    private final GoogleAuthService googleAuthService;
 
     @Value("${jwt.expiration}")
     private long jwtExpiration;
@@ -42,11 +47,15 @@ public class AuthController {
     public AuthController(AuthenticationManager authenticationManager,
                           JwtService jwtService,
                           UsuarioService usuarioService,
-                          DashboardService dashboardService) {
+                          DashboardService dashboardService,
+                          EmailService emailService,
+                          GoogleAuthService googleAuthService) {
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.usuarioService = usuarioService;
         this.dashboardService = dashboardService;
+        this.emailService = emailService;
+        this.googleAuthService = googleAuthService;
     }
 
     // ==========================
@@ -83,20 +92,84 @@ public class AuthController {
         }
 
         String emailNormalizado = dto.getEmail().toLowerCase().strip();
+        Usuario usuarioCreado;
         try {
-            usuarioService.registrar(emailNormalizado, dto.getPassword(), Rol.USUARIO);
+            usuarioCreado = usuarioService.registrar(emailNormalizado, dto.getPassword(), Rol.USUARIO);
         } catch (IllegalStateException e) {
             return ResponseEntity.badRequest()
                     .body(Map.of("error", e.getMessage()));
         }
 
-        Usuario usuarioCreado = usuarioService.buscarPorEmail(emailNormalizado)
-                .orElseThrow(() -> new IllegalStateException("Usuario no encontrado tras registro"));
-
-        String token = jwtService.generarToken(usuarioCreado.getEmail(), usuarioCreado.getRol().name());
+        emailService.enviarEmailVerificacion(usuarioCreado.getEmail(), usuarioCreado.getTokenVerificacion());
 
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(new LoginResponseDTO(token, usuarioCreado.getEmail(), usuarioCreado.getRol().name(), jwtExpiration));
+                .body(Map.of("message", "Registro exitoso. Revisa tu correo para verificar tu cuenta."));
+    }
+
+    // ==========================
+    // VERIFICAR EMAIL
+    // ==========================
+    @GetMapping("/auth/verificar")
+    public ResponseEntity<?> verificarEmail(@RequestParam String token, @RequestParam String firma) {
+        if (!emailService.verificarFirma(token, firma)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Enlace de verificacion invalido"));
+        }
+        try {
+            Usuario usuario = usuarioService.verificarEmail(token);
+            String jwt = jwtService.generarToken(usuario.getEmail(), usuario.getRol().name());
+            return ResponseEntity.ok(new LoginResponseDTO(jwt, usuario.getEmail(), usuario.getRol().name(), jwtExpiration));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.GONE).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // ==========================
+    // REENVIAR VERIFICACION
+    // ==========================
+    @PostMapping("/auth/reenviar-verificacion")
+    public ResponseEntity<?> reenviarVerificacion(@RequestBody Map<String, String> body) {
+        String email = body.get("email");
+        if (email == null || email.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "El email es obligatorio"));
+        }
+        try {
+            Usuario usuario = usuarioService.reenviarVerificacion(email);
+            emailService.enviarEmailVerificacion(usuario.getEmail(), usuario.getTokenVerificacion());
+            return ResponseEntity.ok(Map.of("message", "Email de verificacion reenviado"));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // ==========================
+    // LOGIN CON GOOGLE
+    // ==========================
+    @PostMapping("/auth/google")
+    public ResponseEntity<?> loginConGoogle(@RequestBody Map<String, String> body) {
+        String idToken = body.get("credential");
+        if (idToken == null || idToken.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Token de Google requerido"));
+        }
+
+        GoogleIdToken.Payload payload = googleAuthService.verificarToken(idToken);
+        if (payload == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Token de Google invalido"));
+        }
+
+        String email = payload.getEmail();
+        if (email == null || !Boolean.TRUE.equals(payload.getEmailVerified())) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "El email de Google no esta verificado"));
+        }
+
+        Usuario usuario = usuarioService.registrarConGoogle(email, Rol.USUARIO);
+        String jwt = jwtService.generarToken(usuario.getEmail(), usuario.getRol().name());
+
+        return ResponseEntity.ok(new LoginResponseDTO(jwt, usuario.getEmail(), usuario.getRol().name(), jwtExpiration));
     }
 
     // ==========================
@@ -132,7 +205,15 @@ public class AuthController {
 
         Usuario usuario = usuarioService.buscarPorEmail(emailLogin)
                 .orElseThrow(() ->
-                        new IllegalStateException("Usuario no encontrado tras autenticación"));
+                        new IllegalStateException("Usuario no encontrado tras autenticacion"));
+
+        if (!usuario.isEmailVerificado()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of(
+                            "error", "Email no verificado. Revisa tu correo.",
+                            "emailNoVerificado", true
+                    ));
+        }
 
         String token = jwtService.generarToken(
                 usuario.getEmail(),

@@ -80,6 +80,19 @@ public class Usuario {
     @Builder.Default
     private Plan plan = Plan.GRATUITO;
 
+    @Column(name = "email_verificado", nullable = false, columnDefinition = "BOOLEAN DEFAULT true")
+    @Builder.Default
+    private boolean emailVerificado = false;
+
+    @Column(name = "token_verificacion")
+    private String tokenVerificacion;
+
+    @Column(name = "token_verificacion_expiracion")
+    private LocalDateTime tokenVerificacionExpiracion;
+
+    @Column(name = "proveedor_oauth")
+    private String proveedorOauth;
+
     /**
      * Fecha y hora de creación del registro.
      *
