@@ -12,6 +12,9 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
@@ -33,8 +36,14 @@ public class BdnsImportEstrategiaService {
     @Value("${bdns.import.delay-ms:300}")
     private long delayMs;
 
-    @Value("${bdns.import.limite-convocatorias:5000}")
+    @Value("${bdns.import.limite-convocatorias:10000}")
     private int limiteConvocatoriasDefault;
+
+    @Value("${bdns.import.limite-full:620000}")
+    private int limiteFullDefault;
+
+    /** Hilos para enriquecer detalles de convocatorias en paralelo. */
+    private static final int HILOS_ENRIQUECIMIENTO = 5;
 
     private final BdnsClientService bdnsClientService;
     private final ConvocatoriaService convocatoriaService;
@@ -67,7 +76,8 @@ public class BdnsImportEstrategiaService {
                             long delayMsOverride,
                             Integer limiteConvocatorias) throws InterruptedException {
         long efectiveDelayMs = delayMsOverride >= 0 ? delayMsOverride : this.delayMs;
-        int limite = Math.max(1, limiteConvocatorias != null ? limiteConvocatorias : limiteConvocatoriasDefault);
+        int defaultLimite = modo == ModoImportacion.FULL ? limiteFullDefault : limiteConvocatoriasDefault;
+        int limite = Math.max(1, limiteConvocatorias != null ? limiteConvocatorias : defaultLimite);
         String ejecucionId = UUID.randomUUID().toString();
         log.info("BDNS import global: ejecucionId={} modo={} delayMs={} limite={}", ejecucionId, modo, efectiveDelayMs, limite);
 
@@ -154,9 +164,18 @@ public class BdnsImportEstrategiaService {
                     procesadas++;
                 }
 
-                // Enriquecer cada convocatoria con datos del endpoint de detalle
-                for (com.syntia.ai.model.dto.ConvocatoriaDTO dto : candidatas) {
-                    bdnsClientService.enriquecerConDetalle(dto);
+                // Enriquecer convocatorias con datos del endpoint de detalle EN PARALELO
+                ExecutorService enrichPool = Executors.newFixedThreadPool(HILOS_ENRIQUECIMIENTO);
+                try {
+                    List<CompletableFuture<Void>> futures = candidatas.stream()
+                            .map(dto -> CompletableFuture.runAsync(() -> {
+                                try { bdnsClientService.enriquecerConDetalle(dto); }
+                                catch (Exception e) { log.debug("Error enriqueciendo {}: {}", dto.getIdBdns(), e.getMessage()); }
+                            }, enrichPool))
+                            .toList();
+                    CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+                } finally {
+                    enrichPool.shutdown();
                 }
 
                 ResultadoPersistencia resultado = convocatoriaService.persistirNuevas(candidatas);

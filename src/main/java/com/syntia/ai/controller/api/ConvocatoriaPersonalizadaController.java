@@ -122,17 +122,16 @@ public class ConvocatoriaPersonalizadaController {
 
         Usuario usuario = resolverUsuario(authentication);
         Optional<Perfil> perfilOpt = perfilService.obtenerPerfil(usuario.getId());
-        List<Proyecto> proyectos = proyectoService.obtenerProyectos(usuario.getId());
 
         Perfil perfil = perfilOpt.orElse(null);
-        List<Convocatoria> pool = buildPool(perfil, proyectos);
+        List<Convocatoria> pool = buildPool(perfil);
 
         int safeSize = Math.min(Math.max(size, 1), 50);
         int safePage = Math.max(page, 0);
         int from = safePage * safeSize;
 
         List<ConvocatoriaPublicaDTO> todas = pool.stream()
-                .map(c -> matchService.toMatchDTO(c, perfil, proyectos))
+                .map(c -> matchService.toMatchDTO(c, perfil, List.of()))
                 .sorted(Comparator.comparingInt(ConvocatoriaPublicaDTO::getMatchScore).reversed())
                 .toList();
 
@@ -196,10 +195,13 @@ public class ConvocatoriaPersonalizadaController {
         boolean filtrarRegion = regionId != null;
         Set<Integer> regionIds = filtrarRegion
                 ? regionService.obtenerDescendientesIds(regionId)
-                : Set.of();
-        LocalDate fechaCierreHasta = plazoCierreDias != null && plazoCierreDias > 0
+                : Set.of(-1);
+        boolean filtrarFechaCierre = plazoCierreDias != null && plazoCierreDias > 0;
+        LocalDate fechaCierreHasta = filtrarFechaCierre
                 ? LocalDate.now().plusDays(plazoCierreDias)
-                : null;
+                : LocalDate.of(2099, 12, 31);
+        boolean filtrarPresupuesto = presupuestoMin != null && presupuestoMin > 0;
+        Double presupuestoMinEfectivo = filtrarPresupuesto ? presupuestoMin : 0.0;
 
         // Pool grande para re-ordenar por score/criterio
         PageRequest pageRequest = PageRequest.of(0, 200);
@@ -210,7 +212,9 @@ public class ConvocatoriaPersonalizadaController {
                 abierto == null || !abierto,
                 filtrarRegion,
                 regionIds,
-                presupuestoMin != null && presupuestoMin > 0 ? presupuestoMin : null,
+                filtrarPresupuesto,
+                presupuestoMinEfectivo,
+                filtrarFechaCierre,
                 fechaCierreHasta,
                 tipoBeneficiario.isBlank() ? null : tipoBeneficiario,
                 pageRequest
@@ -444,10 +448,10 @@ public class ConvocatoriaPersonalizadaController {
      * Construye el pool de candidatos: convocatorias filtradas por sector del usuario
      * más un conjunto de recientes para garantizar variedad.
      */
-    private List<Convocatoria> buildPool(Perfil perfil, List<Proyecto> proyectos) {
+    private List<Convocatoria> buildPool(Perfil perfil) {
         LinkedHashSet<Convocatoria> pool = new LinkedHashSet<>();
 
-        // Sector del perfil
+        // Sector del perfil (únicamente)
         if (perfil != null && perfil.getSector() != null) {
             List<String> kws = getKeywords(perfil.getSector());
             pool.addAll(convocatoriaRepository.buscarCandidatosPorKeywords(
@@ -455,18 +459,6 @@ public class ConvocatoriaPersonalizadaController {
                     kws.size() > 1 ? kws.get(1) : "",
                     kws.size() > 2 ? kws.get(2) : "",
                     PageRequest.of(0, POOL_SECTOR)
-            ));
-        }
-
-        // Sectores de proyectos
-        for (Proyecto p : proyectos) {
-            if (p.getSector() == null || pool.size() >= 150) break;
-            List<String> kws = getKeywords(p.getSector());
-            pool.addAll(convocatoriaRepository.buscarCandidatosPorKeywords(
-                    kws.size() > 0 ? kws.get(0) : "",
-                    kws.size() > 1 ? kws.get(1) : "",
-                    kws.size() > 2 ? kws.get(2) : "",
-                    PageRequest.of(0, 40)
             ));
         }
 

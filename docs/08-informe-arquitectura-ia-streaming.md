@@ -225,7 +225,7 @@ SSE es la elección ideal para Syntia porque:
 #### 3.3.1 Nuevo endpoint SSE en el controlador
 
 ```java
-// RecomendacionController.java — NUEVO ENDPOINT SSE
+// RecomendacionRestController.java — NUEVO ENDPOINT SSE
 
 @GetMapping("/generar-stream")
 public SseEmitter generarStream(@PathVariable Long proyectoId,
