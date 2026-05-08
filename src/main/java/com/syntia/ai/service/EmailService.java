@@ -2,16 +2,15 @@ package com.syntia.ai.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeMessage;
-
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
@@ -19,20 +18,22 @@ import java.util.Base64;
 @Service
 public class EmailService {
 
-    private final JavaMailSender mailSender;
+    private final HttpClient httpClient = HttpClient.newHttpClient();
 
-    @Value("${spring.mail.username}")
-    private String fromEmail;
+    @Value("${brevo.api-key:}")
+    private String brevoApiKey;
+
+    @Value("${brevo.sender-email:syntialicante@gmail.com}")
+    private String senderEmail;
+
+    @Value("${brevo.sender-name:Syntia}")
+    private String senderName;
 
     @Value("${app.frontend.url:http://localhost:3000}")
     private String frontendUrl;
 
     @Value("${jwt.secret}")
     private String jwtSecret;
-
-    public EmailService(JavaMailSender mailSender) {
-        this.mailSender = mailSender;
-    }
 
     public String generarFirma(String token) {
         try {
@@ -74,16 +75,48 @@ public class EmailService {
 
     private void enviarEmail(String destinatario, String asunto, String contenidoHtml) {
         try {
-            MimeMessage mensaje = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(mensaje, true, "UTF-8");
-            helper.setFrom(fromEmail);
-            helper.setTo(destinatario);
-            helper.setSubject(asunto);
-            helper.setText(contenidoHtml, true);
-            mailSender.send(mensaje);
-            log.info("Email enviado a: {}", destinatario);
-        } catch (MessagingException e) {
+            String jsonBody = """
+                    {
+                      "sender": {"name": "%s", "email": "%s"},
+                      "to": [{"email": "%s"}],
+                      "subject": "%s",
+                      "htmlContent": %s
+                    }
+                    """.formatted(
+                    senderName,
+                    senderEmail,
+                    destinatario.replace("\"", "\\\""),
+                    asunto.replace("\"", "\\\""),
+                    escapeJson(contenidoHtml)
+            );
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("https://api.brevo.com/v3/smtp/email"))
+                    .header("api-key", brevoApiKey)
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() == 201) {
+                log.info("Email enviado a: {}", destinatario);
+            } else {
+                log.error("Error al enviar email a {}: {} {}", destinatario, response.statusCode(), response.body());
+            }
+        } catch (Exception e) {
             log.error("Error al enviar email a {}: {}", destinatario, e.getMessage(), e);
         }
+    }
+
+    private String escapeJson(String text) {
+        return "\"" + text
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t")
+                + "\"";
     }
 }

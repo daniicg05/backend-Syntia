@@ -84,12 +84,6 @@
 
 
 
-		<!-- =================== EMAIL =================== -->
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-mail</artifactId>
-		</dependency>
-
 		<!-- =================== GOOGLE OAUTH2 =================== -->
 		<dependency>
 			<groupId>com.google.api-client</groupId>
