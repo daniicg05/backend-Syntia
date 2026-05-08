@@ -20,13 +20,16 @@ public class EmailService {
 
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
-    @Value("${brevo.api-key:}")
-    private String brevoApiKey;
+    @Value("${mailjet.api-key:}")
+    private String mailjetApiKey;
 
-    @Value("${brevo.sender-email:syntialicante@gmail.com}")
+    @Value("${mailjet.secret-key:}")
+    private String mailjetSecretKey;
+
+    @Value("${mailjet.sender-email:syntialicante@gmail.com}")
     private String senderEmail;
 
-    @Value("${brevo.sender-name:Syntia}")
+    @Value("${mailjet.sender-name:Syntia}")
     private String senderName;
 
     @Value("${app.frontend.url:http://localhost:3000}")
@@ -77,30 +80,35 @@ public class EmailService {
         try {
             String jsonBody = """
                     {
-                      "sender": {"name": "%s", "email": "%s"},
-                      "to": [{"email": "%s"}],
-                      "subject": "%s",
-                      "htmlContent": %s
+                      "Messages": [{
+                        "From": {"Email": "%s", "Name": "%s"},
+                        "To": [{"Email": "%s"}],
+                        "Subject": "%s",
+                        "HTMLPart": %s
+                      }]
                     }
                     """.formatted(
-                    senderName,
                     senderEmail,
+                    senderName,
                     destinatario.replace("\"", "\\\""),
                     asunto.replace("\"", "\\\""),
                     escapeJson(contenidoHtml)
             );
 
+            String auth = Base64.getEncoder().encodeToString(
+                    (mailjetApiKey + ":" + mailjetSecretKey).getBytes(StandardCharsets.UTF_8)
+            );
+
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("https://api.brevo.com/v3/smtp/email"))
-                    .header("api-key", brevoApiKey)
+                    .uri(URI.create("https://api.mailjet.com/v3.1/send"))
+                    .header("Authorization", "Basic " + auth)
                     .header("Content-Type", "application/json")
-                    .header("Accept", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
                     .build();
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
-            if (response.statusCode() == 201) {
+            if (response.statusCode() == 200) {
                 log.info("Email enviado a: {}", destinatario);
             } else {
                 log.error("Error al enviar email a {}: {} {}", destinatario, response.statusCode(), response.body());
