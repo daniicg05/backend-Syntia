@@ -5,6 +5,7 @@ package com.syntia.ai.service;
 import com.syntia.ai.model.HistorialCorreo;
 import com.syntia.ai.model.Rol;
 import com.syntia.ai.model.Usuario;
+import com.syntia.ai.repository.AnalisisConvocatoriaRepository;
 import com.syntia.ai.repository.HistorialCorreoRepository;
 import com.syntia.ai.repository.PerfilRepository;
 import com.syntia.ai.repository.ProyectoRepository;
@@ -34,6 +35,7 @@ public class UsuarioService {
     private final PerfilRepository perfilRepository;
     private final ProyectoRepository proyectoRepository;
     private final RecomendacionRepository recomendacionRepository;
+    private final AnalisisConvocatoriaRepository analisisConvocatoriaRepository;
     private final PasswordEncoder passwordEncoder;
 
     /**
@@ -69,12 +71,14 @@ public class UsuarioService {
                           PerfilRepository perfilRepository,
                           ProyectoRepository proyectoRepository,
                           RecomendacionRepository recomendacionRepository,
+                          AnalisisConvocatoriaRepository analisisConvocatoriaRepository,
                           PasswordEncoder passwordEncoder) {
         this.usuarioRepository = usuarioRepository;
         this.historialCorreoRepository = historialCorreoRepository;
         this.perfilRepository = perfilRepository;
         this.proyectoRepository = proyectoRepository;
         this.recomendacionRepository = recomendacionRepository;
+        this.analisisConvocatoriaRepository = analisisConvocatoriaRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -215,7 +219,8 @@ public class UsuarioService {
 
         validarNoEsSuperAdminProtegido(usuario);
 
-        // Orden importante para respetar FKs: recomendaciones -> proyectos -> perfil/historial -> usuario.
+        // Orden importante para respetar FKs: analisis -> recomendaciones -> proyectos -> perfil/historial -> usuario.
+        analisisConvocatoriaRepository.deleteByUsuarioId(id);
         recomendacionRepository.deleteByProyectoUsuarioId(id);
         proyectoRepository.deleteByUsuarioId(id);
         perfilRepository.deleteByUsuarioId(id);
