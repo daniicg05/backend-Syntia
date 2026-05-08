@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
+import org.springframework.scheduling.annotation.Async;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -49,6 +50,7 @@ public class EmailService {
         return firmaEsperada.equals(firma);
     }
 
+    @Async
     public void enviarEmailVerificacion(String destinatario, String token) {
         String firma = generarFirma(token);
         String enlace = frontendUrl + "/verificar-email?token=" + token + "&firma=" + firma;
@@ -81,8 +83,7 @@ public class EmailService {
             mailSender.send(mensaje);
             log.info("Email enviado a: {}", destinatario);
         } catch (MessagingException e) {
-            log.error("Error al enviar email a {}: {}", destinatario, e.getMessage());
-            throw new RuntimeException("No se pudo enviar el email de verificacion", e);
+            log.error("Error al enviar email a {}: {}", destinatario, e.getMessage(), e);
         }
     }
 }
