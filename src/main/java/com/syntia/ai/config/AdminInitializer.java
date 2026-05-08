@@ -31,8 +31,13 @@ public class AdminInitializer {
             return;
         }
         if (usuarioService.buscarPorEmail(adminEmail).isEmpty()) {
-            usuarioService.registrar(adminEmail, adminPassword, Rol.ADMIN);
-            log.info("Usuario admin creado: {}", adminEmail);
+            com.syntia.ai.model.Usuario admin = usuarioService.registrar(adminEmail, adminPassword, Rol.ADMIN);
+            admin.setEmailVerificado(true);
+            admin.setTokenVerificacion(null);
+            admin.setTokenVerificacionExpiracion(null);
+            // Save handled by transaction since registrar already saved, need explicit save
+            usuarioService.guardarDirecto(admin);
+            log.info("Usuario admin creado con email verificado: {}", adminEmail);
         }
     }
 }

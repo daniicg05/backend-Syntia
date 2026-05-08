@@ -16,8 +16,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Servicio de lógica de negocio para la gestión de usuarios.
@@ -91,12 +93,67 @@ public class UsuarioService {
             throw new IllegalStateException("El email ya está registrado: " + emailNormalizado);
         }
 
+        String tokenVerificacion = UUID.randomUUID().toString();
+
         Usuario usuario = Usuario.builder()
                 .email(emailNormalizado)
                 .password(passwordEncoder.encode(password))
                 .rol(rol)
+                .emailVerificado(false)
+                .tokenVerificacion(tokenVerificacion)
+                .tokenVerificacionExpiracion(LocalDateTime.now().plusHours(24))
                 .build();
 
+        return usuarioRepository.save(usuario);
+    }
+
+    public Usuario registrarConGoogle(String email, Rol rol) {
+        String emailNormalizado = email.toLowerCase().strip();
+
+        Optional<Usuario> existente = usuarioRepository.findByEmailIgnoreCase(emailNormalizado);
+        if (existente.isPresent()) {
+            return existente.get();
+        }
+
+        Usuario usuario = Usuario.builder()
+                .email(emailNormalizado)
+                .password(passwordEncoder.encode(UUID.randomUUID().toString()))
+                .rol(rol)
+                .emailVerificado(true)
+                .proveedorOauth("GOOGLE")
+                .build();
+
+        return usuarioRepository.save(usuario);
+    }
+
+    public Usuario verificarEmail(String token) {
+        Usuario usuario = usuarioRepository.findByTokenVerificacion(token)
+                .orElseThrow(() -> new IllegalArgumentException("Token de verificacion invalido"));
+
+        if (usuario.getTokenVerificacionExpiracion().isBefore(LocalDateTime.now())) {
+            throw new IllegalStateException("El token de verificacion ha expirado");
+        }
+
+        usuario.setEmailVerificado(true);
+        usuario.setTokenVerificacion(null);
+        usuario.setTokenVerificacionExpiracion(null);
+        return usuarioRepository.save(usuario);
+    }
+
+    public Usuario reenviarVerificacion(String email) {
+        Usuario usuario = usuarioRepository.findByEmailIgnoreCase(email.toLowerCase().strip())
+                .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"));
+
+        if (usuario.isEmailVerificado()) {
+            throw new IllegalStateException("El email ya esta verificado");
+        }
+
+        usuario.setTokenVerificacion(UUID.randomUUID().toString());
+        usuario.setTokenVerificacionExpiracion(LocalDateTime.now().plusHours(24));
+        return usuarioRepository.save(usuario);
+    }
+
+    public Usuario guardarDirecto(Usuario usuario) {
         return usuarioRepository.save(usuario);
     }
 
