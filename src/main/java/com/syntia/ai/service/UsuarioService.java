@@ -13,6 +13,7 @@ import com.syntia.ai.repository.RecomendacionRepository;
 import com.syntia.ai.repository.UsuarioRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,11 +39,8 @@ public class UsuarioService {
     private final AnalisisConvocatoriaRepository analisisConvocatoriaRepository;
     private final PasswordEncoder passwordEncoder;
 
-    /**
-     * Email reservado para la cuenta superadministradora protegida.
-     * Esta protección es lógica de negocio de backend y no depende del frontend.
-     */
-    private static final String SUPERADMIN_EMAIL = "admin@syntia.com";
+    @Value("${admin.email:admin@syntia.com}")
+    private String superadminEmail;
 
     /**
      * Determina si el usuario objetivo corresponde al superadmin protegido.
@@ -50,7 +48,7 @@ public class UsuarioService {
     private boolean isSuperAdmin(Usuario usuario) {
         return usuario != null
                 && usuario.getEmail() != null
-                && usuario.getEmail().equalsIgnoreCase(SUPERADMIN_EMAIL);
+                && usuario.getEmail().equalsIgnoreCase(superadminEmail);
     }
 
     /**
@@ -112,6 +110,14 @@ public class UsuarioService {
     }
 
     public Usuario registrarConGoogle(String email, Rol rol) {
+        return registrarConOauth(email, rol, "GOOGLE");
+    }
+
+    public Usuario registrarConFacebook(String email, Rol rol) {
+        return registrarConOauth(email, rol, "FACEBOOK");
+    }
+
+    private Usuario registrarConOauth(String email, Rol rol, String proveedor) {
         String emailNormalizado = email.toLowerCase().strip();
 
         Optional<Usuario> existente = usuarioRepository.findByEmailIgnoreCase(emailNormalizado);
@@ -124,7 +130,7 @@ public class UsuarioService {
                 .password(passwordEncoder.encode(UUID.randomUUID().toString()))
                 .rol(rol)
                 .emailVerificado(true)
-                .proveedorOauth("GOOGLE")
+                .proveedorOauth(proveedor)
                 .build();
 
         return usuarioRepository.save(usuario);
