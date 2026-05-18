@@ -158,11 +158,13 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
             "   (c.finalidad IS NOT NULL AND LOWER(c.finalidad) = LOWER(:sector))) AND " +
             "(:tipo IS NULL OR :tipo = '' OR " +
             "   (c.tipo IS NOT NULL AND LOWER(c.tipo) = LOWER(:tipo))) AND " +
-            "(:incluirCerradas = true OR c.abierto = true OR (c.abierto IS NULL AND (c.fechaCierre IS NULL OR c.fechaCierre >= CURRENT_DATE)))")
+            "(:abierto IS NULL OR " +
+            "   (:abierto = true AND (c.abierto = true OR (c.abierto IS NULL AND (c.fechaCierre IS NULL OR c.fechaCierre >= CURRENT_DATE)))) OR " +
+            "   (:abierto = false AND (c.abierto = false OR (c.abierto IS NULL AND c.fechaCierre IS NOT NULL AND c.fechaCierre < CURRENT_DATE))))")
     Page<Convocatoria> buscarPublico(@Param("q") String q,
                                      @Param("sector") String sector,
                                      @Param("tipo") String tipo,
-                                     @Param("incluirCerradas") boolean incluirCerradas,
+                                     @Param("abierto") Boolean abierto,
                                      Pageable pageable);
 
     /**
@@ -179,7 +181,9 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
             "   (c.finalidad IS NOT NULL AND LOWER(c.finalidad) = LOWER(:sector))) AND " +
             "(:tipo IS NULL OR :tipo = '' OR " +
             "   (c.tipo IS NOT NULL AND LOWER(c.tipo) = LOWER(:tipo))) AND " +
-            "(:incluirCerradas = true OR c.abierto = true OR (c.abierto IS NULL AND (c.fechaCierre IS NULL OR c.fechaCierre >= CURRENT_DATE))) AND " +
+            "(:abierto IS NULL OR " +
+            "   (:abierto = true AND (c.abierto = true OR (c.abierto IS NULL AND (c.fechaCierre IS NULL OR c.fechaCierre >= CURRENT_DATE)))) OR " +
+            "   (:abierto = false AND (c.abierto = false OR (c.abierto IS NULL AND c.fechaCierre IS NOT NULL AND c.fechaCierre < CURRENT_DATE)))) AND " +
             "(:filtrarRegion = false OR (c.regionId IN :regionIds OR c.provinciaId IN :regionIds OR LOWER(c.ubicacion) = 'nacional')) AND " +
             "(:filtrarPresupuesto = false OR (c.presupuesto IS NOT NULL AND c.presupuesto >= :presupuestoMin)) AND " +
             "(:filtrarFechaCierre = false OR (c.fechaCierre IS NOT NULL AND c.fechaCierre >= CURRENT_DATE AND c.fechaCierre <= :fechaCierreHasta)) AND " +
@@ -190,7 +194,7 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
     Page<Convocatoria> buscarPublicoConRegion(@Param("q") String q,
                                               @Param("sector") String sector,
                                               @Param("tipo") String tipo,
-                                              @Param("incluirCerradas") boolean incluirCerradas,
+                                              @Param("abierto") Boolean abierto,
                                               @Param("filtrarRegion") boolean filtrarRegion,
                                               @Param("regionIds") Collection<Integer> regionIds,
                                               @Param("filtrarPresupuesto") boolean filtrarPresupuesto,

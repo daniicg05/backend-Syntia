@@ -117,7 +117,7 @@ public class ConvocatoriaPublicaController {
                 q.isBlank() ? null : q,
                 sector.isBlank() ? null : sector,
                 tipo.isBlank() ? null : tipo,
-                abierto == null || !abierto,
+                abierto,
                 filtrarRegion,
                 regionIds,
                 filtrarPresupuesto,
