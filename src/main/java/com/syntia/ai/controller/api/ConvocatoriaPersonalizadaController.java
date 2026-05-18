@@ -26,6 +26,7 @@ import com.syntia.ai.service.UsuarioService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -204,7 +205,7 @@ public class ConvocatoriaPersonalizadaController {
         Double presupuestoMinEfectivo = filtrarPresupuesto ? presupuestoMin : 0.0;
 
         // Pool grande para re-ordenar por score/criterio
-        PageRequest pageRequest = PageRequest.of(0, 200);
+        PageRequest pageRequest = PageRequest.of(0, 200, Sort.by(Sort.Direction.DESC, "id"));
         var candidatos = convocatoriaRepository.buscarPublicoConRegion(
                 q.isBlank() ? null : q,
                 sector.isBlank() ? null : sector,
@@ -234,11 +235,14 @@ public class ConvocatoriaPersonalizadaController {
         // Ordenar según criterio solicitado
         Comparator<ConvocatoriaPublicaDTO> comparator = switch (sort) {
             case "plazo" -> Comparator.comparing(
-                    (ConvocatoriaPublicaDTO d) -> d.getFechaCierre() != null ? d.getFechaCierre() : java.time.LocalDate.MAX);
+                    (ConvocatoriaPublicaDTO d) -> d.getFechaCierre() != null ? d.getFechaCierre() : java.time.LocalDate.MAX)
+                    .thenComparing(ConvocatoriaPublicaDTO::getId, Comparator.reverseOrder());
             case "cuantia" -> Comparator.comparing(
                     (ConvocatoriaPublicaDTO d) -> d.getPresupuesto() != null ? d.getPresupuesto() : 0.0,
-                    Comparator.reverseOrder());
-            default -> Comparator.comparingInt(ConvocatoriaPublicaDTO::getMatchScore).reversed();
+                    Comparator.reverseOrder())
+                    .thenComparing(ConvocatoriaPublicaDTO::getId, Comparator.reverseOrder());
+            default -> Comparator.comparingInt(ConvocatoriaPublicaDTO::getMatchScore).reversed()
+                    .thenComparing(ConvocatoriaPublicaDTO::getId, Comparator.reverseOrder());
         };
         List<ConvocatoriaPublicaDTO> ordenados = scorados.stream().sorted(comparator).toList();
 
