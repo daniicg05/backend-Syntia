@@ -2,15 +2,15 @@ package com.syntia.ai.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeMessage;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
@@ -18,20 +18,25 @@ import java.util.Base64;
 @Service
 public class EmailService {
 
-    private final JavaMailSender mailSender;
+    private final HttpClient httpClient = HttpClient.newHttpClient();
 
-    @Value("${spring.mail.username}")
-    private String fromEmail;
+    @Value("${mailjet.api-key:}")
+    private String mailjetApiKey;
+
+    @Value("${mailjet.secret-key:}")
+    private String mailjetSecretKey;
+
+    @Value("${mailjet.sender-email:syntialicante@gmail.com}")
+    private String senderEmail;
+
+    @Value("${mailjet.sender-name:Syntia}")
+    private String senderName;
 
     @Value("${app.frontend.url:http://localhost:3000}")
     private String frontendUrl;
 
     @Value("${jwt.secret}")
     private String jwtSecret;
-
-    public EmailService(JavaMailSender mailSender) {
-        this.mailSender = mailSender;
-    }
 
     public String generarFirma(String token) {
         try {
@@ -49,6 +54,7 @@ public class EmailService {
         return firmaEsperada.equals(firma);
     }
 
+    @Async
     public void enviarEmailVerificacion(String destinatario, String token) {
         String firma = generarFirma(token);
         String enlace = frontendUrl + "/verificar-email?token=" + token + "&firma=" + firma;
@@ -72,17 +78,53 @@ public class EmailService {
 
     private void enviarEmail(String destinatario, String asunto, String contenidoHtml) {
         try {
-            MimeMessage mensaje = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(mensaje, true, "UTF-8");
-            helper.setFrom(fromEmail);
-            helper.setTo(destinatario);
-            helper.setSubject(asunto);
-            helper.setText(contenidoHtml, true);
-            mailSender.send(mensaje);
-            log.info("Email enviado a: {}", destinatario);
-        } catch (MessagingException e) {
-            log.error("Error al enviar email a {}: {}", destinatario, e.getMessage());
-            throw new RuntimeException("No se pudo enviar el email de verificacion", e);
+            String jsonBody = """
+                    {
+                      "Messages": [{
+                        "From": {"Email": "%s", "Name": "%s"},
+                        "To": [{"Email": "%s"}],
+                        "Subject": "%s",
+                        "HTMLPart": %s
+                      }]
+                    }
+                    """.formatted(
+                    senderEmail,
+                    senderName,
+                    destinatario.replace("\"", "\\\""),
+                    asunto.replace("\"", "\\\""),
+                    escapeJson(contenidoHtml)
+            );
+
+            String auth = Base64.getEncoder().encodeToString(
+                    (mailjetApiKey + ":" + mailjetSecretKey).getBytes(StandardCharsets.UTF_8)
+            );
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("https://api.mailjet.com/v3.1/send"))
+                    .header("Authorization", "Basic " + auth)
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() == 200) {
+                log.info("Email enviado a: {}", destinatario);
+            } else {
+                log.error("Error al enviar email a {}: {} {}", destinatario, response.statusCode(), response.body());
+            }
+        } catch (Exception e) {
+            log.error("Error al enviar email a {}: {}", destinatario, e.getMessage(), e);
         }
+    }
+
+    private String escapeJson(String text) {
+        return "\"" + text
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t")
+                + "\"";
     }
 }

@@ -82,12 +82,7 @@
 			<!-- Spring Security básico -->
 		</dependency>
 
-		<!-- =================== EMAIL =================== -->
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-mail</artifactId>
-			<!-- Envío de emails (verificación, notificaciones) -->
-		</dependency>
+
 
 		<!-- =================== GOOGLE OAUTH2 =================== -->
 		<dependency>
