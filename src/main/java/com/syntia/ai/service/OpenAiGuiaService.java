@@ -77,6 +77,8 @@ public class OpenAiGuiaService {
             Ejemplo BUENO: "Pulsa 'Certificados' en el menú superior, luego selecciona 'Estar al corriente de obligaciones tributarias'" \
             Ejemplo MALO: "Obtener certificado tributario" (demasiado genérico)
             - portal_action: qué mostrará el sistema tras la acción del usuario
+            - action_type: clasifica visualmente el paso con uno de estos valores exactos: \
+            formulario, adjuntar, firma, envio, consulta, notificacion, otro.
             - official_link: URL REAL del portal. OBLIGATORIO en TODOS los pasos. \
             Cada paso debe tener un official_link apuntando al portal o sección concreta que el usuario visitará.
 
@@ -116,6 +118,24 @@ public class OpenAiGuiaService {
             - Declaración de otras ayudas recibidas en régimen de minimis (si aplica)
             Añade a continuación los requisitos ESPECÍFICOS de la convocatoria.
 
+            FASE 5B — METADATOS VISUALES ESTRUCTURADOS
+            Genera campos adicionales para que el frontend pinte tarjetas, checklist y timeline sin inferir contenido:
+            - structured_documents: por cada documento incluye name, description, type, format y required. \
+            type debe ser: pdf, dni, certificado, declaracion, memoria, poder, formulario u otro. \
+            format debe ser: original, copia, compulsada, digital o no_especificado.
+            - deadlines: opening, closing, resolution y notes. Usa fechas reales si aparecen; si no, usa null o una nota breve.
+            - official: organism_name, official_url y portal_domain. portal_domain debe extraerse de una URL real disponible; no inventes dominios.
+            - ai_analysis: suitability_score, opportunities y risks. opportunities y risks deben ser arrays cortos, max 3 elementos cada uno.
+            - visual_identity: identifica el organismo principal con entity, domain, kind, scope y official_url. \
+            No incluyas URLs de imagen ni logos. Solo identifica la entidad para que el frontend resuelva una identidad visual controlada.
+            - visual_references: identifica entidades visuales relevantes por seccion. section debe ser una de: \
+            resumen, solicitud, documentos, requisitos, pasos, legal. entity puede ser AEAT, Seguridad Social, TGSS, FNMT, \
+            Comunidad de Madrid, DNI/NIE, Certificado digital, Sede electronica u otra entidad real mencionada. \
+            visual_type debe ser: tax_agency, social_security, regional_government, digital_certificate, identity_document, \
+            e_office, official_portal, legal_source, generic_document u other. No inventes URLs de imagen.
+            - En application_methods, structured_documents, visual_guides.steps y workflows.steps anade entity y visual_type \
+            cuando puedas identificar el organismo, portal o tipo documental asociado. Si no estas seguro usa null.
+
             FASE 6 — ADVERTENCIAS LEGALES (SIEMPRE INCLUIR)
             El último campo del JSON SIEMPRE debe incluir una advertencia con:
             - Que esta guía tiene carácter orientativo
@@ -138,8 +158,9 @@ public class OpenAiGuiaService {
             {"grant_summary":{"title":"...","organism":"...","objective":"...",\
             "who_can_apply":"...","deadline":"DD/MM/YYYY o descripción",\
             "official_link":"URL o null","legal_basis":"..."},\
-            "application_methods":[{"method":"online","description":"...","official_portal":"URL o null"}],\
+            "application_methods":[{"method":"online","description":"...","official_portal":"URL o null","entity":"Sede electronica","visual_type":"e_office"}],\
             "required_documents":["doc1","doc2"],\
+            "structured_documents":[{"name":"...","description":"...","type":"certificado","format":"digital","required":true,"entity":"AEAT","visual_type":"tax_agency"}],\
             "universal_requirements_lgs_art13":[\
             "Certificado al corriente con AEAT",\
             "Certificado situación cotización TGSS",\
@@ -151,13 +172,18 @@ public class OpenAiGuiaService {
             "title":"...","description":"...",\
             "user_action":"...","portal_action":"...",\
             "required_documents":["..."],"official_link":null,\
-            "estimated_time_minutes":5}]}],\
+            "estimated_time_minutes":5,"action_type":"formulario","portal_entity":"Sede electronica","visual_type":"e_office"}]}],\
             "visual_guides":[{"method":"online",\
             "steps":[{"step":1,"phase":"preparation",\
             "title":"...","description":"...",\
             "screen_hint":"https://url-real-del-portal.gob.es/pagina",\
             "image_prompt":"...",\
-            "official_link":"https://url-real-del-portal.gob.es/pagina"}]}],\
+            "official_link":"https://url-real-del-portal.gob.es/pagina","entity":"Sede electronica","visual_type":"official_portal"}]}],\
+            "deadlines":{"opening":null,"closing":"DD/MM/YYYY","resolution":null,"notes":"..."},\
+            "official":{"organism_name":"...","official_url":"URL o null","portal_domain":"dominio.gob.es o null"},\
+            "ai_analysis":{"suitability_score":0,"opportunities":["..."],"risks":["..."]},\
+            "visual_identity":{"entity":"...","domain":"...","kind":"regional_government","scope":"autonomico","official_url":"URL o null"},\
+            "visual_references":[{"section":"documentos","entity":"AEAT","visual_type":"tax_agency","domain":"sede.agenciatributaria.gob.es","official_url":"https://sede.agenciatributaria.gob.es/","label":"Certificado AEAT"}],\
             "legal_disclaimer":"Guía orientativa generada con datos de BDNS. Verificar requisitos en convocatoria oficial y bases reguladoras. Normativa: Ley 38/2003 y RD 887/2006. Syntia no asume responsabilidad."}
             """;
 
@@ -165,7 +191,7 @@ public class OpenAiGuiaService {
     private static final int MAX_DETALLE_CHARS = 3000;
 
     /** Versión del prompt — incrementar al cambiar el formato para invalidar guías cacheadas. */
-    private static final int PROMPT_VERSION = 4;
+    private static final int PROMPT_VERSION = 6;
 
     private final OpenAiClient openAiClient;
     private final ObjectMapper objectMapper;
