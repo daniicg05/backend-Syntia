@@ -113,10 +113,6 @@ public class UsuarioService {
         return registrarConOauth(email, rol, "GOOGLE");
     }
 
-    public Usuario registrarConFacebook(String email, Rol rol) {
-        return registrarConOauth(email, rol, "FACEBOOK");
-    }
-
     private Usuario registrarConOauth(String email, Rol rol, String proveedor) {
         String emailNormalizado = email.toLowerCase().strip();
 
