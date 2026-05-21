@@ -9,7 +9,6 @@ import com.syntia.ai.model.dto.RegistroDTO;
 import com.syntia.ai.security.JwtService;
 import com.syntia.ai.service.DashboardService;
 import com.syntia.ai.service.EmailService;
-import com.syntia.ai.service.FacebookAuthService;
 import com.syntia.ai.service.GoogleAuthService;
 import com.syntia.ai.service.UsuarioService;
 import jakarta.validation.Valid;
@@ -41,7 +40,6 @@ public class AuthController {
     private final DashboardService dashboardService;
     private final EmailService emailService;
     private final GoogleAuthService googleAuthService;
-    private final FacebookAuthService facebookAuthService;
 
     @Value("${jwt.expiration}")
     private long jwtExpiration;
@@ -51,15 +49,13 @@ public class AuthController {
                           UsuarioService usuarioService,
                           DashboardService dashboardService,
                           EmailService emailService,
-                          GoogleAuthService googleAuthService,
-                          FacebookAuthService facebookAuthService) {
+                          GoogleAuthService googleAuthService) {
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.usuarioService = usuarioService;
         this.dashboardService = dashboardService;
         this.emailService = emailService;
         this.googleAuthService = googleAuthService;
-        this.facebookAuthService = facebookAuthService;
     }
 
     // ==========================
@@ -171,28 +167,6 @@ public class AuthController {
         }
 
         Usuario usuario = usuarioService.registrarConGoogle(email, Rol.USUARIO);
-        String jwt = jwtService.generarToken(usuario.getEmail(), usuario.getRol().name());
-
-        return ResponseEntity.ok(new LoginResponseDTO(jwt, usuario.getEmail(), usuario.getRol().name(), jwtExpiration));
-    }
-
-    // ==========================
-    // LOGIN CON FACEBOOK
-    // ==========================
-    @PostMapping("/auth/facebook")
-    public ResponseEntity<?> loginConFacebook(@RequestBody Map<String, String> body) {
-        String accessToken = body.get("accessToken");
-        if (accessToken == null || accessToken.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Token de Facebook requerido"));
-        }
-
-        FacebookAuthService.FacebookUserInfo userInfo = facebookAuthService.verificarToken(accessToken);
-        if (userInfo == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "Token de Facebook invalido"));
-        }
-
-        Usuario usuario = usuarioService.registrarConFacebook(userInfo.email(), Rol.USUARIO);
         String jwt = jwtService.generarToken(usuario.getEmail(), usuario.getRol().name());
 
         return ResponseEntity.ok(new LoginResponseDTO(jwt, usuario.getEmail(), usuario.getRol().name(), jwtExpiration));
