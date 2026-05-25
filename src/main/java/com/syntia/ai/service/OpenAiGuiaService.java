@@ -133,6 +133,7 @@ public class OpenAiGuiaService {
             Comunidad de Madrid, DNI/NIE, Certificado digital, Sede electronica u otra entidad real mencionada. \
             visual_type debe ser: tax_agency, social_security, regional_government, digital_certificate, identity_document, \
             e_office, official_portal, legal_source, generic_document u other. No inventes URLs de imagen.
+            Incluye search_hint como texto breve de busqueda institucional, por ejemplo "logo oficial Comunidad de Madrid sede electronica".
             - En application_methods, structured_documents, visual_guides.steps y workflows.steps anade entity y visual_type \
             cuando puedas identificar el organismo, portal o tipo documental asociado. Si no estas seguro usa null.
 
@@ -183,7 +184,7 @@ public class OpenAiGuiaService {
             "official":{"organism_name":"...","official_url":"URL o null","portal_domain":"dominio.gob.es o null"},\
             "ai_analysis":{"suitability_score":0,"opportunities":["..."],"risks":["..."]},\
             "visual_identity":{"entity":"...","domain":"...","kind":"regional_government","scope":"autonomico","official_url":"URL o null"},\
-            "visual_references":[{"section":"documentos","entity":"AEAT","visual_type":"tax_agency","domain":"sede.agenciatributaria.gob.es","official_url":"https://sede.agenciatributaria.gob.es/","label":"Certificado AEAT"}],\
+            "visual_references":[{"section":"documentos","entity":"AEAT","visual_type":"tax_agency","domain":"sede.agenciatributaria.gob.es","official_url":"https://sede.agenciatributaria.gob.es/","label":"Certificado AEAT","search_hint":"logo oficial Agencia Tributaria certificado obligaciones tributarias"}],\
             "legal_disclaimer":"Guía orientativa generada con datos de BDNS. Verificar requisitos en convocatoria oficial y bases reguladoras. Normativa: Ley 38/2003 y RD 887/2006. Syntia no asume responsabilidad."}
             """;
 
@@ -196,11 +197,15 @@ public class OpenAiGuiaService {
     private final OpenAiClient openAiClient;
     private final ObjectMapper objectMapper;
     private final RecomendacionRepository recomendacionRepository;
+    private final GuiaVisualAssetService guiaVisualAssetService;
 
-    public OpenAiGuiaService(OpenAiClient openAiClient, RecomendacionRepository recomendacionRepository) {
+    public OpenAiGuiaService(OpenAiClient openAiClient,
+                             RecomendacionRepository recomendacionRepository,
+                             GuiaVisualAssetService guiaVisualAssetService) {
         this.openAiClient = openAiClient;
         this.objectMapper = new ObjectMapper();
         this.recomendacionRepository = recomendacionRepository;
+        this.guiaVisualAssetService = guiaVisualAssetService;
     }
 
     /**
@@ -341,7 +346,9 @@ public class OpenAiGuiaService {
      */
     private GuiaSubvencionDTO parsearGuia(String respuesta, Convocatoria convocatoria) {
         try {
-            GuiaSubvencionDTO guia = objectMapper.readValue(respuesta, GuiaSubvencionDTO.class);
+            GuiaSubvencionDTO guia = guiaVisualAssetService.enriquecerGuia(
+                    objectMapper.readValue(respuesta, GuiaSubvencionDTO.class)
+            );
             log.info("Guía enriquecida generada para '{}': {} métodos, {} workflows",
                     convocatoria.getTitulo(),
                     guia.getApplicationMethods() != null ? guia.getApplicationMethods().size() : 0,
@@ -379,7 +386,7 @@ public class OpenAiGuiaService {
     public GuiaSubvencionDTO deserializarGuia(String json) {
         if (json == null || json.isBlank()) return null;
         try {
-            return objectMapper.readValue(json, GuiaSubvencionDTO.class);
+            return guiaVisualAssetService.enriquecerGuia(objectMapper.readValue(json, GuiaSubvencionDTO.class));
         } catch (Exception e) {
             log.warn("Error deserializando guía almacenada: {}", e.getMessage());
             return null;

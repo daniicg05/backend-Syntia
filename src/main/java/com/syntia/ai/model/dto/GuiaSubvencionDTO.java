@@ -302,6 +302,18 @@ public class GuiaSubvencionDTO {
 
         @JsonProperty("official_url")
         private String officialUrl;
+
+        @JsonProperty("visual_asset_url")
+        private String visualAssetUrl;
+
+        @JsonProperty("visual_asset_source")
+        private String visualAssetSource;
+
+        @JsonProperty("visual_asset_status")
+        private String visualAssetStatus;
+
+        @JsonProperty("visual_asset_confidence")
+        private Integer visualAssetConfidence;
     }
 
     @Getter
@@ -325,6 +337,21 @@ public class GuiaSubvencionDTO {
         private String officialUrl;
 
         private String label;
+
+        @JsonProperty("search_hint")
+        private String searchHint;
+
+        @JsonProperty("visual_asset_url")
+        private String visualAssetUrl;
+
+        @JsonProperty("visual_asset_source")
+        private String visualAssetSource;
+
+        @JsonProperty("visual_asset_status")
+        private String visualAssetStatus;
+
+        @JsonProperty("visual_asset_confidence")
+        private Integer visualAssetConfidence;
     }
 
     @Getter
