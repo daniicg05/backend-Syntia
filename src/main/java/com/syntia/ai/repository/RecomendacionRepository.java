@@ -157,4 +157,8 @@ public interface RecomendacionRepository extends JpaRepository<Recomendacion, In
     @Modifying
     @Query("DELETE FROM Recomendacion r WHERE r.id = :id AND r.proyecto.usuario.id = :usuarioId")
     int deleteByIdAndUsuarioId(@Param("id") Long id, @Param("usuarioId") Long usuarioId);
+
+    @Query("SELECT r FROM Recomendacion r JOIN FETCH r.convocatoria JOIN FETCH r.proyecto " +
+           "WHERE r.id = :id AND r.proyecto.usuario.id = :usuarioId AND r.guiaEnriquecida IS NOT NULL")
+    Optional<Recomendacion> findByIdAndUsuarioIdConGuia(@Param("id") Long id, @Param("usuarioId") Long usuarioId);
 }

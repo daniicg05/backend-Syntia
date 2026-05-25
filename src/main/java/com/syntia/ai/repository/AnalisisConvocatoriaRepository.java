@@ -39,4 +39,8 @@ public interface AnalisisConvocatoriaRepository extends JpaRepository<AnalisisCo
     @Modifying
     @Query("DELETE FROM AnalisisConvocatoria a WHERE a.proyecto.id = :proyectoId")
     void deleteByProyectoId(@Param("proyectoId") Long proyectoId);
+
+    @Query("SELECT a FROM AnalisisConvocatoria a JOIN FETCH a.convocatoria LEFT JOIN FETCH a.proyecto " +
+           "WHERE a.id = :id AND a.usuario.id = :usuarioId AND a.guiaEnriquecida IS NOT NULL")
+    Optional<AnalisisConvocatoria> findByIdAndUsuarioIdConGuia(@Param("id") Long id, @Param("usuarioId") Long usuarioId);
 }

@@ -46,7 +46,7 @@ public class CorsConfig {
         ));
 
         configuration.setExposedHeaders(List.of(
-                "Authorization", "Location"
+                "Authorization", "Location", "Content-Disposition"
         ));
 
         configuration.setAllowCredentials(true);
