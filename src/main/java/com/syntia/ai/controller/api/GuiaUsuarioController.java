@@ -8,6 +8,7 @@ import com.syntia.ai.model.dto.GuiaUsuarioDTO;
 import com.syntia.ai.repository.AnalisisConvocatoriaRepository;
 import com.syntia.ai.repository.RecomendacionRepository;
 import com.syntia.ai.service.GuiaPdfService;
+import com.syntia.ai.service.GuiaTranslationService;
 import com.syntia.ai.service.OpenAiGuiaService;
 import com.syntia.ai.service.UsuarioService;
 import org.springframework.http.HttpHeaders;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,17 +40,20 @@ public class GuiaUsuarioController {
     private final OpenAiGuiaService openAiGuiaService;
     private final UsuarioService usuarioService;
     private final GuiaPdfService guiaPdfService;
+    private final GuiaTranslationService guiaTranslationService;
 
     public GuiaUsuarioController(RecomendacionRepository recomendacionRepository,
                                  AnalisisConvocatoriaRepository analisisConvocatoriaRepository,
                                  OpenAiGuiaService openAiGuiaService,
                                  UsuarioService usuarioService,
-                                 GuiaPdfService guiaPdfService) {
+                                 GuiaPdfService guiaPdfService,
+                                 GuiaTranslationService guiaTranslationService) {
         this.recomendacionRepository = recomendacionRepository;
         this.analisisConvocatoriaRepository = analisisConvocatoriaRepository;
         this.openAiGuiaService = openAiGuiaService;
         this.usuarioService = usuarioService;
         this.guiaPdfService = guiaPdfService;
+        this.guiaTranslationService = guiaTranslationService;
     }
 
     @GetMapping
@@ -151,11 +156,13 @@ public class GuiaUsuarioController {
     @GetMapping("/{origen}/{id}/pdf")
     public ResponseEntity<byte[]> descargarPdf(@PathVariable String origen,
                                                @PathVariable Long id,
+                                               @RequestParam(name = "lang", required = false) String lang,
                                                Authentication authentication) {
         if (!"recomendacion".equals(origen) && !"analisis".equals(origen)) {
             return ResponseEntity.badRequest().build();
         }
 
+        String normalizedLang = GuiaTranslationService.normalizeLang(lang);
         Usuario usuario = resolverUsuario(authentication);
         GuiaUsuarioDTO guiaDto;
 
@@ -180,7 +187,8 @@ public class GuiaUsuarioController {
             default -> { return ResponseEntity.badRequest().build(); }
         }
 
-        byte[] pdfBytes = guiaPdfService.generarPdf(guiaDto);
+        guiaDto = guiaTranslationService.translate(guiaDto, normalizedLang);
+        byte[] pdfBytes = guiaPdfService.generarPdf(guiaDto, normalizedLang);
         String filename = guiaPdfService.sanitizeFilename(guiaDto.getTitulo());
 
         return ResponseEntity.ok()

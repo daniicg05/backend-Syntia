@@ -169,6 +169,12 @@
 			<version>1.0.10</version>
 		</dependency>
 
+		<!-- =================== CACHE (Caffeine) =================== -->
+		<dependency>
+			<groupId>com.github.ben-manes.caffeine</groupId>
+			<artifactId>caffeine</artifactId>
+		</dependency>
+
 		<!-- =================== RETRY =================== -->
 		<dependency>
 			<groupId>org.springframework.retry</groupId>

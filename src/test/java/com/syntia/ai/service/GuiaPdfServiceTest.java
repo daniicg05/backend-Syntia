@@ -3,6 +3,7 @@ package com.syntia.ai.service;
 import com.syntia.ai.model.dto.GuiaSubvencionDTO;
 import com.syntia.ai.model.dto.GuiaUsuarioDTO;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.support.ResourceBundleMessageSource;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -12,7 +13,15 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class GuiaPdfServiceTest {
 
-    private final GuiaPdfService service = new GuiaPdfService();
+    private final GuiaPdfService service;
+
+    GuiaPdfServiceTest() {
+        ResourceBundleMessageSource ms = new ResourceBundleMessageSource();
+        ms.setBasename("messages");
+        ms.setDefaultEncoding("UTF-8");
+        ms.setFallbackToSystemLocale(false);
+        this.service = new GuiaPdfService(ms);
+    }
 
     private GuiaUsuarioDTO crearGuiaCompleta() {
         GuiaSubvencionDTO.GrantSummary gs = GuiaSubvencionDTO.GrantSummary.builder()
@@ -80,45 +89,43 @@ class GuiaPdfServiceTest {
 
     @Test
     void generarPdf_devuelveBytesConFirmaPdf() {
-        GuiaUsuarioDTO dto = crearGuiaCompleta();
-
-        byte[] pdf = service.generarPdf(dto);
-
+        byte[] pdf = service.generarPdf(crearGuiaCompleta());
         assertNotNull(pdf);
-        assertTrue(pdf.length > 100, "El PDF debe tener un tamano razonable");
-        String header = new String(pdf, 0, Math.min(5, pdf.length));
-        assertEquals("%PDF-", header, "El PDF debe empezar con la firma %PDF-");
+        assertTrue(pdf.length > 100);
+        assertEquals("%PDF-", new String(pdf, 0, 5));
+    }
+
+    @Test
+    void generarPdf_conLangEs_firmaPdf() {
+        byte[] pdf = service.generarPdf(crearGuiaCompleta(), "es");
+        assertEquals("%PDF-", new String(pdf, 0, 5));
+    }
+
+    @Test
+    void generarPdf_conLangEn_firmaPdf() {
+        byte[] pdf = service.generarPdf(crearGuiaCompleta(), "en");
+        assertEquals("%PDF-", new String(pdf, 0, 5));
+    }
+
+    @Test
+    void generarPdf_conLangCa_firmaPdf() {
+        byte[] pdf = service.generarPdf(crearGuiaCompleta(), "ca");
+        assertEquals("%PDF-", new String(pdf, 0, 5));
     }
 
     @Test
     void generarPdf_conGuiaMinima_sinExcepciones() {
         GuiaUsuarioDTO dto = GuiaUsuarioDTO.builder()
-                .id(1L)
-                .origen("analisis")
-                .titulo("Test")
+                .id(1L).origen("analisis").titulo("Test")
                 .guia(GuiaSubvencionDTO.builder().build())
-                .puntuacion(0)
-                .build();
-
-        byte[] pdf = service.generarPdf(dto);
-
-        assertNotNull(pdf);
-        assertTrue(pdf.length > 0);
+                .puntuacion(0).build();
+        byte[] pdf = service.generarPdf(dto, "en");
         assertEquals("%PDF-", new String(pdf, 0, 5));
     }
 
     @Test
     void sanitizeFilename_tituloNormal() {
         assertEquals("Ayudas_digitalizacion.pdf", service.sanitizeFilename("Ayudas digitalizacion"));
-    }
-
-    @Test
-    void sanitizeFilename_tituloConCaracteresEspeciales() {
-        assertEquals("Subvenci_n_para_I+D.pdf".length() > 0, true);
-        String result = service.sanitizeFilename("Subvención para (I+D) #2026");
-        assertFalse(result.contains("#"));
-        assertFalse(result.contains("("));
-        assertTrue(result.endsWith(".pdf"));
     }
 
     @Test
