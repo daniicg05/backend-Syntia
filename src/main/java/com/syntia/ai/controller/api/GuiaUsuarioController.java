@@ -7,8 +7,12 @@ import com.syntia.ai.model.dto.GuiaSubvencionDTO;
 import com.syntia.ai.model.dto.GuiaUsuarioDTO;
 import com.syntia.ai.repository.AnalisisConvocatoriaRepository;
 import com.syntia.ai.repository.RecomendacionRepository;
+import com.syntia.ai.service.GuiaPdfService;
+import com.syntia.ai.service.GuiaTranslationService;
 import com.syntia.ai.service.OpenAiGuiaService;
 import com.syntia.ai.service.UsuarioService;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -17,6 +21,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,15 +39,21 @@ public class GuiaUsuarioController {
     private final AnalisisConvocatoriaRepository analisisConvocatoriaRepository;
     private final OpenAiGuiaService openAiGuiaService;
     private final UsuarioService usuarioService;
+    private final GuiaPdfService guiaPdfService;
+    private final GuiaTranslationService guiaTranslationService;
 
     public GuiaUsuarioController(RecomendacionRepository recomendacionRepository,
                                  AnalisisConvocatoriaRepository analisisConvocatoriaRepository,
                                  OpenAiGuiaService openAiGuiaService,
-                                 UsuarioService usuarioService) {
+                                 UsuarioService usuarioService,
+                                 GuiaPdfService guiaPdfService,
+                                 GuiaTranslationService guiaTranslationService) {
         this.recomendacionRepository = recomendacionRepository;
         this.analisisConvocatoriaRepository = analisisConvocatoriaRepository;
         this.openAiGuiaService = openAiGuiaService;
         this.usuarioService = usuarioService;
+        this.guiaPdfService = guiaPdfService;
+        this.guiaTranslationService = guiaTranslationService;
     }
 
     @GetMapping
@@ -139,6 +150,95 @@ public class GuiaUsuarioController {
         }
 
         return eliminadas > 0 ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
+    }
+
+    @Transactional(readOnly = true)
+    @GetMapping("/{origen}/{id}/pdf")
+    public ResponseEntity<byte[]> descargarPdf(@PathVariable String origen,
+                                               @PathVariable Long id,
+                                               @RequestParam(name = "lang", required = false) String lang,
+                                               Authentication authentication) {
+        if (!"recomendacion".equals(origen) && !"analisis".equals(origen)) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        String normalizedLang = GuiaTranslationService.normalizeLang(lang);
+        Usuario usuario = resolverUsuario(authentication);
+        GuiaUsuarioDTO guiaDto;
+
+        switch (origen) {
+            case "recomendacion" -> {
+                Recomendacion rec = recomendacionRepository
+                        .findByIdAndUsuarioIdConGuia(id, usuario.getId()).orElse(null);
+                if (rec == null) return ResponseEntity.notFound().build();
+                GuiaSubvencionDTO guiaSubv = openAiGuiaService.deserializarGuia(rec.getGuiaEnriquecida());
+                if (guiaSubv == null) return ResponseEntity.notFound().build();
+                guiaDto = buildDtoFromRecomendacion(rec, guiaSubv);
+            }
+            case "analisis" -> {
+                long realId = id >= ANALISIS_ID_OFFSET ? id - ANALISIS_ID_OFFSET : id;
+                AnalisisConvocatoria a = analisisConvocatoriaRepository
+                        .findByIdAndUsuarioIdConGuia(realId, usuario.getId()).orElse(null);
+                if (a == null) return ResponseEntity.notFound().build();
+                GuiaSubvencionDTO guiaSubv = openAiGuiaService.deserializarGuia(a.getGuiaEnriquecida());
+                if (guiaSubv == null) return ResponseEntity.notFound().build();
+                guiaDto = buildDtoFromAnalisis(a, guiaSubv);
+            }
+            default -> { return ResponseEntity.badRequest().build(); }
+        }
+
+        guiaDto = guiaTranslationService.translate(guiaDto, normalizedLang);
+        byte[] pdfBytes = guiaPdfService.generarPdf(guiaDto, normalizedLang);
+        String filename = guiaPdfService.sanitizeFilename(guiaDto.getTitulo());
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_PDF_VALUE)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .body(pdfBytes);
+    }
+
+    private GuiaUsuarioDTO buildDtoFromRecomendacion(Recomendacion rec, GuiaSubvencionDTO guia) {
+        String numConv = rec.getConvocatoria().getNumeroConvocatoria();
+        String url = (numConv != null && !numConv.isBlank())
+                ? "https://www.infosubvenciones.es/bdnstrans/GE/es/convocatoria/" + numConv
+                : rec.getConvocatoria().getUrlOficial();
+
+        return GuiaUsuarioDTO.builder()
+                .id(rec.getId())
+                .origen("recomendacion")
+                .titulo(rec.getConvocatoria().getTitulo())
+                .organismo(rec.getConvocatoria().getOrganismo())
+                .sector(rec.getConvocatoria().getSector())
+                .ubicacion(rec.getConvocatoria().getUbicacion())
+                .fechaCierre(rec.getConvocatoria().getFechaCierre())
+                .urlOficial(url)
+                .proyectoNombre(rec.getProyecto().getNombre())
+                .guia(guia)
+                .creadoEn(rec.getGeneradaEn())
+                .puntuacion(rec.getPuntuacion())
+                .build();
+    }
+
+    private GuiaUsuarioDTO buildDtoFromAnalisis(AnalisisConvocatoria a, GuiaSubvencionDTO guia) {
+        String numConv = a.getConvocatoria().getNumeroConvocatoria();
+        String url = (numConv != null && !numConv.isBlank())
+                ? "https://www.infosubvenciones.es/bdnstrans/GE/es/convocatoria/" + numConv
+                : a.getConvocatoria().getUrlOficial();
+
+        return GuiaUsuarioDTO.builder()
+                .id(a.getId() + ANALISIS_ID_OFFSET)
+                .origen("analisis")
+                .titulo(a.getConvocatoria().getTitulo())
+                .organismo(a.getConvocatoria().getOrganismo())
+                .sector(a.getConvocatoria().getSector())
+                .ubicacion(a.getConvocatoria().getUbicacion())
+                .fechaCierre(a.getConvocatoria().getFechaCierre())
+                .urlOficial(url)
+                .proyectoNombre(a.getProyecto() != null ? a.getProyecto().getNombre() : null)
+                .guia(guia)
+                .creadoEn(a.getCreadoEn())
+                .puntuacion(0)
+                .build();
     }
 
     private Usuario resolverUsuario(Authentication authentication) {

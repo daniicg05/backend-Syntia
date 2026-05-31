@@ -59,6 +59,24 @@ public class GuiaSubvencionDTO {
     @JsonProperty("legal_disclaimer")
     private String legalDisclaimer;
 
+    @Valid
+    @JsonProperty("official")
+    private OfficialInfo official;
+
+    @Valid
+    @JsonProperty("visual_identity")
+    private VisualIdentity visualIdentity;
+
+    @Valid
+    @Builder.Default
+    @JsonProperty("visual_references")
+    private List<VisualReference> visualReferences = new ArrayList<>();
+
+    @Valid
+    @Builder.Default
+    @JsonProperty("structured_documents")
+    private List<StructuredDocument> structuredDocuments = new ArrayList<>();
+
     // ── Clases internas ──
 
     @Getter
@@ -100,6 +118,11 @@ public class GuiaSubvencionDTO {
 
         @JsonProperty("official_portal")
         private String officialPortal;
+
+        private String entity;
+
+        @JsonProperty("visual_type")
+        private String visualType;
     }
 
     @Getter
@@ -147,6 +170,15 @@ public class GuiaSubvencionDTO {
 
         @JsonProperty("estimated_time_minutes")
         private Integer estimatedTimeMinutes;
+
+        @JsonProperty("portal_entity")
+        private String portalEntity;
+
+        @JsonProperty("visual_type")
+        private String visualType;
+
+        @JsonProperty("action_type")
+        private String actionType;
     }
 
     @Getter
@@ -187,5 +219,109 @@ public class GuiaSubvencionDTO {
 
         @JsonProperty("official_link")
         private String officialLink;
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class OfficialInfo {
+
+        @JsonProperty("organism_name")
+        private String organismName;
+
+        @JsonProperty("official_url")
+        private String officialUrl;
+
+        @JsonProperty("portal_domain")
+        private String portalDomain;
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class VisualIdentity {
+
+        private String entity;
+        private String kind;
+        private String domain;
+
+        @JsonProperty("official_url")
+        private String officialUrl;
+
+        @JsonProperty("visual_asset_url")
+        private String visualAssetUrl;
+
+        @JsonProperty("visual_asset_source")
+        private String visualAssetSource;
+
+        @JsonProperty("visual_asset_status")
+        private String visualAssetStatus;
+
+        @JsonProperty("visual_asset_confidence")
+        private Integer visualAssetConfidence;
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class VisualReference {
+
+        private String section;
+        private String entity;
+
+        @JsonProperty("visual_type")
+        private String visualType;
+
+        private String domain;
+
+        @JsonProperty("official_url")
+        private String officialUrl;
+
+        private String label;
+
+        @JsonProperty("search_hint")
+        private String searchHint;
+
+        @JsonProperty("visual_asset_url")
+        private String visualAssetUrl;
+
+        @JsonProperty("visual_asset_source")
+        private String visualAssetSource;
+
+        @JsonProperty("visual_asset_status")
+        private String visualAssetStatus;
+
+        @JsonProperty("visual_asset_confidence")
+        private Integer visualAssetConfidence;
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class StructuredDocument {
+
+        private String name;
+        private String description;
+        private String type;
+        private String entity;
+
+        @JsonProperty("visual_type")
+        private String visualType;
     }
 }
